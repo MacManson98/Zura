@@ -3,7 +3,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../../services/auth_service.dart';
 import '../../models/user_profile.dart';
 import '../../utils/user_profile_storage.dart';
-import 'package:movie_matcher_clean/auth_gate.dart';
+import 'package:Zura/auth_gate.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});

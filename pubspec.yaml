@@ -1,5 +1,5 @@
-name: movie_matcher_clean
-description: A cleaned-up test project for movie matcher.
+name: Zura
+description: A smart movie matcher for friends and film lovers.
 version: 1.0.0+1
 
 environment:
@@ -40,7 +40,6 @@ flutter:
     - assets/icons/
     - assets/movies.json
     - assets/placeholder.png
-    - assets/movies.json
     - assets/imdb.png
     - assets/certified.png
     - assets/fresh.png

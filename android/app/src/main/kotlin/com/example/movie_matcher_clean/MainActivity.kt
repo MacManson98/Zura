@@ -1,4 +1,4 @@
-package com.example.movie_matcher_clean
+package com.example.zura
 
 import io.flutter.embedding.android.FlutterActivity
 
