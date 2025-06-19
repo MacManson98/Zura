@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "173034299087",
+    "project_id": "reel-match-e7729",
+    "storage_bucket": "reel-match-e7729.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:173034299087:android:f9e1e9f0b7dd6aa45ee1ba",
+        "android_client_info": {
+          "package_name": "com.example.movie_matcher_clean"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDB5YWzZGS_F-XGzNpZgEJXN7LId5mEmOs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:173034299087:android:6a0c4734c34810fa5ee1ba",
+        "android_client_info": {
+          "package_name": "com.maclusky.reelmatch"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDB5YWzZGS_F-XGzNpZgEJXN7LId5mEmOs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

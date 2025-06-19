@@ -1,0 +1,48 @@
+name: movie_matcher_clean
+description: A cleaned-up test project for movie matcher.
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_card_swiper: ^7.0.2
+  flutter_fortune_wheel: ^1.2.0
+  flutter_svg: ^2.1.0
+  shared_preferences: ^2.5.3
+  fl_chart: ^0.63.0
+  url_launcher: ^6.3.1
+  flutter_spinkit: ^5.2.1
+  flutter_screenutil: ^5.9.3
+  firebase_core: ^3.13.1
+  firebase_auth: ^5.5.4
+  cloud_firestore: ^5.6.8
+  google_sign_in: ^6.3.0
+  youtube_player_flutter: ^9.1.1
+  url_launcher_android: ^6.3.16
+  url_launcher_ios: ^6.3.3
+  cached_network_image: ^3.4.1
+  intl: ^0.20.2
+  share_plus: ^11.0.0
+  qr_flutter: ^4.1.0
+  glassmorphism: ^3.0.0
+  
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/icons/
+    - assets/movies.json
+    - assets/placeholder.png
+    - assets/movies.json
+    - assets/imdb.png
+    - assets/certified.png
+    - assets/fresh.png
+    - assets/rotten.png
+    - lib/data/popular_movies_data.json
