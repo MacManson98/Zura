@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'screens/matcher_screen.dart';
 import 'screens/friends_screen.dart';
 import 'screens/profile_screen.dart'; // This imports EnhancedProfileScreen
@@ -170,13 +171,39 @@ class _MainNavigationState extends State<MainNavigation> {
       children: [
         Scaffold(
           backgroundColor: const Color(0xFF121212),
-          body: IndexedStack(
-            index: _selectedIndex,
-            children: screens,
-          ),
-          bottomNavigationBar: CustomNavBar(
-            selectedIndex: _selectedIndex,
-            onItemTapped: _onItemTapped,
+          body: Stack(
+            children: [
+              // Main screen content
+              IndexedStack(
+                index: _selectedIndex,
+                children: screens,
+              ),
+
+              // 🔥 Fading background behind the nav bar
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: Container(
+                  height: 90.h,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.transparent,
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              // 🚀 Floating nav bar
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: CustomNavBar(
+                  selectedIndex: _selectedIndex,
+                  onItemTapped: _onItemTapped,
+                ),
+              ),
+            ],
           ),
         ),
         

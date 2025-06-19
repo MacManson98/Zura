@@ -55,7 +55,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'QueueTogether',
+      title: 'Zura',
       theme: ThemeData.dark(),
       home: const AuthGate(),
     );

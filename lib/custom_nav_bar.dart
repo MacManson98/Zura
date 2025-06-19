@@ -1,7 +1,7 @@
-// File: lib/custom_nav_bar.dart (Updated)
-
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 class CustomNavBar extends StatelessWidget {
   final int selectedIndex;
@@ -15,7 +15,6 @@ class CustomNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Updated items to change "Groups" label to "Friends"
     const List<Map<String, String>> items = [
       {
         'icon': 'assets/icons/home.svg',
@@ -30,7 +29,7 @@ class CustomNavBar extends StatelessWidget {
       {
         'icon': 'assets/icons/groups.svg',
         'active': 'assets/icons/groups_active.svg',
-        'label': 'Friends', // Changed from "Groups" to "Friends"
+        'label': 'Friends',
       },
       {
         'icon': 'assets/icons/user.svg',
@@ -39,51 +38,87 @@ class CustomNavBar extends StatelessWidget {
       },
     ];
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      height: 70,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF2A2A2A),
-        borderRadius: BorderRadius.circular(35),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: List.generate(items.length, (index) {
-          final isSelected = index == selectedIndex;
-          final iconSize = isSelected ? 28.0 : 24.0;
-
-          return Expanded(
-            child: GestureDetector(
-              onTap: () => onItemTapped(index),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SvgPicture.asset(
-                    isSelected
-                        ? items[index]['active']!
-                        : items[index]['icon']!,
-                    height: iconSize,
-                    // Updated to use colorFilter instead of deprecated color property
-                    colorFilter: ColorFilter.mode(
-                      isSelected ? Colors.white : const Color(0xFFFFA726),
-                      BlendMode.srcIn,
-                    ),
+    return Padding(
+      padding: EdgeInsets.only(bottom: 0.h),
+      child: ClipRRect( // 👈 Clip the parent background too
+        borderRadius: BorderRadius.circular(35.r),
+        child: Stack(
+          children: [
+            BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
+              child: Container(
+                height: 70.h,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(35.r),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.15),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    items[index]['label']!,
-                    style: TextStyle(
-                      color: isSelected ? Colors.white : const Color(0xFFFFA726),
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
-          );
-        }),
+            Container(
+              height: 70.h,
+              padding: EdgeInsets.symmetric(horizontal: 12.w),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(35.r),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: List.generate(items.length, (index) {
+                  final isSelected = index == selectedIndex;
+                  final iconSize = isSelected ? 28.w : 24.w;
+
+                  return Expanded(
+                    child: GestureDetector(
+                      onTap: () => onItemTapped(index),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            decoration: isSelected
+                                ? BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.white.withOpacity(0.6),
+                                        blurRadius: 8,
+                                        spreadRadius: 1,
+                                      ),
+                                    ],
+                                  )
+                                : null,
+                            child: SvgPicture.asset(
+                              isSelected
+                                  ? items[index]['active']!
+                                  : items[index]['icon']!,
+                              height: iconSize,
+                              colorFilter: ColorFilter.mode(
+                                isSelected ? Colors.white : const Color(0xFFFFA726),
+                                BlendMode.srcIn,
+                              ),
+                            ),
+                          ),
+                          SizedBox(height: 4.h),
+                          Text(
+                            items[index]['label']!,
+                            style: TextStyle(
+                              color:
+                                  isSelected ? Colors.white : const Color(0xFFFFA726),
+                              fontWeight:
+                                  isSelected ? FontWeight.bold : FontWeight.normal,
+                              fontSize: 12.sp,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
