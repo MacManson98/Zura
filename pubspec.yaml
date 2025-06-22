@@ -1,6 +1,6 @@
 name: Zura
 description: A smart movie matcher for friends and film lovers.
-version: 1.0.0+5
+version: 1.0.0+7
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -28,7 +28,10 @@ dependencies:
   share_plus: ^11.0.0
   qr_flutter: ^4.1.0
   glassmorphism: ^3.0.0
-  
+
+# 🔧 FORCE STABLE WEBVIEW VERSION (Fix crash on iOS)
+dependency_overrides:
+  flutter_inappwebview: ^6.0.0
 
 dev_dependencies:
   flutter_test:
