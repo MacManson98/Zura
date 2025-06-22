@@ -44,4 +44,3 @@ flutter:
     - assets/certified.png
     - assets/fresh.png
     - assets/rotten.png
-    - lib/data/popular_movies_data.json
