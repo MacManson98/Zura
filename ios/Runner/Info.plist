@@ -54,5 +54,9 @@
 		<key>NSAllowsArbitraryLoadsInWebContent</key>
 		<true/>
 	</dict>
+	
+	<!-- 🔧 EXPORT COMPLIANCE (Automates TestFlight submission) -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 </dict>
 </plist>
