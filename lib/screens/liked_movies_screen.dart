@@ -7,7 +7,7 @@ import '../models/user_profile.dart';
 import '../utils/user_profile_storage.dart';
 import '../screens/movie_detail_screen.dart';
 import '../utils/debug_loader.dart';
-import '../utils/tmdb_api.dart'; // ✅ Added import for TMDB API
+import '../utils/movie_loader.dart';
 
 class LikedMoviesScreen extends StatefulWidget {
   final UserProfile currentUser;
@@ -71,11 +71,28 @@ class _LikedMoviesScreenState extends State<LikedMoviesScreen> {
       DebugLogger.log('Missing movie IDs: ${missingIds.length}');
       
       if (missingIds.isNotEmpty) {
-        DebugLogger.log('🔄 Fetching ${missingIds.length} missing movies from TMDB...');
+        DebugLogger.log('🔄 Loading ${missingIds.length} missing movies from JSON database...');
         
-        // Fetch missing movies from TMDB
-        final missingMovies = await TMDBApi.getMoviesByIds(missingIds.toList());
-        DebugLogger.log('✅ Fetched ${missingMovies.length} movies from TMDB');
+        // Load from your JSON file with streaming data
+        final allMovies = await MovieDatabaseLoader.loadMovieDatabase();
+        DebugLogger.log('📊 Total movies in database: ${allMovies.length}');
+        
+        // Check if any movies have streaming data
+        final moviesWithStreaming = allMovies.where((m) => m.hasAnyStreamingOptions).length;
+        DebugLogger.log('🎬 Movies with streaming data: $moviesWithStreaming');
+        
+        final missingMovies = allMovies.where((movie) => missingIds.contains(movie.id)).toList();
+        DebugLogger.log('✅ Found ${missingMovies.length} movies in JSON database');
+        
+        // Debug first movie found
+        if (missingMovies.isNotEmpty) {
+          final firstMovie = missingMovies.first;
+          DebugLogger.log('🔍 Sample movie: ${firstMovie.title}');
+          DebugLogger.log('🔍 Has streaming: ${firstMovie.hasAnyStreamingOptions}');
+          DebugLogger.log('🔍 Available on: ${firstMovie.availableOn}');
+          DebugLogger.log('🔍 Rent on: ${firstMovie.rentOn}');
+          DebugLogger.log('🔍 All services: ${firstMovie.allServices}');
+        }
         
         if (missingMovies.isNotEmpty) {
           // Load them into cache

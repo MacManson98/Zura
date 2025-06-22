@@ -47,9 +47,6 @@ class _HomeScreenState extends State<HomeScreen>
   Animation<double>? _randomButtonAnimation;
   Animation<double>? _floatingAnimation;
   Animation<double>? _fadeAnimation;
-  
-  final int _notificationCount = 3; // Mock notification count
-  final int _friendsOnline = 6; // Mock friends online
 
   @override
   void initState() {
@@ -142,6 +139,35 @@ class _HomeScreenState extends State<HomeScreen>
     final seed = DateTime.now().day + DateTime.now().month;
     final picks = List<Movie>.from(widget.movies)..shuffle(Random(seed));
     return picks.take(8).toList();
+  }
+
+  // NEW: Trending movies methods
+  List<Movie> _getTrendingMovies() {
+    final now = DateTime.now();
+    
+    // Filter out movies user already liked
+    final candidateMovies = widget.movies.where((movie) {
+      return !widget.profile.likedMovies.contains(movie);
+    }).toList();
+    
+    // Simple trending algorithm - changes weekly
+    candidateMovies.shuffle(Random(now.day + now.month));
+    
+    // Return top 8 trending movies
+    return candidateMovies.take(8).toList();
+  }
+
+  Map<String, dynamic> _getTrendingStats(Movie movie) {
+    final random = Random(movie.title.hashCode);
+    final views = 150 + random.nextInt(400); // 150-550 views
+    final likes = 20 + random.nextInt(80);   // 20-100 likes
+    final trend = random.nextBool() ? "up" : "hot";
+    
+    return {
+      'views': views,
+      'likes': likes,
+      'trend': trend,
+    };
   }
 
   String _getGreeting() {
@@ -252,8 +278,8 @@ class _HomeScreenState extends State<HomeScreen>
                   SizedBox(height: 24.h),
                 ],
                 
-                // Friend Activity Feed
-                _buildFriendActivityFeed(),
+                // Trending This Week (REPLACED Friend Activity)
+                _buildTrendingThisWeek(),
                 SizedBox(height: 24.h),
                 
                 // Enhanced Random Film Section
@@ -439,79 +465,6 @@ class _HomeScreenState extends State<HomeScreen>
                       ],
                     ),
                   ),
-                  
-                  // Actions
-                  Row(
-                    children: [
-                      // Search Button
-                      Container(
-                        width: 40.w,
-                        height: 40.w,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1F1F1F),
-                          borderRadius: BorderRadius.circular(12.r),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.1),
-                          ),
-                        ),
-                        child: Icon(
-                          Icons.search,
-                          color: Colors.white70,
-                          size: 20.sp,
-                        ),
-                      ),
-                      
-                      SizedBox(width: 12.w),
-                      
-                      // Notifications with Badge
-                      GestureDetector(
-                        onTap: widget.onNavigateToNotifications,
-                        child: Stack(
-                          children: [
-                            Container(
-                              width: 40.w,
-                              height: 40.w,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF1F1F1F),
-                                borderRadius: BorderRadius.circular(12.r),
-                                border: Border.all(
-                                  color: Colors.white.withValues(alpha: 0.1),
-                                ),
-                              ),
-                              child: Icon(
-                                Icons.notifications_outlined,
-                                color: Colors.white70,
-                                size: 20.sp,
-                              ),
-                            ),
-                            if (_notificationCount > 0)
-                              Positioned(
-                                top: 2,
-                                right: 2,
-                                child: Container(
-                                  width: 16.w,
-                                  height: 16.w,
-                                  decoration: const BoxDecoration(
-                                    color: Colors.red,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      _notificationCount.toString(),
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 10.sp,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
                 ],
               ),
             ],
@@ -549,10 +502,10 @@ class _HomeScreenState extends State<HomeScreen>
           ),
           _buildStatDivider(),
           _buildStatItem(
-            '$_friendsOnline',
-            'Friends Online',
-            Colors.green,
-            Icons.people,
+            '${_getTrendingMovies().length}',
+            'Trending Now',
+            Colors.orange,
+            Icons.whatshot,
           ),
         ],
       ),
@@ -887,136 +840,280 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Widget _buildFriendActivityFeed() {
-    final mockActivities = [
-      {'name': 'Sarah', 'action': 'found a match', 'movie': 'Dune: Part Two', 'time': '2m ago'},
-      {'name': 'Mike', 'action': 'started swiping', 'movie': 'The Batman', 'time': '5m ago'},
-      {'name': 'Movie Squad', 'action': 'needs your vote', 'movie': '3 matches pending', 'time': '8m ago'},
-    ];
-
+  // NEW: Trending This Week section (replaces friend activity)
+  Widget _buildTrendingThisWeek() {
+    final trendingMovies = _getTrendingMovies();
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              'Friend Activity',
-              style: TextStyle(
-                fontSize: 20.sp,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-            GestureDetector(
-              onTap: widget.onNavigateToFriends,
-              child: Container(
-                padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE5A00D).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12.r),
-                  border: Border.all(
-                    color: const Color(0xFFE5A00D).withValues(alpha: 0.3),
-                    width: 1.w,
+            Row(
+              children: [
+                Container(
+                  padding: EdgeInsets.all(8.w),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(8.r),
+                  ),
+                  child: Icon(
+                    Icons.trending_up,
+                    color: const Color(0xFFE5A00D),
+                    size: 20.sp,
                   ),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
+                SizedBox(width: 12.w),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'View All',
+                      'Trending This Week',
                       style: TextStyle(
-                        color: const Color(0xFFE5A00D),
-                        fontSize: 12.sp,
-                        fontWeight: FontWeight.w600,
+                        fontSize: 20.sp,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
                       ),
                     ),
-                    SizedBox(width: 4.w),
-                    Icon(
-                      Icons.arrow_forward_ios,
-                      color: const Color(0xFFE5A00D),
-                      size: 12.sp,
+                    Text(
+                      'Popular among movie lovers',
+                      style: TextStyle(
+                        fontSize: 12.sp,
+                        color: Colors.white60,
+                      ),
                     ),
                   ],
                 ),
+              ],
+            ),
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE5A00D).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12.r),
+                border: Border.all(
+                  color: const Color(0xFFE5A00D).withValues(alpha: 0.3),
+                  width: 1.w,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.whatshot,
+                    color: const Color(0xFFE5A00D),
+                    size: 12.sp,
+                  ),
+                  SizedBox(width: 4.w),
+                  Text(
+                    'Live',
+                    style: TextStyle(
+                      color: const Color(0xFFE5A00D),
+                      fontSize: 12.sp,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
         ),
         SizedBox(height: 16.h),
-        ...mockActivities.map((activity) => Container(
-          margin: EdgeInsets.only(bottom: 12.h),
-          padding: EdgeInsets.all(16.w),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1F1F1F),
-            borderRadius: BorderRadius.circular(12.r),
-          ),
-          child: Row(
-            children: [
-              CircleAvatar(
-                radius: 20.r,
-                backgroundColor: const Color(0xFFE5A00D),
-                child: Text(
-                  activity['name']![0],
+        
+        // Show top 3 trending movies
+        ...trendingMovies.take(3).map((movie) {
+          final stats = _getTrendingStats(movie);
+          final rank = trendingMovies.indexOf(movie) + 1;
+          
+          return Container(
+            margin: EdgeInsets.only(bottom: 12.h),
+            padding: EdgeInsets.all(16.w),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1F1F1F),
+              borderRadius: BorderRadius.circular(12.r),
+              border: rank == 1 ? Border.all(
+                color: const Color(0xFFE5A00D).withValues(alpha: 0.3),
+                width: 1.w,
+              ) : null,
+            ),
+            child: GestureDetector(
+              onTap: () {
+                showMovieDetails(
+                  context: context,
+                  movie: movie,
+                  currentUser: widget.profile,
+                );
+              },
+              child: Row(
+                children: [
+                  // Rank badge
+                  Container(
+                    width: 32.w,
+                    height: 32.w,
+                    decoration: BoxDecoration(
+                      color: rank == 1 
+                        ? const Color(0xFFE5A00D) 
+                        : rank == 2 
+                          ? Colors.grey[600]
+                          : Colors.grey[700],
+                      borderRadius: BorderRadius.circular(8.r),
+                    ),
+                    child: Center(
+                      child: Text(
+                        '$rank',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14.sp,
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 12.w),
+                  
+                  // Movie poster
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8.r),
+                    child: Image.network(
+                      movie.posterUrl,
+                      width: 50.w,
+                      height: 75.h,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        width: 50.w,
+                        height: 75.h,
+                        color: Colors.grey[800],
+                        child: Icon(Icons.movie, size: 20.sp, color: Colors.white30),
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 16.w),
+                  
+                  // Movie info
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          movie.title,
+                          style: TextStyle(
+                            fontSize: 16.sp,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        SizedBox(height: 4.h),
+                        Text(
+                          movie.genres.take(2).join(' • '),
+                          style: TextStyle(
+                            color: const Color(0xFFE5A00D),
+                            fontSize: 12.sp,
+                          ),
+                        ),
+                        SizedBox(height: 8.h),
+                        
+                        // Trending stats
+                        Row(
+                          children: [
+                            Icon(
+                              stats['trend'] == 'up' ? Icons.trending_up : Icons.whatshot,
+                              color: stats['trend'] == 'up' ? Colors.green : Colors.orange,
+                              size: 14.sp,
+                            ),
+                            SizedBox(width: 4.w),
+                            Text(
+                              '${stats['views']} views',
+                              style: TextStyle(
+                                color: Colors.white60,
+                                fontSize: 11.sp,
+                              ),
+                            ),
+                            SizedBox(width: 12.w),
+                            Icon(
+                              Icons.favorite,
+                              color: Colors.red,
+                              size: 12.sp,
+                            ),
+                            SizedBox(width: 4.w),
+                            Text(
+                              '${stats['likes']}',
+                              style: TextStyle(
+                                color: Colors.white60,
+                                fontSize: 11.sp,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  
+                  // Action button
+                  Container(
+                    padding: EdgeInsets.all(8.w),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE5A00D).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8.r),
+                    ),
+                    child: Icon(
+                      Icons.play_arrow,
+                      color: const Color(0xFFE5A00D),
+                      size: 20.sp,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }).toList(),
+        
+        // "View all trending" button
+        SizedBox(height: 8.h),
+        GestureDetector(
+          onTap: () {
+            // TODO: Navigate to full trending page
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Full trending page coming soon!'),
+                backgroundColor: const Color(0xFF1F1F1F),
+              ),
+            );
+          },
+          child: Container(
+            width: double.infinity,
+            padding: EdgeInsets.symmetric(vertical: 12.h),
+            decoration: BoxDecoration(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(8.r),
+              border: Border.all(
+                color: const Color(0xFFE5A00D).withValues(alpha: 0.3),
+                width: 1.w,
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  'View All Trending',
                   style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFFE5A00D),
                     fontSize: 14.sp,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-              ),
-              SizedBox(width: 12.w),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    RichText(
-                      text: TextSpan(
-                        children: [
-                          TextSpan(
-                            text: '${activity['name']} ',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14.sp,
-                            ),
-                          ),
-                          TextSpan(
-                            text: activity['action'],
-                            style: TextStyle(
-                              color: Colors.white70,
-                              fontSize: 14.sp,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    SizedBox(height: 2.h),
-                    Text(
-                      '${activity['movie']} • ${activity['time']}',
-                      style: TextStyle(
-                        color: Colors.white60,
-                        fontSize: 12.sp,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding: EdgeInsets.all(6.w),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE5A00D).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8.r),
-                ),
-                child: Icon(
+                SizedBox(width: 8.w),
+                Icon(
                   Icons.arrow_forward_ios,
                   color: const Color(0xFFE5A00D),
-                  size: 12.sp,
+                  size: 14.sp,
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        )).toList(),
+        ),
       ],
     );
   }

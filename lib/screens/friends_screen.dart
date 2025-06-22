@@ -7,7 +7,6 @@ import 'friend_profile_screen.dart';
 import 'add_friend_screen.dart';
 import 'create_group_screen.dart';
 import 'group_detail_screen.dart';
-import 'matcher_screen.dart';
 import '../services/friendship_service.dart';
 import '../services/group_service.dart';
 import '../utils/debug_loader.dart';
@@ -15,14 +14,12 @@ import '../utils/debug_loader.dart';
 class FriendsScreen extends StatefulWidget {
   final UserProfile currentUser;
   final List<Movie> allMovies;
-  final VoidCallback onShowMatches;
   final void Function(UserProfile friend)? onMatchWithFriend;
 
   const FriendsScreen({
     super.key,
     required this.currentUser,
     required this.allMovies,
-    required this.onShowMatches,
     this.onMatchWithFriend,
   });
 
@@ -397,9 +394,14 @@ class _FriendsScreenState extends State<FriendsScreen> with SingleTickerProvider
 
   Widget _buildEnhancedFriendCard(UserProfile friend, int index) {
     final sharedGenres = friend.preferredGenres.intersection(widget.currentUser.preferredGenres);
-    final compatibility = widget.currentUser.preferredGenres.isEmpty || friend.preferredGenres.isEmpty
-        ? 0.0
-        : (sharedGenres.length / (widget.currentUser.preferredGenres.length + friend.preferredGenres.length - sharedGenres.length)) * 100;
+    final sharedMovies = friend.likedMovieIds.intersection(widget.currentUser.likedMovieIds);
+    
+    // Use shared movies if available, otherwise fall back to genres
+    final compatibility = sharedMovies.isNotEmpty 
+        ? (sharedMovies.length / (widget.currentUser.likedMovieIds.length + friend.likedMovieIds.length - sharedMovies.length).clamp(1, double.infinity)) * 100
+        : widget.currentUser.preferredGenres.isEmpty || friend.preferredGenres.isEmpty
+            ? 0.0
+            : (sharedGenres.length / (widget.currentUser.preferredGenres.length + friend.preferredGenres.length - sharedGenres.length)) * 100;
 
     return TweenAnimationBuilder<double>(
       duration: Duration(milliseconds: 300 + (index * 100)),
@@ -559,57 +561,65 @@ class _FriendsScreenState extends State<FriendsScreen> with SingleTickerProvider
                         ),
                         
                         SizedBox(width: 12.w),
-                        
-                        // Compact match button
-                        Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [const Color(0xFFE5A00D), Colors.orange.shade600],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(12.r),
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(0xFFE5A00D).withValues(alpha: 0.3),
-                                blurRadius: 6.r,
-                                offset: Offset(0, 2.h),
+                        Column(
+                          children: [
+                            // Stats row
+                            Container(
+                              padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(8.r),
                               ),
-                            ],
-                          ),
-                          child: Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              onTap: () {
-                                DebugLogger.log("🟡 Creating match session with friend: ${friend.name}");
-                                // Create session and navigate to matcher screen
-                                final sessionId = DateTime.now().millisecondsSinceEpoch.toString();
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => MatcherScreen(
-                                      sessionId: sessionId,
-                                      allMovies: widget.allMovies,
-                                      currentUser: widget.currentUser,
-                                      friendIds: [friend], // Single friend session
+                              child: Text(
+                                '${sharedMovies.length} movies in common',
+                                style: TextStyle(
+                                  color: const Color(0xFFE5A00D),
+                                  fontSize: 11.sp,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                            
+                            SizedBox(height: 8.h),
+                            
+                            // View button
+                            Container(
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color: const Color(0xFFE5A00D).withValues(alpha: 0.4),
+                                  width: 1.w,
+                                ),
+                                borderRadius: BorderRadius.circular(8.r),
+                              ),
+                              child: Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  onTap: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => FriendProfileScreen(
+                                        currentUser: widget.currentUser,
+                                        friend: friend,
+                                        allMovies: widget.allMovies,
+                                      ),
                                     ),
                                   ),
-                                );
-                              },
-                              borderRadius: BorderRadius.circular(12.r),
-                              child: Padding(
-                                padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
-                                child: Text(
-                                  'Match',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14.sp,
+                                  borderRadius: BorderRadius.circular(8.r),
+                                  child: Padding(
+                                    padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
+                                    child: Text(
+                                      'View',
+                                      style: TextStyle(
+                                        color: const Color(0xFFE5A00D),
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 12.sp,
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
-                          ),
+                          ],
                         ),
                       ],
                     ),
@@ -770,63 +780,6 @@ class _FriendsScreenState extends State<FriendsScreen> with SingleTickerProvider
                                     ],
                                   ),
                                 ],
-                              ),
-                            ),
-                            
-                            // Enhanced match button
-                            Container(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [const Color(0xFFE5A00D), Colors.orange.shade600],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ),
-                                borderRadius: BorderRadius.circular(16),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: const Color(0xFFE5A00D).withValues(alpha: 0.4),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: Material(
-                                color: Colors.transparent,
-                                child: InkWell(
-                                  onTap: () {
-                                    final sessionId = DateTime.now().millisecondsSinceEpoch.toString();
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => MatcherScreen(
-                                          sessionId: sessionId,
-                                          allMovies: widget.allMovies,
-                                          currentUser: widget.currentUser,
-                                          friendIds: group.members,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                  borderRadius: BorderRadius.circular(16),
-                                  child: const Padding(
-                                    padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(Icons.movie_filter, color: Colors.white, size: 18),
-                                        SizedBox(width: 6),
-                                        Text(
-                                          'Match',
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 16,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
                               ),
                             ),
                           ],

@@ -690,6 +690,12 @@ Widget _buildActorFallback(String name) {
 }
 
 Widget _buildStreamingSection(BuildContext context, Movie movie) {
+    print('🎬 Movie: ${movie.title}');
+  print('🔍 hasAnyStreamingOptions: ${movie.hasAnyStreamingOptions}');
+  print('🔍 allServices: ${movie.allServices}');
+  print('🔍 availableOn: ${movie.availableOn}');
+  print('🔍 rentOn: ${movie.rentOn}');
+  print('🔍 buyOn: ${movie.buyOn}');
     return Container(
       margin: EdgeInsets.fromLTRB(24.w, 0, 24.w, 32.h),
       child: Column(

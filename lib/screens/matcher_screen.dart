@@ -382,6 +382,8 @@ class _MatcherScreenState extends State<MatcherScreen>
 
   void _onMoodSelected(List<CurrentMood> moods) async {
     DebugLogger.log("🔍 DEBUG: _onMoodSelected called with ${moods.length} mood(s)");
+
+    
     
     setState(() {
       selectedMoods = moods;
@@ -2528,10 +2530,13 @@ class _MatcherScreenState extends State<MatcherScreen>
   void dispose() {
     _sessionTimer?.cancel();
     _groupStatsTimer?.cancel();
+    
+    // ✅ ADD THIS LINE:
+    MainNavigation.clearSessionCallback();
 
-      WidgetsBinding.instance.removeObserver(this);
+    WidgetsBinding.instance.removeObserver(this);
 
-      if (SessionManager.hasActiveSession) {
+    if (SessionManager.hasActiveSession) {
       final completedSession = SessionManager.endSession();
       if (completedSession != null) {
         widget.currentUser.addCompletedSession(completedSession);

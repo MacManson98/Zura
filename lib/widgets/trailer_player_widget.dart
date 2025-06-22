@@ -29,7 +29,7 @@ class _TrailerPlayerWidgetState extends State<TrailerPlayerWidget> {
   bool _isLoading = true;
   bool _hasError = false;
   String? _errorMessage;
-  bool _isDisposed = false; // Add this flag
+  bool _isDisposed = false;
 
   @override
   void initState() {
@@ -39,19 +39,39 @@ class _TrailerPlayerWidgetState extends State<TrailerPlayerWidget> {
 
   @override
   void dispose() {
-    _isDisposed = true; // Set flag before disposing
-    _youtubeController?.dispose();
-    _youtubeController = null; // Clear reference
+    _isDisposed = true;
+    
+    // Dispose controller safely
+    if (_youtubeController != null) {
+      try {
+        // Add a small delay to ensure any pending operations complete
+        Future.microtask(() {
+          _youtubeController?.dispose();
+        });
+      } catch (e) {
+        // Ignore disposal errors - they're often harmless
+        debugPrint('YouTube controller disposal error (safe to ignore): $e');
+      }
+      _youtubeController = null;
+    }
+    
     super.dispose();
   }
 
   Future<void> _loadTrailer() async {
-    if (_isDisposed) return; // Early exit if disposed
+    if (_isDisposed) return;
     
-    setState(() {
-      _isLoading = true;
-      _hasError = false;
-    });
+    // Use a try-catch around setState to prevent errors if disposed
+    try {
+      if (mounted && !_isDisposed) {
+        setState(() {
+          _isLoading = true;
+          _hasError = false;
+        });
+      }
+    } catch (e) {
+      return; // Widget was disposed during setState
+    }
 
     try {
       final trailer = await TrailerService.getTrailerForMovie(widget.movie.id);
@@ -76,49 +96,74 @@ class _TrailerPlayerWidgetState extends State<TrailerPlayerWidget> {
         // Double-check we're still mounted and not disposed before setting state
         if (!mounted || _isDisposed) {
           // If we're disposed, clean up the controller we just created
-          controller.dispose();
+          try {
+            controller.dispose();
+          } catch (e) {
+            // Ignore disposal errors
+          }
           return;
         }
 
-        setState(() {
-          _trailer = trailer;
-          _youtubeController = controller;
-          _isLoading = false;
-        });
+        try {
+          setState(() {
+            _trailer = trailer;
+            _youtubeController = controller;
+            _isLoading = false;
+          });
+        } catch (e) {
+          // If setState fails, dispose the controller
+          try {
+            controller.dispose();
+          } catch (e) {
+            // Ignore disposal errors
+          }
+        }
       } else {
         if (!mounted || _isDisposed) return;
         
-        setState(() {
-          _isLoading = false;
-          _hasError = true;
-          _errorMessage = 'No trailer available for this movie';
-        });
+        try {
+          setState(() {
+            _isLoading = false;
+            _hasError = true;
+            _errorMessage = 'No trailer available for this movie';
+          });
+        } catch (e) {
+          // Widget was disposed during setState
+        }
       }
     } catch (e) {
       if (!mounted || _isDisposed) return;
       
-      setState(() {
-        _isLoading = false;
-        _hasError = true;
-        _errorMessage = 'Failed to load trailer: $e';
-      });
+      try {
+        setState(() {
+          _isLoading = false;
+          _hasError = true;
+          _errorMessage = 'Failed to load trailer: $e';
+        });
+      } catch (e) {
+        // Widget was disposed during setState
+      }
     }
   }
 
   Future<void> _openInYouTube() async {
-    if (_isDisposed || _trailer == null) return; // Add disposal check
+    if (_isDisposed || _trailer == null) return;
     
     final url = Uri.parse(_trailer!.youTubeUrl);
     if (await canLaunchUrl(url)) {
       await launchUrl(url, mode: LaunchMode.externalApplication);
     } else {
       if (mounted && !_isDisposed) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Could not open YouTube'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        try {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Could not open YouTube'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        } catch (e) {
+          // Context might be invalid if disposed
+        }
       }
     }
   }
@@ -149,6 +194,7 @@ class _TrailerPlayerWidgetState extends State<TrailerPlayerWidget> {
   }
 
   Widget _buildContent() {
+    if (_isDisposed) return _buildNoTrailerState();
     if (_isLoading) return _buildLoadingState();
     if (_hasError) return _buildErrorState();
     if (_youtubeController != null && _trailer != null) return _buildPlayerState();
@@ -185,7 +231,7 @@ class _TrailerPlayerWidgetState extends State<TrailerPlayerWidget> {
         ),
         SizedBox(height: 16.h),
         ElevatedButton.icon(
-          onPressed: _isDisposed ? null : _loadTrailer, // Disable if disposed
+          onPressed: _isDisposed ? null : _loadTrailer,
           icon: Icon(Icons.refresh, size: 16.sp),
           label: Text('Retry', style: TextStyle(fontSize: 14.sp)),
           style: ElevatedButton.styleFrom(
@@ -238,7 +284,7 @@ class _TrailerPlayerWidgetState extends State<TrailerPlayerWidget> {
           child: Stack(
             children: [
               player,
-              if (widget.showControls)
+              if (widget.showControls && !_isDisposed)
                 Positioned(
                   bottom: 0,
                   left: 0,
@@ -263,7 +309,7 @@ class _TrailerPlayerWidgetState extends State<TrailerPlayerWidget> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
-                                _trailer!.name,
+                                _trailer?.name ?? '',
                                 style: TextStyle(
                                   color: Colors.white,
                                   fontSize: 12.sp,
@@ -273,14 +319,14 @@ class _TrailerPlayerWidgetState extends State<TrailerPlayerWidget> {
                                 overflow: TextOverflow.ellipsis,
                               ),
                               Text(
-                                _trailer!.type + (_trailer!.official ? ' • Official' : ''),
+                                (_trailer?.type ?? '') + ((_trailer?.official ?? false) ? ' • Official' : ''),
                                 style: TextStyle(color: Colors.white70, fontSize: 10.sp),
                               ),
                             ],
                           ),
                         ),
                         IconButton(
-                          onPressed: _openInYouTube,
+                          onPressed: _isDisposed ? null : _openInYouTube,
                           icon: Icon(Icons.open_in_new, color: Colors.white, size: 20.sp),
                           tooltip: 'Open in YouTube',
                         ),

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'screens/matcher_screen.dart';
 import 'screens/friends_screen.dart';
 import 'screens/profile_screen.dart'; // This imports EnhancedProfileScreen
@@ -9,11 +8,11 @@ import 'movie.dart';
 import 'custom_nav_bar.dart';
 import 'services/friendship_service.dart';
 import 'services/session_service.dart';
-import 'services/group_invitation_service.dart'; // ✅ ADD THIS
-import 'screens/notifications_screen.dart';
 import 'models/session_models.dart'; // ✅ ADD THIS IMPORT
 import '../utils/debug_loader.dart';
 import '../models/matching_models.dart';
+import 'services/group_invitation_service.dart';
+import 'widgets/notifications_bottom_sheet.dart';
 
 class MainNavigation extends StatefulWidget {
   final UserProfile profile;
@@ -43,8 +42,7 @@ class MainNavigation extends StatefulWidget {
 class _MainNavigationState extends State<MainNavigation> {
   int _selectedIndex = 0;
   
-  static const int matchesTabIndex = 1;
-  static const int matcherTabIndex = 2;
+  static const int matcherTabIndex = 1;
 
   UserProfile? _selectedFriend;
   MatchingMode _matcherMode = MatchingMode.solo;
@@ -106,9 +104,6 @@ class _MainNavigationState extends State<MainNavigation> {
     });
   }
 
-  void _goToMatchesTab() {
-    _onItemTapped(matchesTabIndex);
-  }
 
   void _goToFriendMatcher(UserProfile friend) {
     DebugLogger.log("🟢 Switching to Matcher tab with ${friend.name}");
@@ -116,7 +111,7 @@ class _MainNavigationState extends State<MainNavigation> {
       _selectedFriend = friend;
       _matcherMode = MatchingMode.friend;
       _matcherScreen = _buildMatcherScreen();
-      _selectedIndex = matcherTabIndex;
+      _selectedIndex = matcherTabIndex; // This will now be 1 instead of 2
     });
   }
 
@@ -132,210 +127,278 @@ class _MainNavigationState extends State<MainNavigation> {
       mode: _matcherMode,
     );
   }
-
-  @override
-  Widget build(BuildContext context) {
-    // Handle navigation arguments
-    final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-    final initialTab = args?['initialTab'] as int?;    
-    // If we have an initial tab, set it
-    if (initialTab != null && initialTab != _selectedIndex) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        setState(() {
-          _selectedIndex = initialTab;
+    @override
+    Widget build(BuildContext context) {
+      // Handle navigation arguments
+      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+      final initialTab = args?['initialTab'] as int?;    
+      
+      if (initialTab != null && initialTab != _selectedIndex) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          setState(() {
+            _selectedIndex = initialTab;
+          });
         });
-      });
+      }
+
+      final screens = [
+        HomeScreen(
+          profile: widget.profile,
+          movies: widget.movies,
+        ),
+        _matcherScreen,
+        FriendsScreen(
+          currentUser: widget.profile,
+          allMovies: widget.movies,
+          onMatchWithFriend: _goToFriendMatcher,
+        ),
+        ProfileScreen(
+          currentUser: widget.profile,
+        ),
+      ];
+
+      return Scaffold(
+        backgroundColor: const Color(0xFF121212),
+        body: IndexedStack(
+          index: _selectedIndex,
+          children: screens,
+        ),
+        // ✅ FIXED: Move navigation to bottomNavigationBar property
+        bottomNavigationBar: StreamBuilder<List<Map<String, dynamic>>>(
+          stream: SessionService.watchPendingInvitations(),
+          builder: (context, sessionSnapshot) {
+            return StreamBuilder<List<Map<String, dynamic>>>(
+              stream: FriendshipService.getPendingFriendRequests(widget.profile.uid),
+              builder: (context, friendSnapshot) {
+                return StreamBuilder<List<Map<String, dynamic>>>(
+                  stream: GroupInvitationService().watchPendingGroupInvitations(widget.profile.uid),
+                  builder: (context, groupSnapshot) {
+                    final sessionCount = sessionSnapshot.data?.length ?? 0;
+                    final friendCount = friendSnapshot.data?.length ?? 0;
+                    final groupCount = groupSnapshot.data?.length ?? 0;
+                    final totalNotifications = sessionCount + friendCount + groupCount;
+                    final hasHighPriority = sessionCount > 0 || friendCount > 0;
+
+                    return CustomNavBar(
+                      selectedIndex: _selectedIndex,
+                      onItemTapped: _onItemTapped,
+                      notificationCount: totalNotifications,
+                      hasHighPriorityNotifications: hasHighPriority,
+                      onNotificationTap: () {
+                        final sessionInvites = sessionSnapshot.data ?? [];
+                        final friendRequests = friendSnapshot.data ?? [];
+                        
+                        showModalBottomSheet(
+                          context: context,
+                          isScrollControlled: true,
+                          backgroundColor: Colors.transparent,
+                          builder: (context) => NotificationBottomSheet(
+                            sessionInvites: sessionInvites,
+                            friendRequests: friendRequests,
+                            regularNotifications: [],
+                            onSessionAccept: (invitation) {
+                              Navigator.pop(context);
+                              _handleSessionJoinFromNotification(invitation);
+                            },
+                            onFriendAccept: (request) {
+                              _handleFriendRequestAccept(request);
+                            },
+                            onClearAll: () {
+                              Navigator.pop(context);
+                              _handleClearAllNotifications();
+                            },
+                          ),
+                        );
+                      },
+                    );
+                  },
+                );
+              },
+            );
+          },
+        ),
+      );
     }
 
-    final screens = [
-      HomeScreen(
-        profile: widget.profile,
-        movies: widget.movies,
-        onNavigateToMatches: _goToMatchesTab,
-      ),
-      _matcherScreen,
-      FriendsScreen(
-        currentUser: widget.profile,
-        allMovies: widget.movies,
-        onShowMatches: _goToMatchesTab,
-        onMatchWithFriend: _goToFriendMatcher,
-      ),
-      // FIXED: Add missing allMovies parameter to ProfileScreen
-      ProfileScreen(
-        currentUser: widget.profile,
-        onNavigateToMatches: _goToMatchesTab,
-      ),
-    ];
-
-    return Stack(
-      children: [
-        Scaffold(
-          backgroundColor: const Color(0xFF121212),
-          body: Stack(
-            children: [
-              // Main screen content
-              IndexedStack(
-                index: _selectedIndex,
-                children: screens,
-              ),
-
-              // 🔥 Fading background behind the nav bar
-              Align(
-                alignment: Alignment.bottomCenter,
-                child: Container(
-                  height: 90.h,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.transparent,
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              // 🚀 Floating nav bar
-              Align(
-                alignment: Alignment.bottomCenter,
-                child: CustomNavBar(
-                  selectedIndex: _selectedIndex,
-                  onItemTapped: _onItemTapped,
-                ),
-              ),
-            ],
-          ),
-        ),
+  Future<void> _handleSessionJoinFromNotification(Map<String, dynamic> invitation) async {
+    try {
+      DebugLogger.log("📥 Accepting session invitation: ${invitation['sessionId']}");
+      
+      final session = await SessionService.acceptInvitation(
+        invitation['sessionId'],
+        widget.profile.name,
+      );
+      
+      if (!mounted) return;
+      
+      if (session != null) {
+        // Switch to matcher tab first
+        setState(() {
+          _selectedIndex = 1; // Matcher tab index
+        });
         
-        // ✅ UPDATED: Notification icon with all invitation types
-        Positioned(
-          top: MediaQuery.of(context).padding.top + 10,
-          right: 16,
-          child: StreamBuilder<List<Map<String, dynamic>>>(
-            stream: SessionService.watchPendingInvitations(),
-            builder: (context, sessionSnapshot) {
-              return StreamBuilder<List<Map<String, dynamic>>>(
-                stream: FriendshipService.getPendingFriendRequests(widget.profile.uid),
-                builder: (context, friendSnapshot) {
-                  return StreamBuilder<List<Map<String, dynamic>>>(
-                    stream: GroupInvitationService().watchPendingGroupInvitations(widget.profile.uid),
-                    builder: (context, groupSnapshot) {
-                      final sessionCount = sessionSnapshot.data?.length ?? 0;
-                      final friendCount = friendSnapshot.data?.length ?? 0;
-                      final groupCount = groupSnapshot.data?.length ?? 0;
-                      final totalNotifications = sessionCount + friendCount + groupCount;
-                      
-                      final hasNotifications = totalNotifications > 0;
-
-                      return GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => NotificationsScreen(
-                                currentUser: widget.profile,
-                                allMovies: widget.movies,
-                                onSessionJoined: (session) {
-                                  DebugLogger.log("📥 MAIN NAV: Session joined from notifications: ${session.sessionId}");
-                                  
-                                  // If matcher screen has registered a callback, use it directly
-                                  if (MainNavigation._globalSessionCallback != null) {
-                                    DebugLogger.log("📥 MAIN NAV: Using direct matcher callback");
-                                    
-                                    // Switch to matcher tab first
-                                    setState(() {
-                                      _selectedIndex = 2; // Switch to matcher tab
-                                    });
-                                    
-                                    // Then call the callback
-                                    MainNavigation._globalSessionCallback!(session);
-                                    return;
-                                  }
-                                  
-                                  // If no callback registered, just switch to matcher tab
-                                  DebugLogger.log("📥 MAIN NAV: No callback registered, just switching to matcher");
-                                  setState(() {
-                                    _selectedIndex = 2;
-                                  });
-                                },
-                              ),
-                            ),
-                          );
-                        },
-                        child: Container(
-                          padding: EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: hasNotifications 
-                                ? const Color(0xFFE5A00D).withValues(alpha: 0.1)
-                                : Colors.transparent,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Stack(
-                            clipBehavior: Clip.none,
-                            children: [
-                              Icon(
-                                hasNotifications 
-                                    ? Icons.notifications 
-                                    : Icons.notifications_none_outlined,
-                                size: 28, 
-                                color: hasNotifications 
-                                    ? const Color(0xFFE5A00D)
-                                    : Colors.white,
-                              ),
-                              
-                              if (hasNotifications && totalNotifications > 0)
-                                Positioned(
-                                  right: -4,
-                                  top: -4,
-                                  child: Container(
-                                    padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      gradient: const LinearGradient(
-                                        colors: [Color(0xFFE5A00D), Color(0xFFD4940A)],
-                                        begin: Alignment.topLeft,
-                                        end: Alignment.bottomRight,
-                                      ),
-                                      borderRadius: BorderRadius.circular(10),
-                                      border: Border.all(
-                                        color: const Color(0xFF121212),
-                                        width: 1.5,
-                                      ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: const Color(0xFFE5A00D).withValues(alpha: 0.3),
-                                          blurRadius: 4,
-                                          offset: Offset(0, 1),
-                                        ),
-                                      ],
-                                    ),
-                                    constraints: BoxConstraints(
-                                      minWidth: 18,
-                                      minHeight: 18,
-                                    ),
-                                    child: Text(
-                                      totalNotifications > 9 ? '9+' : totalNotifications.toString(),
-                                      style: TextStyle(
-                                        color: Colors.black,
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.bold,
-                                        height: 1.0,
-                                      ),
-                                      textAlign: TextAlign.center,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  );
-                },
-              );
-            },
+        // Then load the session if callback is available
+        if (MainNavigation._globalSessionCallback != null) {
+          DebugLogger.log("📥 Loading joined session in matcher");
+          MainNavigation._globalSessionCallback!(session);
+        }
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 8),
+                Text('Joined session! Loading matcher...'),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           ),
+        );
+      }
+    } catch (e) {
+      DebugLogger.log("❌ Error accepting session invitation: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to join session: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleFriendRequestAccept(Map<String, dynamic> request) async {
+    try {
+      await FriendshipService.acceptFriendRequest(
+        fromUserId: request['fromUserId'],
+        toUserId: request['toUserId'],
+      );
+      
+      // Reload friends list
+      await _loadFriends();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.people, color: Colors.white),
+                SizedBox(width: 8),
+                Text('${request['fromUserName']} is now your friend!'),
+              ],
+            ),
+            backgroundColor: Colors.blue,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to accept request: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleClearAllNotifications() async {
+    // Show confirmation dialog first
+    final shouldClear = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF2A2A2A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.clear_all, color: const Color(0xFFE5A00D), size: 24),
+            SizedBox(width: 12),
+            Text(
+              'Clear All Notifications',
+              style: TextStyle(color: Colors.white, fontSize: 18),
+            ),
+          ],
         ),
-      ],
+        content: Text(
+          'This will decline all invitations and clear all notifications. This action cannot be undone.',
+          style: TextStyle(color: Colors.white70, fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text('Cancel', style: TextStyle(color: Colors.grey[400])),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFE5A00D),
+              foregroundColor: Colors.black,
+            ),
+            child: Text('Clear All', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
     );
+
+    if (shouldClear != true) return;
+
+    try {
+      // Decline all session invitations
+      final sessionInvitations = await SessionService.getPendingInvitations();
+      for (final invitation in sessionInvitations) {
+        await SessionService.declineInvitation(
+          invitation['id'], 
+          invitation['sessionId']
+        );
+      }
+      
+      // Decline all friend requests
+      final friendRequests = await FriendshipService.getPendingFriendRequestsList(widget.profile.uid);
+      for (final request in friendRequests) {
+        await FriendshipService.declineFriendRequest(
+          fromUserId: request['fromUserId'],
+          toUserId: request['toUserId'],
+        );
+      }
+      
+      // Decline all group invitations
+      await GroupInvitationService().declineAllGroupInvitations(widget.profile.uid);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 12),
+                Text('All notifications cleared successfully'),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to clear notifications: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 }

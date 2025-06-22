@@ -9,8 +9,8 @@ import '../utils/user_profile_storage.dart';
 import '../screens/movie_detail_screen.dart';
 import '../screens/watch_options_screen.dart';
 import '../utils/debug_loader.dart';
-import '../utils/tmdb_api.dart';
 import 'package:intl/intl.dart';
+import '../utils/movie_loader.dart';
 
 class MatchesScreen extends StatefulWidget {
   final UserProfile currentUser;
@@ -101,8 +101,9 @@ class _MatchesScreenState extends State<MatchesScreen> {
         DebugLogger.log('🔄 Fetching ${missingIds.length} missing movies from TMDB...');
         
         // Fetch missing movies from TMDB
-        final missingMovies = await TMDBApi.getMoviesByIds(missingIds.toList());
-        DebugLogger.log('✅ Fetched ${missingMovies.length} movies from TMDB');
+        final allMovies = await MovieDatabaseLoader.loadMovieDatabase();
+        final missingMovies = allMovies.where((movie) => missingIds.contains(movie.id)).toList();
+        DebugLogger.log('✅ Found ${missingMovies.length} movies in JSON database');
         
         if (missingMovies.isNotEmpty) {
           // Add them to our available movies

@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user_profile.dart';
 import '../movie.dart';
 import '../widgets/compatibility_chart.dart';
+import '../services/recommendation_service.dart';
+import '../utils/movie_loader.dart';
 import 'matcher_screen.dart';
 
 class FriendProfileScreen extends StatefulWidget {
@@ -23,7 +27,10 @@ class FriendProfileScreen extends StatefulWidget {
 class _FriendProfileScreenState extends State<FriendProfileScreen> {
   late List<Movie> _sharedLikes;
   late List<Movie> _recommendedMovies;
+  List<Movie> _matchedMovies = []; // Initialize with empty list instead of late
   late Map<String, int> _genreOverlap;
+  int _sharedMovieCount = 0;
+  int _matchesCount = 0;
   bool _isLoading = true;
   
   @override
@@ -32,102 +39,311 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
     _analyzeProfiles();
   }
 
-  void _analyzeProfiles() {
+  void _analyzeProfiles() async {
     setState(() {
       _isLoading = true;
     });
     
-    // Find shared liked movies
-    _sharedLikes = widget.currentUser.likedMovies
-        .where((movie) => widget.friend.likedMovies.contains(movie))
-        .toList();
+    // DEBUG: Print the data we're working with
+    print("=== FRIEND PROFILE DEBUG ===");
+    print("Current user: ${widget.currentUser.name}");
+    print("Friend: ${widget.friend.name}");
+    print("Current user liked movies: ${widget.currentUser.likedMovies.length}");
+    print("Friend liked movies: ${widget.friend.likedMovies.length}");
+    print("Current user preferred genres: ${widget.currentUser.preferredGenres}");
+    print("Friend preferred genres: ${widget.friend.preferredGenres}");
+    print("Current user preferred vibes: ${widget.currentUser.preferredVibes}");
+    print("Friend preferred vibes: ${widget.friend.preferredVibes}");
+    print("Total movies available: ${widget.allMovies.length}");
     
-    // Calculate genre overlap
+    // Additional debug info
+    print("Friend UID: ${widget.friend.uid}");
+    print("Friend likedMovieIds: ${widget.friend.likedMovieIds}");
+    
+    // Find shared liked movies (use MovieDatabaseLoader to get actual movie objects)
+    final currentUserMovieIds = widget.currentUser.likedMovieIds;
+    final friendMovieIds = widget.friend.likedMovieIds;
+    final sharedMovieIds = currentUserMovieIds.intersection(friendMovieIds);
+    
+    print("Current user movie IDs: $currentUserMovieIds");
+    print("Friend movie IDs: $friendMovieIds");  
+    print("Shared movie IDs: $sharedMovieIds");
+    
+    // Load the full movie database to find shared movies
+    print("📚 Loading movie database to find shared movies...");
+    try {
+      final fullMovieDatabase = await MovieDatabaseLoader.loadMovieDatabase();
+      print("📊 Movie database loaded: ${fullMovieDatabase.length} movies");
+      
+      if (fullMovieDatabase.isNotEmpty) {
+        // Debug: Check first few movies in database
+        print("🔍 First 3 movies in database:");
+        for (int i = 0; i < fullMovieDatabase.length && i < 3; i++) {
+          print("   Movie ID: ${fullMovieDatabase[i].id}, Title: ${fullMovieDatabase[i].title}");
+        }
+        
+        // Debug: Check if any of our shared IDs exist in database
+        print("🔍 Looking for shared movie IDs: $sharedMovieIds");
+        final foundIds = <String>[];
+        for (final movie in fullMovieDatabase) {
+          if (sharedMovieIds.contains(int.tryParse(movie.id))) {
+            foundIds.add(movie.id);
+          }
+        }
+        print("🔍 Found ${foundIds.length} matching IDs in database: $foundIds");
+        
+        // Find actual movie objects for shared IDs
+        _sharedLikes = [];
+        
+        for (final sharedId in sharedMovieIds) {
+          final movie = fullMovieDatabase.firstWhere(
+            (movie) {
+              try {
+                return movie.id == sharedId.toString();
+              } catch (e) {
+                return false;
+              }
+            },
+            orElse: () => Movie(
+              id: '-1',
+              title: '',
+              overview: '',
+              genres: [],
+              tags: [],
+              posterUrl: '',
+              cast: [],
+            ),
+          );
+          
+          if (movie.id != '-1') {
+            _sharedLikes.add(movie);
+            print("✅ Found shared movie: ${movie.title} (ID: ${movie.id})");
+          } else {
+            print("❌ Could not find movie with ID: $sharedId");
+          }
+        }
+        
+        print("📊 Successfully loaded ${_sharedLikes.length} shared movie objects");
+      } else {
+        print("❌ Movie database is empty");
+        _sharedLikes = [];
+      }
+    } catch (e) {
+      print("❌ Error loading movie database: $e");
+      _sharedLikes = [];
+    }
+    
+    // Store the actual shared count (use the movie IDs count as the authoritative number)
+    _sharedMovieCount = sharedMovieIds.length;
+    
+    print("Shared movies found: ${_sharedLikes.length}");
+    
+    // Load matches between current user and friend
+    print("📅 Loading match history between users...");
+    await _loadMatchHistory();
+    
+    // Calculate genre overlap (handle empty preferences)
     _genreOverlap = {};
     
     // Count genres from current user
-    for (var genre in widget.currentUser.preferredGenres) {
+    final currentGenres = widget.currentUser.preferredGenres;
+    for (var genre in currentGenres) {
       _genreOverlap[genre] = (_genreOverlap[genre] ?? 0) + 1;
     }
     
     // Count genres from friend
-    for (var genre in widget.friend.preferredGenres) {
+    final friendGenres = widget.friend.preferredGenres;
+    for (var genre in friendGenres) {
       _genreOverlap[genre] = (_genreOverlap[genre] ?? 0) + 1;
     }
     
     // Find movies both might enjoy (simple recommendation logic)
-    final Set<String> combinedGenres = {...widget.currentUser.preferredGenres, ...widget.friend.preferredGenres};
+    final Set<String> combinedGenres = {...currentGenres, ...friendGenres};
     final Set<String> combinedVibes = {...widget.currentUser.preferredVibes, ...widget.friend.preferredVibes};
     
-    // Generate movie recommendations based on shared preferences
-    _recommendedMovies = widget.allMovies
-        .where((movie) {
-          // Count how many shared genres and vibes the movie matches
-          int genreMatches = movie.genres
-              .where((g) => combinedGenres.contains(g))
-              .length;
-              
-          int vibeMatches = movie.tags
-              .where((t) => combinedVibes.contains(t))
-              .length;
-              
-          // Consider it a good recommendation if it matches at least one genre and vibe
-          return genreMatches > 0 && vibeMatches > 0;
-        })
-        .where((movie) => 
-            !widget.currentUser.likedMovies.contains(movie) ||
-            !widget.friend.likedMovies.contains(movie))
-        .toList();
+    // Generate movie recommendations using the smart recommendation service
+    _recommendedMovies = await RecommendationService.getRecommendationsForPair(
+      user1: widget.currentUser,
+      user2: widget.friend,
+      allMovies: widget.allMovies,
+      maxRecommendations: 10,
+    );
     
-    // Sort recommendations by how many genres/vibes they match
-    _recommendedMovies.sort((a, b) {
-      int aMatches = a.genres.where((g) => combinedGenres.contains(g)).length +
-          a.tags.where((t) => combinedVibes.contains(t)).length;
-          
-      int bMatches = b.genres.where((g) => combinedGenres.contains(g)).length +
-          b.tags.where((t) => combinedVibes.contains(t)).length;
-          
-      return bMatches.compareTo(aMatches); // Descending order
-    });
+    print("Combined genres: $combinedGenres");
+    print("Combined vibes: $combinedVibes");
+    print("Recommended movies found: ${_recommendedMovies.length}");
     
-    // Take only top 10 recommendations
-    if (_recommendedMovies.length > 10) {
-      _recommendedMovies = _recommendedMovies.sublist(0, 10);
+    // Try to load fresh data from Firestore to check what's actually saved
+    try {
+      final freshDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.friend.uid)
+          .get();
+      
+      if (freshDoc.exists) {
+        final freshData = freshDoc.data()!;
+        print("=== FRESH FIRESTORE DATA ===");
+        print("Fresh name: ${freshData['name']}");
+        print("Fresh likedMovieIds: ${freshData['likedMovieIds']}");
+        print("Fresh preferredGenres: ${freshData['preferredGenres']}");
+        print("Fresh preferredVibes: ${freshData['preferredVibes']}");
+      } else {
+        print("❌ Friend document doesn't exist in Firestore!");
+      }
+    } catch (e) {
+      print("❌ Error loading fresh data: $e");
     }
     
     setState(() {
       _isLoading = false;
     });
   }
+
+  Future<void> _loadMatchHistory() async {
+    try {
+      // Get matches from the current user's match history
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.currentUser.uid)
+          .get();
+      
+      if (!userDoc.exists) {
+        print("❌ Current user document not found");
+        _matchedMovies = [];
+        _matchesCount = 0;
+        return;
+      }
+      
+      final userData = userDoc.data()!;
+      final matchHistory = userData['matchHistory'] as List<dynamic>? ?? [];
+      
+      print("📊 Found ${matchHistory.length} total matches in user history");
+      
+      // Filter matches that include both users
+      final collaborativeMatches = matchHistory.where((match) {
+        final username = match['username'] as String? ?? '';
+        final currentUserName = widget.currentUser.name;
+        final friendName = widget.friend.name;
+        
+        // Check if both users are mentioned in the username field
+        return username.contains(currentUserName) && username.contains(friendName);
+      }).toList();
+      
+      print("📅 Found ${collaborativeMatches.length} collaborative matches");
+      
+      _matchesCount = collaborativeMatches.length;
+      
+      // Load full movie database to get movie details
+      final fullMovieDatabase = await MovieDatabaseLoader.loadMovieDatabase();
+      
+      if (fullMovieDatabase.isNotEmpty && collaborativeMatches.isNotEmpty) {
+        _matchedMovies = [];
+        
+        for (final match in collaborativeMatches) {
+          final movieId = match['movieId'] as String? ?? '';
+          
+          final movie = fullMovieDatabase.firstWhere(
+            (movie) => movie.id == movieId,
+            orElse: () => Movie(
+              id: '-1',
+              title: '',
+              overview: '',
+              genres: [],
+              tags: [],
+              posterUrl: '',
+              cast: [],
+            ),
+          );
+          
+          if (movie.id != '-1') {
+            _matchedMovies.add(movie);
+            print("✅ Found matched movie: ${movie.title} (ID: ${movie.id})");
+          }
+        }
+        
+        // Sort by match date (most recent first)
+        final matchesWithDates = collaborativeMatches.map((match) {
+          final movieId = match['movieId'] as String? ?? '';
+          final movie = _matchedMovies.firstWhere(
+            (m) => m.id == movieId,
+            orElse: () => Movie(
+              id: '-1', 
+              title: '', 
+              overview: '', 
+              genres: [], 
+              tags: [], 
+              posterUrl: '', 
+              cast: []
+            ),
+          );
+          return {
+            'movie': movie,
+            'date': match['matchDate'] as Timestamp?,
+            'watched': match['watched'] as bool? ?? false,
+          };
+        }).where((item) {
+          final movie = item['movie'] as Movie?;
+          return movie != null && movie.id != '-1';
+        }).toList();
+        
+        matchesWithDates.sort((a, b) {
+          final aDate = a['date'] as Timestamp?;
+          final bDate = b['date'] as Timestamp?;
+          if (aDate == null || bDate == null) return 0;
+          return bDate.compareTo(aDate); // Most recent first
+        });
+        
+        _matchedMovies = matchesWithDates
+            .map((item) => item['movie'] as Movie)
+            .where((movie) => movie.id != '-1')
+            .toList();
+        
+        print("📊 Successfully loaded ${_matchedMovies.length} matched movie objects");
+      } else {
+        _matchedMovies = [];
+      }
+      
+    } catch (e) {
+      print("❌ Error loading match history: $e");
+      _matchedMovies = [];
+      _matchesCount = 0;
+    }
+  }
   
   // Calculate overall compatibility score
   double get _compatibilityScore {
-    // Count shared genres
+    // Count shared genres (handle empty preferences)
     int sharedGenres = 0;
     for (var entry in _genreOverlap.entries) {
       if (entry.value > 1) sharedGenres++;
     }
     
-    // Count shared vibes
-    int sharedVibes = widget.currentUser.preferredVibes
-        .intersection(widget.friend.preferredVibes)
-        .length;
+    // Count shared vibes (handle empty preferences)
+    final currentVibes = widget.currentUser.preferredVibes;
+    final friendVibes = widget.friend.preferredVibes;
+    int sharedVibes = currentVibes.intersection(friendVibes).length;
     
     // Calculate percentages
-    double genrePercentage = widget.currentUser.preferredGenres.isEmpty || widget.friend.preferredGenres.isEmpty ? 0 :
+    final currentGenres = widget.currentUser.preferredGenres;
+    final friendGenresSet = widget.friend.preferredGenres;
+    
+    double genrePercentage = currentGenres.isEmpty || friendGenresSet.isEmpty ? 0 :
         sharedGenres / 
-        (widget.currentUser.preferredGenres.length + widget.friend.preferredGenres.length - sharedGenres);
+        (currentGenres.length + friendGenresSet.length - sharedGenres);
     
-    double vibePercentage = widget.currentUser.preferredVibes.isEmpty || widget.friend.preferredVibes.isEmpty ? 0 :
+    double vibePercentage = currentVibes.isEmpty || friendVibes.isEmpty ? 0 :
         sharedVibes / 
-        (widget.currentUser.preferredVibes.length + widget.friend.preferredVibes.length - sharedVibes);
+        (currentVibes.length + friendVibes.length - sharedVibes);
     
-    // Calculate shared likes percentage
+    // Calculate shared likes percentage using movie IDs
     double sharedLikesPercentage = 0;
-    if (widget.currentUser.likedMovies.isNotEmpty || widget.friend.likedMovies.isNotEmpty) {
-      sharedLikesPercentage = _sharedLikes.isEmpty ? 0 : 
-          _sharedLikes.length / 
-          (widget.currentUser.likedMovies.length + widget.friend.likedMovies.length - _sharedLikes.length);
+    final currentMovieIds = widget.currentUser.likedMovieIds;
+    final friendMovieIds = widget.friend.likedMovieIds;
+    
+    if (currentMovieIds.isNotEmpty || friendMovieIds.isNotEmpty) {
+      final sharedCount = currentMovieIds.intersection(friendMovieIds).length;
+      sharedLikesPercentage = sharedCount == 0 ? 0 : 
+          sharedCount / (currentMovieIds.length + friendMovieIds.length - sharedCount);
     }
     
     // Weighted average (likes count more)
@@ -138,194 +354,395 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF1F1F1F),
-        title: Text(
-          widget.friend.name,
-          style: const TextStyle(fontWeight: FontWeight.bold),
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Custom App Bar
+            _buildCustomAppBar(),
+            
+            // Content
+            Expanded(
+              child: _isLoading
+                  ? Center(
+                      child: CircularProgressIndicator(
+                        color: const Color(0xFFE5A00D),
+                        strokeWidth: 3.w,
+                      ),
+                    )
+                  : SingleChildScrollView(
+                      physics: const BouncingScrollPhysics(),
+                      padding: EdgeInsets.all(16.w),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Friend profile card with compatibility
+                          _buildProfileCard(),
+                          
+                          SizedBox(height: 24.h),
+                          
+                          // Match button
+                          _buildMatchButton(),
+                          
+                          SizedBox(height: 32.h),
+                          
+                          // Matches section
+                          _buildMatchesSection(),
+                          
+                          SizedBox(height: 32.h),
+                          
+                          // Compatibility breakdown
+                          _buildCompatibilitySection(),
+                          
+                          SizedBox(height: 32.h),
+                          
+                          // Movie recommendations section
+                          _buildRecommendationsSection(),
+                          
+                          SizedBox(height: 32.h),
+                          
+                          // Shared liked movies section
+                          _buildSharedLikesSection(),
+                          
+                          SizedBox(height: 80.h), // Bottom padding
+                        ],
+                      ),
+                    ),
+            ),
+          ],
         ),
-        actions: [
+      ),
+    );
+  }
+
+  Widget _buildMatchesSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(
+              Icons.movie_creation_outlined,
+              color: Colors.green,
+              size: 24.sp,
+            ),
+            SizedBox(width: 8.w),
+            Expanded(
+              child: Text(
+                "Your Matches Together",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20.sp,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            if (_matchesCount > 0)
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+                decoration: BoxDecoration(
+                  color: Colors.green.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12.r),
+                  border: Border.all(
+                    color: Colors.green,
+                    width: 1.w,
+                  ),
+                ),
+                child: Text(
+                  "$_matchesCount",
+                  style: TextStyle(
+                    color: Colors.green,
+                    fontSize: 12.sp,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        
+        SizedBox(height: 16.h),
+        
+        _matchedMovies.isEmpty
+            ? _buildEmptyState(
+                _matchesCount > 0 
+                    ? "Found $_matchesCount matches!\nLoading movie details..."
+                    : "No matches yet. Start a session together!",
+                _matchesCount > 0 ? Icons.movie : Icons.movie_creation_outlined,
+              )
+            : _buildMatchesCarousel(_matchedMovies),
+      ],
+    );
+  }
+
+  Widget _buildMatchesCarousel(List<Movie> movies) {
+    return SizedBox(
+      height: 220.h, // Slightly taller for date overlay
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: EdgeInsets.symmetric(horizontal: 8.w),
+        itemCount: movies.length,
+        itemBuilder: (context, index) {
+          final movie = movies[index];
+          return _buildMatchMovieCard(movie, index);
+        },
+      ),
+    );
+  }
+
+  Widget _buildMatchMovieCard(Movie movie, int index) {
+    // Note: In a real implementation, you'd want to store match dates with movies
+    // For now, showing relative time based on index
+    final daysAgo = index; // Placeholder - you'd get this from match data
+    final dateText = daysAgo == 0 ? "Today" : 
+                     daysAgo == 1 ? "Yesterday" : 
+                     "$daysAgo days ago";
+    
+    return Container(
+      width: 120.w,
+      margin: EdgeInsets.symmetric(horizontal: 6.w),
+      child: GestureDetector(
+        onTap: () => _showMovieDetails(movie),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12.r),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.4),
+                blurRadius: 8.r,
+                offset: Offset(0, 3.h),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12.r),
+            child: Stack(
+              children: [
+                // Movie poster
+                Container(
+                  width: double.infinity,
+                  height: double.infinity,
+                  child: Image.network(
+                    movie.posterUrl,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        color: const Color(0xFF2A2A2A),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.broken_image,
+                              color: Colors.white30,
+                              size: 32.sp,
+                            ),
+                            SizedBox(height: 8.h),
+                            Text(
+                              movie.title,
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 10.sp,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              textAlign: TextAlign.center,
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                
+                // Match date overlay at top
+                Positioned(
+                  top: 8.h,
+                  left: 8.w,
+                  right: 8.w,
+                  child: Container(
+                    padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withValues(alpha: 0.9),
+                      borderRadius: BorderRadius.circular(12.r),
+                    ),
+                    child: Text(
+                      dateText,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 9.sp,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+                
+                // Gradient overlay at bottom
+                Positioned(
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  child: Container(
+                    height: 60.h,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          Colors.black.withValues(alpha: 0.8),
+                        ],
+                      ),
+                    ),
+                    child: Padding(
+                      padding: EdgeInsets.all(8.w),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            movie.title,
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 11.sp,
+                              fontWeight: FontWeight.bold,
+                              shadows: [
+                                Shadow(
+                                  blurRadius: 4.r,
+                                  color: Colors.black,
+                                ),
+                              ],
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                
+                // Tap indicator
+                Positioned(
+                  top: 8.h,
+                  right: 8.w,
+                  child: Container(
+                    padding: EdgeInsets.all(4.w),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(12.r),
+                    ),
+                    child: Icon(
+                      Icons.info_outline,
+                      color: Colors.white,
+                      size: 14.sp,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCustomAppBar() {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1F1F1F),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.3),
+            blurRadius: 8.r,
+            offset: Offset(0, 2.h),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            onPressed: () => Navigator.pop(context),
+            icon: Icon(
+              Icons.arrow_back,
+              color: Colors.white,
+              size: 24.sp,
+            ),
+          ),
+          
+          SizedBox(width: 8.w),
+          
+          // Friend avatar
+          Container(
+            width: 40.w,
+            height: 40.w,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  const Color(0xFFE5A00D),
+                  const Color(0xFFFF8A00),
+                ],
+              ),
+            ),
+            child: Center(
+              child: Text(
+                widget.friend.name.isNotEmpty ? widget.friend.name[0].toUpperCase() : "?",
+                style: TextStyle(
+                  fontSize: 20.sp,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+          
+          SizedBox(width: 12.w),
+          
+          Expanded(
+            child: Text(
+              widget.friend.name,
+              style: TextStyle(
+                fontSize: 20.sp,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          
           PopupMenuButton(
-            icon: const Icon(Icons.more_vert),
+            icon: Icon(
+              Icons.more_vert,
+              color: Colors.white,
+              size: 24.sp,
+            ),
+            color: const Color(0xFF2A2A2A),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
             itemBuilder: (context) => [
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'remove',
-                child: Text('Remove Friend'),
+                child: Row(
+                  children: [
+                    Icon(Icons.person_remove, color: Colors.red, size: 20.sp),
+                    SizedBox(width: 12.w),
+                    Text(
+                      'Remove Friend',
+                      style: TextStyle(color: Colors.red, fontSize: 14.sp),
+                    ),
+                  ],
+                ),
               ),
             ],
             onSelected: (value) {
               if (value == 'remove') {
-                // Show confirmation dialog
-                showDialog(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    backgroundColor: const Color(0xFF1F1F1F),
-                    title: const Text(
-                      "Remove Friend",
-                      style: TextStyle(color: Colors.white),
-                    ),
-                    content: Text(
-                      "Are you sure you want to remove ${widget.friend.name} from your friends?",
-                      style: const TextStyle(color: Colors.white70),
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text(
-                          "Cancel",
-                          style: TextStyle(color: Colors.white70),
-                        ),
-                      ),
-                      ElevatedButton(
-                        onPressed: () {
-                          // Handle remove friend
-                          Navigator.pop(context); // Close dialog
-                          Navigator.pop(context); // Go back to friends list
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red,
-                        ),
-                        child: const Text(
-                          "Remove",
-                          style: TextStyle(color: Colors.white),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
+                _showRemoveFriendDialog();
               }
             },
           ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFFE5A00D)))
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Friend profile card with compatibility
-                  _buildProfileCard(),
-                  
-                  const SizedBox(height: 24),
-                  
-                  // Match button
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        final sessionId = DateTime.now().millisecondsSinceEpoch.toString();
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => MatcherScreen(
-                              sessionId: sessionId,
-                              allMovies: widget.allMovies,
-                              currentUser: widget.currentUser,
-                              friendIds: [widget.friend], // Add this line with at least the current friend
-                            ),
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.movie_filter, color: Colors.white),
-                      label: const Text(
-                        "Start Movie Matching",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFE5A00D),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 24),
-                  
-                  // Compatibility breakdown
-                  const Text(
-                    "Compatibility Breakdown",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 16),
-                  
-                  // This would be a custom widget to show taste overlap
-                  CompatibilityChart(
-                    currentUser: widget.currentUser,
-                    friend: widget.friend,
-                    sharedLikes: _sharedLikes,
-                  ),
-                  
-                  const SizedBox(height: 24),
-                  
-                  // Movie recommendations section
-                  const Text(
-                    "Movies You Might Both Enjoy",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 16),
-                  
-                  // Movie recommendations grid
-                  _recommendedMovies.isEmpty
-                      ? const Center(
-                          child: Padding(
-                            padding: EdgeInsets.all(24.0),
-                            child: Text(
-                              "Like more movies to get recommendations!",
-                              style: TextStyle(color: Colors.white70),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        )
-                      : _buildRecommendationsGrid(),
-                  
-                  const SizedBox(height: 24),
-                  
-                  // Shared liked movies section
-                  const Text(
-                    "Movies You Both Liked",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 16),
-                  
-                  // Shared movies grid
-                  _sharedLikes.isEmpty
-                      ? const Center(
-                          child: Padding(
-                            padding: EdgeInsets.all(24.0),
-                            child: Text(
-                              "No shared likes yet. Start matching!",
-                              style: TextStyle(color: Colors.white70),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        )
-                      : _buildSharedLikesGrid(),
-                ],
-              ),
-            ),
     );
   }
 
@@ -353,98 +770,137 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
       compatibilityColor = Colors.red;
     }
     
-    return Card(
-      elevation: 3,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      color: const Color(0xFF1F1F1F),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                // Friend avatar
-                CircleAvatar(
-                  radius: 40,
-                  backgroundColor: Colors.grey[800],
+    return Container(
+      padding: EdgeInsets.all(20.w),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1F1F1F),
+        borderRadius: BorderRadius.circular(16.r),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFE5A00D).withValues(alpha: 0.1),
+            blurRadius: 8.r,
+            offset: Offset(0, 2.h),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              // Friend avatar (larger)
+              Container(
+                width: 80.w,
+                height: 80.w,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      const Color(0xFFE5A00D),
+                      const Color(0xFFFF8A00),
+                    ],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFE5A00D).withValues(alpha: 0.3),
+                      blurRadius: 12.r,
+                      spreadRadius: 2.r,
+                    ),
+                  ],
+                ),
+                child: Center(
                   child: Text(
                     widget.friend.name.isNotEmpty ? widget.friend.name[0].toUpperCase() : "?",
-                    style: const TextStyle(
-                      fontSize: 32,
+                    style: TextStyle(
+                      fontSize: 32.sp,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
                     ),
                   ),
                 ),
-                const SizedBox(width: 16),
-                // Compatibility info
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        "Movie Compatibility",
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: Colors.white,
-                        ),
+              ),
+              
+              SizedBox(width: 20.w),
+              
+              // Compatibility info
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Movie Compatibility",
+                      style: TextStyle(
+                        fontSize: 16.sp,
+                        color: Colors.white70,
+                        fontWeight: FontWeight.w500,
                       ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          // Compatibility percentage
-                          Text(
-                            "$compatibilityScore%",
+                    ),
+                    
+                    SizedBox(height: 8.h),
+                    
+                    Row(
+                      children: [
+                        // Compatibility percentage
+                        Text(
+                          "$compatibilityScore%",
+                          style: TextStyle(
+                            fontSize: 36.sp,
+                            fontWeight: FontWeight.bold,
+                            color: compatibilityColor,
+                          ),
+                        ),
+                        
+                        SizedBox(width: 12.w),
+                        
+                        // Compatibility level
+                        Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 12.w,
+                            vertical: 6.h,
+                          ),
+                          decoration: BoxDecoration(
+                            color: compatibilityColor.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(12.r),
+                            border: Border.all(
+                              color: compatibilityColor,
+                              width: 1.w,
+                            ),
+                          ),
+                          child: Text(
+                            compatibilityLevel,
                             style: TextStyle(
-                              fontSize: 32,
+                              fontSize: 12.sp,
                               fontWeight: FontWeight.bold,
                               color: compatibilityColor,
                             ),
                           ),
-                          const SizedBox(width: 12),
-                          // Compatibility level
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: compatibilityColor.withValues(
-                                red: compatibilityColor.r.toDouble(),
-                                green: compatibilityColor.g.toDouble(),
-                                blue: compatibilityColor.b.toDouble(),
-                                alpha: 51 // Using 0.2 * 255 = 51
-                              ),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              compatibilityLevel,
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                color: compatibilityColor,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            // Shared likes stats
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildStatColumn("Shared\nGenres", _genreOverlap.entries.where((e) => e.value > 1).length),
-                _buildStatColumn("Shared\nLikes", _sharedLikes.length),
-                _buildStatColumn("Recommended\nMovies", _recommendedMovies.length),
-              ],
-            ),
-          ],
-        ),
+              ),
+            ],
+          ),
+          
+          SizedBox(height: 24.h),
+          
+          // Shared likes stats
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatColumn("Matches", _matchesCount),
+              ),
+              Expanded(
+                child: _buildStatColumn("Shared\nLikes", _sharedMovieCount),
+              ),
+              Expanded(
+                child: _buildStatColumn("Recommended\nMovies", _recommendedMovies.length),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -454,97 +910,606 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
       children: [
         Text(
           value.toString(),
-          style: const TextStyle(
-            fontSize: 24,
+          style: TextStyle(
+            fontSize: 28.sp,
             fontWeight: FontWeight.bold,
-            color: Color(0xFFE5A00D),
+            color: const Color(0xFFE5A00D),
           ),
         ),
-        const SizedBox(height: 4),
+        SizedBox(height: 4.h),
         Text(
           label,
-          style: const TextStyle(
-            fontSize: 14,
+          style: TextStyle(
+            fontSize: 12.sp,
             color: Colors.white70,
+            fontWeight: FontWeight.w500,
           ),
           textAlign: TextAlign.center,
         ),
       ],
     );
   }
-  
-  Widget _buildRecommendationsGrid() {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        childAspectRatio: 0.7,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
+
+  Widget _buildMatchButton() {
+    return Container(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        onPressed: () {
+          final sessionId = DateTime.now().millisecondsSinceEpoch.toString();
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => MatcherScreen(
+                sessionId: sessionId,
+                allMovies: widget.allMovies,
+                currentUser: widget.currentUser,
+                friendIds: [widget.friend],
+              ),
+            ),
+          );
+        },
+        icon: Icon(Icons.movie_filter, color: Colors.white, size: 20.sp),
+        label: Text(
+          "Start Movie Matching",
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 16.sp,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFFE5A00D),
+          padding: EdgeInsets.symmetric(vertical: 16.h),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12.r),
+          ),
+          elevation: 4,
+          shadowColor: const Color(0xFFE5A00D).withValues(alpha: 0.3),
+        ),
       ),
-      itemCount: _recommendedMovies.length,
-      itemBuilder: (context, index) {
-        final movie = _recommendedMovies[index];
-        return _buildMovieCard(movie);
-      },
     );
   }
-  
-  Widget _buildSharedLikesGrid() {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        childAspectRatio: 0.7,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-      ),
-      itemCount: _sharedLikes.length,
-      itemBuilder: (context, index) {
-        final movie = _sharedLikes[index];
-        return _buildMovieCard(movie);
-      },
+
+  Widget _buildCompatibilitySection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "Compatibility Breakdown",
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 20.sp,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        
+        SizedBox(height: 16.h),
+        
+        Container(
+          padding: EdgeInsets.all(16.w),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1F1F1F),
+            borderRadius: BorderRadius.circular(12.r),
+            border: Border.all(
+              color: const Color(0xFFE5A00D).withValues(alpha: 0.3),
+              width: 1.w,
+            ),
+          ),
+          child: CompatibilityChart(
+            currentUser: widget.currentUser,
+            friend: widget.friend,
+            sharedLikes: _sharedLikes,
+          ),
+        ),
+      ],
     );
   }
-  
-  Widget _buildMovieCard(Movie movie) {
-    return GestureDetector(
-      onTap: () {
-        // Show movie details
-      },
+
+  Widget _buildRecommendationsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(
+              Icons.recommend,
+              color: const Color(0xFFE5A00D),
+              size: 24.sp,
+            ),
+            SizedBox(width: 8.w),
+            Expanded(
+              child: Text(
+                "Movies You Might Both Enjoy",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20.sp,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            if (_recommendedMovies.isNotEmpty)
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12.r),
+                  border: Border.all(
+                    color: const Color(0xFFE5A00D),
+                    width: 1.w,
+                  ),
+                ),
+                child: Text(
+                  "${_recommendedMovies.length}",
+                  style: TextStyle(
+                    color: const Color(0xFFE5A00D),
+                    fontSize: 12.sp,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        
+        SizedBox(height: 16.h),
+        
+        _recommendedMovies.isEmpty
+            ? _buildEmptyState(
+                "Like more movies to get recommendations!",
+                Icons.thumb_up_outlined,
+              )
+            : _buildMoviesCarousel(_recommendedMovies),
+      ],
+    );
+  }
+
+  Widget _buildSharedLikesSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(
+              Icons.favorite,
+              color: Colors.red,
+              size: 24.sp,
+            ),
+            SizedBox(width: 8.w),
+            Expanded(
+              child: Text(
+                "Movies You Both Liked",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20.sp,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            if (_sharedMovieCount > 0)
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+                decoration: BoxDecoration(
+                  color: Colors.red.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12.r),
+                  border: Border.all(
+                    color: Colors.red,
+                    width: 1.w,
+                  ),
+                ),
+                child: Text(
+                  "$_sharedMovieCount",
+                  style: TextStyle(
+                    color: Colors.red,
+                    fontSize: 12.sp,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        
+        SizedBox(height: 16.h),
+        
+        // Show different states based on what we have
+        _buildSharedLikesContent(),
+      ],
+    );
+  }
+
+  Widget _buildSharedLikesContent() {
+    // If we have movie objects, show them
+    if (_sharedLikes.isNotEmpty) {
+      return _buildMoviesCarousel(_sharedLikes);
+    }
+    
+    // If we have shared IDs but no movie objects, show debug info
+    if (_sharedMovieCount > 0) {
+      return _buildEmptyStateWithCount(
+        "You both liked $_sharedMovieCount movies!\nTrouble loading movie details...\nCheck debug logs for details.",
+        Icons.movie,
+      );
+    }
+    
+    // No shared movies at all
+    return _buildEmptyState(
+      "No shared likes yet. Start matching!",
+      Icons.movie_filter_outlined,
+    );
+  }
+
+  Widget _buildEmptyState(String message, IconData icon) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(32.w),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1F1F1F),
+        borderRadius: BorderRadius.circular(12.r),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.1),
+          width: 1.w,
+        ),
+      ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.network(
-                movie.posterUrl,
-                fit: BoxFit.cover,
-                width: double.infinity,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    color: Colors.grey[800],
-                    child: const Center(
-                      child: Icon(Icons.broken_image, color: Colors.white30),
+          Icon(
+            icon,
+            color: Colors.white30,
+            size: 48.sp,
+          ),
+          SizedBox(height: 16.h),
+          Text(
+            message,
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: 14.sp,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyStateWithCount(String message, IconData icon) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(32.w),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1F1F1F),
+        borderRadius: BorderRadius.circular(12.r),
+        border: Border.all(
+          color: const Color(0xFFE5A00D).withValues(alpha: 0.3),
+          width: 1.w,
+        ),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            icon,
+            color: const Color(0xFFE5A00D),
+            size: 48.sp,
+          ),
+          SizedBox(height: 16.h),
+          Text(
+            message,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 14.sp,
+              fontWeight: FontWeight.w500,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildMoviesCarousel(List<Movie> movies) {
+    return SizedBox(
+      height: 200.h, // Fixed height for the carousel
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: EdgeInsets.symmetric(horizontal: 8.w),
+        itemCount: movies.length,
+        itemBuilder: (context, index) {
+          final movie = movies[index];
+          return _buildCarouselMovieCard(movie, index);
+        },
+      ),
+    );
+  }
+
+  Widget _buildCarouselMovieCard(Movie movie, int index) {
+    return Container(
+      width: 120.w, // Fixed width for each card
+      margin: EdgeInsets.symmetric(horizontal: 6.w),
+      child: GestureDetector(
+        onTap: () => _showMovieDetails(movie),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12.r),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.4),
+                blurRadius: 8.r,
+                offset: Offset(0, 3.h),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12.r),
+            child: Stack(
+              children: [
+                // Movie poster
+                Container(
+                  width: double.infinity,
+                  height: double.infinity,
+                  child: Image.network(
+                    movie.posterUrl,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        color: const Color(0xFF2A2A2A),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.broken_image,
+                              color: Colors.white30,
+                              size: 32.sp,
+                            ),
+                            SizedBox(height: 8.h),
+                            Text(
+                              movie.title,
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 10.sp,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              textAlign: TextAlign.center,
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                
+                // Gradient overlay at bottom
+                Positioned(
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  child: Container(
+                    height: 60.h,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          Colors.black.withValues(alpha: 0.8),
+                        ],
+                      ),
                     ),
-                  );
-                },
+                    child: Padding(
+                      padding: EdgeInsets.all(8.w),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            movie.title,
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 11.sp,
+                              fontWeight: FontWeight.bold,
+                              shadows: [
+                                Shadow(
+                                  blurRadius: 4.r,
+                                  color: Colors.black,
+                                ),
+                              ],
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          if (movie.genres.isNotEmpty) ...[
+                            SizedBox(height: 2.h),
+                            Text(
+                              movie.genres.first,
+                              style: TextStyle(
+                                color: const Color(0xFFE5A00D),
+                                fontSize: 9.sp,
+                                fontWeight: FontWeight.w500,
+                                shadows: [
+                                  Shadow(
+                                    blurRadius: 4.r,
+                                    color: Colors.black,
+                                  ),
+                                ],
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                
+                // Tap indicator
+                Positioned(
+                  top: 8.h,
+                  right: 8.w,
+                  child: Container(
+                    padding: EdgeInsets.all(4.w),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(12.r),
+                    ),
+                    child: Icon(
+                      Icons.info_outline,
+                      color: Colors.white,
+                      size: 14.sp,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showMovieDetails(Movie movie) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        minChildSize: 0.4,
+        maxChildSize: 0.9,
+        builder: (context, scrollController) => Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF1F1F1F),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20.r)),
+          ),
+          child: Column(
+            children: [
+              // Handle bar
+              Container(
+                margin: EdgeInsets.symmetric(vertical: 8.h),
+                width: 40.w,
+                height: 4.h,
+                decoration: BoxDecoration(
+                  color: Colors.white30,
+                  borderRadius: BorderRadius.circular(2.r),
+                ),
+              ),
+              
+              // Movie details content
+              Expanded(
+                child: SingleChildScrollView(
+                  controller: scrollController,
+                  padding: EdgeInsets.all(16.w),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        movie.title,
+                        style: TextStyle(
+                          fontSize: 24.sp,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      SizedBox(height: 8.h),
+                      Text(
+                        movie.genres.join(' • '),
+                        style: TextStyle(
+                          fontSize: 14.sp,
+                          color: const Color(0xFFE5A00D),
+                        ),
+                      ),
+                      SizedBox(height: 16.h),
+                      if (movie.tags.isNotEmpty) ...[
+                        Text(
+                          'Vibes',
+                          style: TextStyle(
+                            fontSize: 16.sp,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        SizedBox(height: 8.h),
+                        Wrap(
+                          spacing: 8.w,
+                          runSpacing: 4.h,
+                          children: movie.tags.map((tag) => Container(
+                            padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+                            decoration: BoxDecoration(
+                              color: Colors.purple.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(12.r),
+                              border: Border.all(color: Colors.purple, width: 1.w),
+                            ),
+                            child: Text(
+                              tag,
+                              style: TextStyle(
+                                color: Colors.purple,
+                                fontSize: 12.sp,
+                              ),
+                            ),
+                          )).toList(),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showRemoveFriendDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1F1F1F),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
+        title: Text(
+          "Remove Friend",
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 18.sp,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Text(
+          "Are you sure you want to remove ${widget.friend.name} from your friends?",
+          style: TextStyle(
+            color: Colors.white70,
+            fontSize: 14.sp,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              "Cancel",
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 14.sp,
               ),
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            movie.title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
+          ElevatedButton(
+            onPressed: () {
+              // Handle remove friend
+              Navigator.pop(context); // Close dialog
+              Navigator.pop(context); // Go back to friends list
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8.r),
+              ),
             ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
+            child: Text(
+              "Remove",
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 14.sp,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),
