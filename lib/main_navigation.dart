@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'screens/matcher_screen.dart';
 import 'screens/friends_screen.dart';
@@ -59,6 +60,24 @@ class _MainNavigationState extends State<MainNavigation> {
     // ✅ BULLETPROOF: No file access during initialization
     _initializeUserSession();
     _matcherScreen = _buildMatcherScreen();
+    _performPostAuthCleanup();
+  }
+
+  Future<void> _performPostAuthCleanup() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final lastCleanup = prefs.getInt('last_cleanup') ?? 0;
+      final now = DateTime.now().millisecondsSinceEpoch;
+      
+      if (now - lastCleanup > 6 * 60 * 60 * 1000) {
+        DebugLogger.log("🧹 Starting post-auth cleanup...");
+        await SessionService.performMaintenanceCleanup();
+        await prefs.setInt('last_cleanup', now);
+        DebugLogger.log("✅ Post-auth cleanup completed");
+      }
+    } catch (e) {
+      DebugLogger.log("Note: Post-auth cleanup failed: $e");
+    }
   }
 
   @override

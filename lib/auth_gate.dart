@@ -2,13 +2,11 @@
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/auth/login_screen.dart';
 import 'main_navigation.dart';
 import 'models/user_profile.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/debug_loader.dart';
-import 'services/session_service.dart';
 
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
@@ -133,30 +131,12 @@ class AuthGate extends StatelessWidget {
             }
 
             final profile = snapshot.data!;
-            Future.microtask(() => _performPostAuthCleanup()); // ✅ FIXED: delayed execution
             DebugLogger.log('➡️ Going to MainNavigation (movies will load internally)');
             return MainNavigation(profile: profile);
           },
         );
       },
     );
-  }
-
-  Future<void> _performPostAuthCleanup() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final lastCleanup = prefs.getInt('last_cleanup') ?? 0;
-      final now = DateTime.now().millisecondsSinceEpoch;
-      
-      if (now - lastCleanup > 6 * 60 * 60 * 1000) {
-        DebugLogger.log("🧹 Starting post-auth cleanup...");
-        await SessionService.performMaintenanceCleanup();
-        await prefs.setInt('last_cleanup', now);
-        DebugLogger.log("✅ Post-auth cleanup completed");
-      }
-    } catch (e) {
-      DebugLogger.log("Note: Post-auth cleanup failed: $e");
-    }
   }
 
   Future<UserProfile> _loadUserProfile(String uid) async {
