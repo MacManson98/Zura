@@ -3,7 +3,6 @@ workflows:
     name: iOS Workflow
     max_build_duration: 120
     instance_type: mac_mini_m1
- # Explicitly reference the integration
     integrations:
       app_store_connect: CodeMagic Integration
     environment:
@@ -22,84 +21,33 @@ workflows:
         script: |
           xcode-project use-profiles
       
-      - name: Clean build environment (Fix iOS crashes)
+      - name: Configure Firebase automatically
         script: |
-          echo "🧹 Starting complete clean build process..."
+          # Install FlutterFire CLI
+          dart pub global activate flutterfire_cli
           
-          # Clean Flutter completely
-          echo "🔄 Cleaning Flutter cache..."
-          flutter clean
-          
-          # Remove all iOS build artifacts
-          echo "🗑️ Removing iOS build artifacts..."
-          rm -rf ios/Pods
-          rm -rf ios/.symlinks
-          rm -f ios/Podfile.lock
-          rm -f pubspec.lock
-          
-          # Clean derived data
-          echo "🗑️ Cleaning Xcode derived data..."
-          rm -rf ~/Library/Developer/Xcode/DerivedData
-          
-          echo "✅ Clean environment complete!"
+          # Auto-configure Firebase (this properly integrates the plist)
+          flutterfire configure \
+            --project=reel-match-e7729 \
+            --platforms=ios \
+            --ios-bundle-id=com.zura.app \
+            --yes
       
-      - name: Fix Firebase AppDelegate conflict  
-        script: |
-          echo "🔧 Fixing Firebase initialization conflict..."
-          
-          # Remove conflicting Runner.swift file (keeps only AppDelegate.swift)
-          if [ -f "ios/Runner/Runner.swift" ]; then
-            echo "🗑️ Removing conflicting Runner.swift..."
-            rm ios/Runner/Runner.swift
-            echo "✅ Conflict resolved - using AppDelegate.swift only"
-          fi
-      
-      - name: Get Flutter dependencies with clean resolution
+      - name: Get Flutter dependencies
         script: |
           echo "📦 Getting Flutter dependencies..."
+          flutter clean
           flutter pub get
-          
-          echo "📋 Dependency tree check..."
-          flutter pub deps
-      
-      - name: Clean iOS dependencies and reinstall
+
+      - name: Install iOS dependencies
         script: |
-          echo "🍎 Setting up iOS dependencies..."
-          cd ios
-          
-          # Deintegrate and reinstall pods completely
-          echo "🔄 Deintegrating existing pods..."
-          pod deintegrate || echo "No pods to deintegrate"
-          
-          echo "📦 Installing fresh pods..."
-          pod install --clean-install --verbose
-          
-          cd ..
-          echo "✅ iOS dependencies ready!"
+          echo "🍎 Installing iOS dependencies..."
+          cd ios && pod install
       
-      - name: Verify Firebase configuration
-        script: |
-          echo "🔥 Checking Firebase configuration..."
-          
-          # Check if GoogleService-Info.plist exists
-          if [ ! -f "ios/Runner/GoogleService-Info.plist" ]; then
-            echo "❌ GoogleService-Info.plist missing!"
-            echo "📝 Add this file to ios/Runner/ in your repository"
-            exit 1
-          fi
-          
-          # Verify it contains your project
-          if grep -q "reel-match-e7729" ios/Runner/GoogleService-Info.plist; then
-            echo "✅ Firebase configuration verified"
-          else
-            echo "❌ Wrong Firebase project configuration"
-            exit 1
-          fi
-      
-      - name: Build iOS app with verbose logging
+      - name: Build iOS app
         script: |
           echo "🏗️ Building iOS app..."
-          flutter build ios --release --verbose
+          flutter build ios --release
       
       - name: Build iOS IPA
         script: |
@@ -110,18 +58,10 @@ workflows:
     artifacts:
       - build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
-      - flutter_drive.log
     publishing:
       app_store_connect:
-        # Use team integration
         auth: integration
-        
-        # Submit to TestFlight automatically
         submit_to_testflight: true
-        
-        # TestFlight configuration
         beta_groups:
           - App Store Connect Users
-        
-        # Don't submit to App Store yet
         submit_to_app_store: false
