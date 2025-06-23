@@ -4,7 +4,15 @@ use_frameworks!
 use_modular_headers!
 
 target 'Runner' do
-  flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
+  flutter_install_all_ios_pods(File.dirname(File.realpath(__FILE__)))
+
+  # ✅ Add Firebase pods
+  pod 'Firebase/Core'
+  pod 'Firebase/Auth'
+  pod 'Firebase/Firestore'
+
+  # ✅ Optional: Add Analytics without IDFA if you're privacy-focused
+  # pod 'FirebaseAnalyticsWithoutAdIdSupport'
 
   # Post install config
   post_install do |installer|
