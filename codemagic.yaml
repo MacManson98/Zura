@@ -9,7 +9,6 @@ workflows:
       ios_signing:
         distribution_type: app_store
         bundle_identifier: com.zura.app
-        automatic_code_signing: true
       vars:
         BUNDLE_ID: "com.zura.app"
         XCODE_WORKSPACE: "Runner.xcworkspace"
