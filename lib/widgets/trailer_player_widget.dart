@@ -2,7 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:youtube_player_iframe/youtube_player_iframe.dart';
+// import 'package:youtube_player_iframe/youtube_player_iframe.dart'; // ← REMOVED - This was causing crashes
 import 'package:url_launcher/url_launcher.dart';
 import '../services/trailer_service.dart';
 import '../movie.dart';
@@ -24,15 +24,12 @@ class TrailerPlayerWidget extends StatefulWidget {
 }
 
 class _TrailerPlayerWidgetState extends State<TrailerPlayerWidget> {
-  YoutubePlayerController? _youtubeController;
+  // YoutubePlayerController? _youtubeController; // ← REMOVED - No more YouTube controller
   MovieTrailer? _trailer;
   bool _isLoading = true;
   bool _hasError = false;
   String? _errorMessage;
   bool _isDisposed = false;
-  
-  // ✅ ADD: Debounce mechanism to prevent rapid recreation
-  bool _isCreatingController = false;
 
   @override
   void initState() {
@@ -43,32 +40,12 @@ class _TrailerPlayerWidgetState extends State<TrailerPlayerWidget> {
   @override
   void dispose() {
     _isDisposed = true;
-    _disposeController();
+    // No more controller to dispose - safer!
     super.dispose();
   }
 
-  // ✅ IMPROVED: Better controller disposal
-  void _disposeController() {
-    if (_youtubeController != null) {
-      try {
-        // Give the controller time to clean up properly
-        Future.microtask(() {
-          try {
-            _youtubeController?.close();
-          } catch (e) {
-            // Silently ignore disposal errors
-            debugPrint('YouTube disposal: $e');
-          }
-        });
-      } catch (e) {
-        // Ignore any synchronous disposal errors
-      }
-      _youtubeController = null;
-    }
-  }
-
   Future<void> _loadTrailer() async {
-    if (_isDisposed || _isCreatingController) return;
+    if (_isDisposed) return;
     
     try {
       if (mounted && !_isDisposed) {
@@ -87,7 +64,16 @@ class _TrailerPlayerWidgetState extends State<TrailerPlayerWidget> {
       if (!mounted || _isDisposed) return;
 
       if (trailer != null) {
-        await _createYouTubeController(trailer);
+        // No controller creation - just store the trailer data
+        try {
+          setState(() {
+            _trailer = trailer;
+            _isLoading = false;
+            _hasError = false;
+          });
+        } catch (e) {
+          // Widget was disposed during setState
+        }
       } else {
         if (!mounted || _isDisposed) return;
         
@@ -116,100 +102,57 @@ class _TrailerPlayerWidgetState extends State<TrailerPlayerWidget> {
     }
   }
 
-  // ✅ IMPROVED: Better controller creation with debouncing
-  Future<void> _createYouTubeController(MovieTrailer trailer) async {
-    if (_isDisposed || _isCreatingController) return;
-    
-    _isCreatingController = true;
-    
-    try {
-      // ✅ ADD: Small delay to prevent rapid recreation
-      await Future.delayed(const Duration(milliseconds: 100));
-      
-      if (!mounted || _isDisposed) {
-        _isCreatingController = false;
-        return;
-      }
-
-      // Dispose existing controller first
-      _disposeController();
-      
-      // ✅ IMPROVED: Better YouTube player configuration
-      final controller = YoutubePlayerController.fromVideoId(
-        videoId: trailer.key,
-        autoPlay: false, // Always start paused to reduce errors
-        params: const YoutubePlayerParams(
-          mute: true, // Start muted to reduce audio issues
-          showControls: true,
-          showFullscreenButton: true,
-          enableCaption: false, // Disable captions to reduce errors
-          strictRelatedVideos: true,
-          enableJavaScript: true,
-          playsInline: true, // Better mobile support
-          showVideoAnnotations: false, // Reduce errors
-        ),
-      );
-
-      if (!mounted || _isDisposed) {
-        try {
-          controller.close();
-        } catch (e) {
-          // Ignore disposal errors
-        }
-        _isCreatingController = false;
-        return;
-      }
-
-      try {
-        setState(() {
-          _trailer = trailer;
-          _youtubeController = controller;
-          _isLoading = false;
-          _hasError = false;
-        });
-      } catch (e) {
-        try {
-          controller.close();
-        } catch (e) {
-          // Ignore disposal errors
-        }
-      }
-    } catch (e) {
-      if (!mounted || _isDisposed) return;
-      
-      try {
-        setState(() {
-          _isLoading = false;
-          _hasError = true;
-          _errorMessage = 'Failed to create video player';
-        });
-      } catch (e) {
-        // Widget was disposed during setState
-      }
-    } finally {
-      _isCreatingController = false;
-    }
-  }
-
   Future<void> _openInYouTube() async {
     if (_isDisposed || _trailer == null) return;
     
-    final url = Uri.parse(_trailer!.youTubeUrl);
-    if (await canLaunchUrl(url)) {
-      await launchUrl(url, mode: LaunchMode.externalApplication);
-    } else {
-      if (mounted && !_isDisposed) {
-        try {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Could not open YouTube'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        } catch (e) {
-          // Context might be invalid if disposed
+    try {
+      final url = Uri.parse(_trailer!.youTubeUrl);
+      if (await canLaunchUrl(url)) {
+        await launchUrl(url, mode: LaunchMode.externalApplication);
+      } else {
+        if (mounted && !_isDisposed) {
+          _showErrorSnackbar('Could not open YouTube');
         }
       }
+    } catch (e) {
+      if (mounted && !_isDisposed) {
+        _showErrorSnackbar('Error opening trailer');
+      }
+    }
+  }
+
+  Future<void> _searchYouTubeTrailer() async {
+    if (_isDisposed) return;
+    
+    try {
+      final query = Uri.encodeComponent('${widget.movie.title} trailer');
+      final url = Uri.parse('https://www.youtube.com/results?search_query=$query');
+      
+      if (await canLaunchUrl(url)) {
+        await launchUrl(url, mode: LaunchMode.externalApplication);
+      } else {
+        if (mounted && !_isDisposed) {
+          _showErrorSnackbar('Could not open YouTube');
+        }
+      }
+    } catch (e) {
+      if (mounted && !_isDisposed) {
+        _showErrorSnackbar('Error searching for trailer');
+      }
+    }
+  }
+
+  void _showErrorSnackbar(String message) {
+    try {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      // Context might be invalid if disposed
     }
   }
 
@@ -232,6 +175,13 @@ class _TrailerPlayerWidgetState extends State<TrailerPlayerWidget> {
       decoration: BoxDecoration(
         color: const Color(0xFF1F1F1F),
         borderRadius: BorderRadius.circular(12.r),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.3),
+            blurRadius: 8.r,
+            offset: Offset(0, 4.h),
+          ),
+        ],
       ),
       child: _buildContent(),
     );
@@ -241,7 +191,7 @@ class _TrailerPlayerWidgetState extends State<TrailerPlayerWidget> {
     if (_isDisposed) return _buildNoTrailerState();
     if (_isLoading) return _buildLoadingState();
     if (_hasError) return _buildErrorState();
-    if (_youtubeController != null && _trailer != null) return _buildPlayerState();
+    if (_trailer != null) return _buildTrailerFoundState();
     return _buildNoTrailerState();
   }
 
@@ -255,7 +205,7 @@ class _TrailerPlayerWidgetState extends State<TrailerPlayerWidget> {
         ),
         SizedBox(height: 16.h),
         Text(
-          'Loading trailer...',
+          'Finding trailer...',
           style: TextStyle(color: Colors.white70, fontSize: 14.sp),
         ),
       ],
@@ -274,15 +224,31 @@ class _TrailerPlayerWidgetState extends State<TrailerPlayerWidget> {
           textAlign: TextAlign.center,
         ),
         SizedBox(height: 16.h),
-        ElevatedButton.icon(
-          onPressed: _isDisposed ? null : _loadTrailer,
-          icon: Icon(Icons.refresh, size: 16.sp),
-          label: Text('Retry', style: TextStyle(fontSize: 14.sp)),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFFE5A00D),
-            foregroundColor: Colors.white,
-            padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            ElevatedButton.icon(
+              onPressed: _isDisposed ? null : _loadTrailer,
+              icon: Icon(Icons.refresh, size: 16.sp),
+              label: Text('Retry', style: TextStyle(fontSize: 14.sp)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFE5A00D),
+                foregroundColor: Colors.white,
+                padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
+              ),
+            ),
+            SizedBox(width: 12.w),
+            OutlinedButton.icon(
+              onPressed: _isDisposed ? null : _searchYouTubeTrailer,
+              icon: Icon(Icons.search, size: 16.sp),
+              label: Text('Search YouTube', style: TextStyle(fontSize: 14.sp)),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.white70,
+                side: BorderSide(color: Colors.white30),
+                padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -295,20 +261,34 @@ class _TrailerPlayerWidgetState extends State<TrailerPlayerWidget> {
         Icon(Icons.movie_outlined, color: Colors.white54, size: 48.sp),
         SizedBox(height: 16.h),
         Text(
-          'No trailer available',
+          'No trailer found',
           style: TextStyle(color: Colors.white70, fontSize: 16.sp, fontWeight: FontWeight.bold),
         ),
         SizedBox(height: 8.h),
         Text(
-          'This movie doesn\'t have a trailer',
+          'But you can search for one!',
           style: TextStyle(color: Colors.white54, fontSize: 12.sp),
+        ),
+        SizedBox(height: 16.h),
+        ElevatedButton.icon(
+          onPressed: _isDisposed ? null : _searchYouTubeTrailer,
+          icon: Icon(Icons.search, size: 20.sp),
+          label: Text('Search on YouTube', style: TextStyle(fontSize: 14.sp)),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.red,
+            foregroundColor: Colors.white,
+            padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 12.h),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12.r),
+            ),
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildPlayerState() {
-    if (_isDisposed || _youtubeController == null) {
+  Widget _buildTrailerFoundState() {
+    if (_isDisposed || _trailer == null) {
       return _buildNoTrailerState();
     }
     
@@ -316,64 +296,171 @@ class _TrailerPlayerWidgetState extends State<TrailerPlayerWidget> {
       borderRadius: BorderRadius.circular(12.r),
       child: Stack(
         children: [
-          // ✅ IMPROVED: Wrap YouTube player in error boundary
+          // Beautiful gradient background instead of video player
           Container(
             width: double.infinity,
             height: double.infinity,
-            child: YoutubePlayer(
-              controller: _youtubeController!,
-              aspectRatio: 16 / 9,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.red.withValues(alpha: 0.8),
+                  Colors.red.withValues(alpha: 0.6),
+                  Colors.orange.withValues(alpha: 0.7),
+                ],
+              ),
             ),
           ),
           
-          // Custom overlay with trailer info and controls
-          if (widget.showControls && !_isDisposed)
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: Container(
-                padding: EdgeInsets.all(12.w),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.transparent,
-                      Colors.black.withValues(alpha: 0.7),
+          // Play button and info overlay
+          Container(
+            width: double.infinity,
+            height: double.infinity,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.black.withValues(alpha: 0.3),
+                  Colors.black.withValues(alpha: 0.7),
+                ],
+              ),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Large play button
+                Container(
+                  width: 80.w,
+                  height: 80.h,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.9),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.3),
+                        blurRadius: 12.r,
+                        offset: Offset(0, 4.h),
+                      ),
                     ],
                   ),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            _trailer?.name ?? '',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 12.sp,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          Text(
-                            (_trailer?.type ?? '') + ((_trailer?.official ?? false) ? ' • Official' : ''),
-                            style: TextStyle(color: Colors.white70, fontSize: 10.sp),
-                          ),
-                        ],
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(40.r),
+                      onTap: _isDisposed ? null : _openInYouTube,
+                      child: Icon(
+                        Icons.play_arrow,
+                        color: Colors.red,
+                        size: 48.sp,
                       ),
                     ),
-                    IconButton(
-                      onPressed: _isDisposed ? null : _openInYouTube,
-                      icon: Icon(Icons.open_in_new, color: Colors.white, size: 20.sp),
-                      tooltip: 'Open in YouTube',
+                  ),
+                ),
+                
+                SizedBox(height: 16.h),
+                
+                // Trailer title
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16.w),
+                  child: Text(
+                    _trailer!.name.isNotEmpty 
+                        ? _trailer!.name 
+                        : '${widget.movie.title} Trailer',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16.sp,
+                      fontWeight: FontWeight.bold,
                     ),
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                
+                SizedBox(height: 8.h),
+                
+                // Trailer type and official badge
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (_trailer!.type.isNotEmpty) ...[
+                      Container(
+                        padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(12.r),
+                        ),
+                        child: Text(
+                          _trailer!.type.toUpperCase(),
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 10.sp,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: 8.w),
+                    ],
+                    if (_trailer!.official) ...[
+                      Container(
+                        padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+                        decoration: BoxDecoration(
+                          color: Colors.green.withValues(alpha: 0.8),
+                          borderRadius: BorderRadius.circular(12.r),
+                        ),
+                        child: Text(
+                          'OFFICIAL',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 10.sp,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
+                ),
+                
+                SizedBox(height: 12.h),
+                
+                // Watch button
+                ElevatedButton.icon(
+                  onPressed: _isDisposed ? null : _openInYouTube,
+                  icon: Icon(Icons.open_in_new, size: 16.sp),
+                  label: Text(
+                    'Watch on YouTube',
+                    style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.bold),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: Colors.red,
+                    padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 10.h),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20.r),
+                    ),
+                    elevation: 4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          // Info button in corner
+          if (widget.showControls && !_isDisposed)
+            Positioned(
+              top: 12.h,
+              right: 12.w,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.6),
+                  shape: BoxShape.circle,
+                ),
+                child: IconButton(
+                  onPressed: _isDisposed ? null : _openInYouTube,
+                  icon: Icon(Icons.info_outline, color: Colors.white, size: 20.sp),
+                  tooltip: 'Trailer Info',
                 ),
               ),
             ),

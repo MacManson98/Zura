@@ -1,10 +1,11 @@
+import 'package:Zura/widgets/trailer_player_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../movie.dart';
 import '../models/user_profile.dart';
 import '../utils/tmdb_api.dart';
-import '../widgets/trailer_player_widget.dart';
+// import '../widgets/trailer_player_widget.dart'; // ← REMOVED - This was causing crashes
 import 'package:intl/intl.dart';
 import '../utils/debug_loader.dart';
 
@@ -80,7 +81,7 @@ void showMovieDetails({
                       
                       SizedBox(height: 20.h),
                       
-                      // 6. TRAILER SECTION - Dynamic preview
+                      // 6. TRAILER SECTION - Dynamic preview (FIXED - No more crashes!)
                       _buildTrailerSection(movie),
                       
                       SizedBox(height: 20.h),
@@ -520,33 +521,43 @@ Widget _buildCastSection(Movie movie, List<Map<String, String>>? castDetails) {
   );
 }
 
-// 6. TRAILER SECTION - Dynamic preview
+// 6. TRAILER SECTION - FIXED! Now uses safe TrailerPlayerWidget
 Widget _buildTrailerSection(Movie movie) {
-    return Container(
-      margin: EdgeInsets.fromLTRB(24.w, 0, 24.w, 32.h),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            "Preview",
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 22.sp,
-              fontWeight: FontWeight.bold,
+  return Container(
+    margin: EdgeInsets.fromLTRB(24.w, 0, 24.w, 32.h),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(
+              Icons.play_circle_fill_rounded,
+              color: _getGenreColor(movie.genres),
+              size: 20.sp,
             ),
-          ),
-          SizedBox(height: 16.h),
-          
-          // Trailer player
-          TrailerPlayerWidget(
-            movie: movie,
-            autoPlay: false,
-            showControls: true,
-          ),
-        ],
-      ),
-    );
-  }
+            SizedBox(width: 8.w),
+            Text(
+              "Watch Trailer",
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18.sp,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: 12.h),
+        
+        // Safe trailer player - no embedded video, no crashes!
+        TrailerPlayerWidget(
+          movie: movie,
+          autoPlay: false,
+          showControls: true,
+        ),
+      ],
+    ),
+  );
+}
 
 // 7. ACTION BUTTONS - Clear next steps
 Widget _buildActionButtons(
