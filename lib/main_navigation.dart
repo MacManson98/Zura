@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart';
+import 'dart:io';
 import 'dart:async';
 import 'screens/matcher_screen.dart';
 import 'screens/friends_screen.dart';
@@ -57,15 +59,42 @@ class _MainNavigationState extends State<MainNavigation> {
   @override
   void initState() {
     super.initState();
-    // ✅ BULLETPROOF: No file access during initialization
-    _initializeUserSession();
+    // ✅ BULLETPROOF: Safe initialization with iOS delays
+    _safeInitializeUserSession();
     _matcherScreen = _buildMatcherScreen();
-    _performPostAuthCleanup();
   }
 
+  // 🆕 iOS-SAFE: Wrapper for initialization with proper delays
+  Future<void> _safeInitializeUserSession() async {
+    try {
+      // 🆕 iOS-SPECIFIC: Add delay before accessing SharedPreferences
+      if (!kIsWeb && Platform.isIOS) {
+        await Future.delayed(const Duration(milliseconds: 1000));
+      }
+      
+      await _initializeUserSession();
+      
+      // 🆕 iOS-SAFE: Delayed cleanup after proper initialization
+      if (!kIsWeb && Platform.isIOS) {
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
+      
+      _performPostAuthCleanup();
+    } catch (e) {
+      DebugLogger.log('Error in safe initialization: $e');
+      // Continue without cleanup if initialization fails
+    }
+  }
+
+  // 🆕 iOS-SAFE: SharedPreferences access with error handling
   Future<void> _performPostAuthCleanup() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = await _safeGetSharedPreferences();
+      if (prefs == null) {
+        DebugLogger.log("⚠️ SharedPreferences not available, skipping cleanup");
+        return;
+      }
+      
       final lastCleanup = prefs.getInt('last_cleanup') ?? 0;
       final now = DateTime.now().millisecondsSinceEpoch;
       
@@ -77,6 +106,30 @@ class _MainNavigationState extends State<MainNavigation> {
       }
     } catch (e) {
       DebugLogger.log("Note: Post-auth cleanup failed: $e");
+    }
+  }
+
+  // 🆕 iOS-SAFE: Wrapper for SharedPreferences with proper error handling
+  Future<SharedPreferences?> _safeGetSharedPreferences() async {
+    try {
+      // 🆕 iOS-SPECIFIC: Extra delay and retry logic for SharedPreferences
+      if (!kIsWeb && Platform.isIOS) {
+        for (int attempt = 0; attempt < 3; attempt++) {
+          try {
+            await Future.delayed(Duration(milliseconds: 200 * (attempt + 1)));
+            final prefs = await SharedPreferences.getInstance();
+            return prefs;
+          } catch (e) {
+            DebugLogger.log("SharedPreferences attempt ${attempt + 1} failed: $e");
+            if (attempt == 2) rethrow;
+          }
+        }
+      }
+      
+      return await SharedPreferences.getInstance();
+    } catch (e) {
+      DebugLogger.log("❌ SharedPreferences unavailable: $e");
+      return null;
     }
   }
 

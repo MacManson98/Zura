@@ -2,6 +2,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
+import 'dart:io';
 import 'screens/auth/login_screen.dart';
 import 'main_navigation.dart';
 import 'models/user_profile.dart';
@@ -139,8 +141,14 @@ class AuthGate extends StatelessWidget {
     );
   }
 
+  // 🆕 iOS-SAFE: Add delays for Firestore operations on iOS
   Future<UserProfile> _loadUserProfile(String uid) async {
     try {
+      // 🆕 iOS-SPECIFIC: Add delay before Firestore operations
+      if (!kIsWeb && Platform.isIOS) {
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
+
       final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
 
       if (!doc.exists) {
@@ -148,6 +156,12 @@ class AuthGate extends StatelessWidget {
           uid: uid,
           name: FirebaseAuth.instance.currentUser?.email ?? '',
         );
+        
+        // 🆕 iOS-SAFE: Additional delay before write operations
+        if (!kIsWeb && Platform.isIOS) {
+          await Future.delayed(const Duration(milliseconds: 200));
+        }
+        
         await FirebaseFirestore.instance
           .collection('users')
           .doc(uid)
@@ -162,6 +176,30 @@ class AuthGate extends StatelessWidget {
       }
     } catch (e) {
       DebugLogger.log('❌ Error in _loadUserProfile: $e');
+      
+      // 🆕 iOS-SAFE: Retry logic for iOS-specific failures
+      if (!kIsWeb && Platform.isIOS && e.toString().contains('path') || e.toString().contains('permission')) {
+        DebugLogger.log('🔄 Retrying profile load after iOS path/permission error...');
+        await Future.delayed(const Duration(milliseconds: 1000));
+        
+        try {
+          final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+          
+          if (!doc.exists) {
+            final profile = UserProfile.empty().copyWith(
+              uid: uid,
+              name: FirebaseAuth.instance.currentUser?.email ?? '',
+            );
+            return profile;
+          } else {
+            return UserProfile.fromJson(doc.data()!);
+          }
+        } catch (retryError) {
+          DebugLogger.log('❌ Retry also failed: $retryError');
+          rethrow;
+        }
+      }
+      
       rethrow;
     }
   }

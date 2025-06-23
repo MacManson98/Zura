@@ -1,16 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
+import 'dart:io';
 import 'auth_gate.dart';
-
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // 🆕 iOS-SPECIFIC: Add initialization delay to prevent path_provider crashes
+  if (!kIsWeb && Platform.isIOS) {
+    // Wait for iOS to be fully ready before initializing plugins
+    await Future.delayed(const Duration(milliseconds: 500));
+  }
+  
   await Firebase.initializeApp();
   
-  // 🆕 REMOVED: Don't sign out user on app start
-  // await FirebaseAuth.instance.signOut(); // ← REMOVED THIS LINE
-
   runApp(ScreenUtilInit(
     designSize: const Size(360, 690),
     minTextAdapt: true,
@@ -31,9 +36,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    
-    // 🆕 REMOVED: Don't run cleanup before authentication
-    // _performStartupCleanup(); // ← REMOVED THIS LINE
   }
 
   @override
@@ -45,11 +47,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    
-    // 🆕 REMOVED: Don't run cleanup on app resume either
-    // if (state == AppLifecycleState.resumed) {
-    //   _performStartupCleanup(); // ← REMOVED THIS LINE
-    // }
+    // App lifecycle handling can go here if needed
   }
 
   @override
