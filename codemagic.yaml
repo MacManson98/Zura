@@ -66,20 +66,74 @@ workflows:
           cd ..
           echo "✅ iOS dependencies ready!"
       
-      - name: Verify Firebase configuration
+      - name: Verify and Fix Firebase configuration
         script: |
-          echo "🔥 Verifying Firebase setup..."
+          echo "🔥 FIREBASE CONFIGURATION AUTO-FIX"
+          echo "=================================="
           
-          # Check if GoogleService-Info.plist exists
+          # Step 1: Verify GoogleService-Info.plist exists
+          echo "📋 Step 1: Checking for GoogleService-Info.plist..."
           if [ -f "ios/Runner/GoogleService-Info.plist" ]; then
             echo "✅ GoogleService-Info.plist found"
           else
             echo "❌ GoogleService-Info.plist missing!"
+            echo "🔧 Please add GoogleService-Info.plist to ios/Runner/ in your repository"
             exit 1
           fi
           
-          # Verify Firebase configuration
-          echo "🔍 Firebase config verification complete"
+          # Step 2: Check if already integrated in project.pbxproj
+          echo "🔍 Step 2: Checking Xcode project integration..."
+          if grep -q "GoogleService-Info.plist" ios/Runner.xcodeproj/project.pbxproj; then
+            echo "✅ GoogleService-Info.plist already integrated in Xcode project"
+          else
+            echo "🔧 Step 3: Auto-integrating GoogleService-Info.plist into Xcode project..."
+            
+            # Get the project.pbxproj file
+            PBXPROJ_FILE="ios/Runner.xcodeproj/project.pbxproj"
+            
+            # Generate a unique identifier for the file reference
+            FILE_REF_ID=$(openssl rand -hex 12 | tr '[:lower:]' '[:upper:]')
+            BUILD_FILE_ID=$(openssl rand -hex 12 | tr '[:lower:]' '[:upper:]')
+            
+            echo "📝 Adding file reference..."
+            # Add file reference (before the /* End PBXFileReference section */ line)
+            sed -i.bak "/\/\* End PBXFileReference section \*\//i\\
+          \\		${FILE_REF_ID} /* GoogleService-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = \"GoogleService-Info.plist\"; sourceTree = \"<group>\"; };" "$PBXPROJ_FILE"
+            
+            echo "📁 Adding to Runner group..."
+            # Add to Runner group children (find the Runner group and add the file reference)
+            sed -i.bak "/children = (/,/);/{
+              /Runner\/Info.plist/a\\
+          \\				${FILE_REF_ID} /* GoogleService-Info.plist */,
+            }" "$PBXPROJ_FILE"
+            
+            echo "🏗️ Adding build file..."
+            # Add build file reference (before /* End PBXBuildFile section */)
+            sed -i.bak "/\/\* End PBXBuildFile section \*\//i\\
+          \\		${BUILD_FILE_ID} /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = ${FILE_REF_ID} /* GoogleService-Info.plist */; };" "$PBXPROJ_FILE"
+            
+            echo "📦 Adding to Copy Bundle Resources..."
+            # Add to Copy Bundle Resources phase
+            sed -i.bak "/\/\* Resources \*\/ = {/,/);/{
+              /files = (/a\\
+          \\				${BUILD_FILE_ID} /* GoogleService-Info.plist in Resources */,
+            }" "$PBXPROJ_FILE"
+            
+            # Clean up backup file
+            rm "${PBXPROJ_FILE}.bak" 2>/dev/null || true
+            
+            echo "✅ GoogleService-Info.plist auto-integrated into Xcode project!"
+          fi
+          
+          # Step 3: Verify integration worked
+          echo "🔍 Step 4: Verifying integration..."
+          if grep -q "GoogleService-Info.plist.*Resources" ios/Runner.xcodeproj/project.pbxproj; then
+            echo "✅ Firebase plist properly integrated for bundling"
+          else
+            echo "⚠️ Integration may need manual verification"
+          fi
+          
+          echo "✅ Firebase configuration check complete!"
       
       - name: Build iOS app with verbose logging
         script: |
