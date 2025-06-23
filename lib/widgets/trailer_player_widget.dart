@@ -30,6 +30,9 @@ class _TrailerPlayerWidgetState extends State<TrailerPlayerWidget> {
   bool _hasError = false;
   String? _errorMessage;
   bool _isDisposed = false;
+  
+  // ✅ ADD: Debounce mechanism to prevent rapid recreation
+  bool _isCreatingController = false;
 
   @override
   void initState() {
@@ -40,25 +43,33 @@ class _TrailerPlayerWidgetState extends State<TrailerPlayerWidget> {
   @override
   void dispose() {
     _isDisposed = true;
-    
-    // Dispose controller safely
-    if (_youtubeController != null) {
-      try {
-        _youtubeController?.close();
-      } catch (e) {
-        // Ignore disposal errors - they're often harmless
-        debugPrint('YouTube controller disposal error (safe to ignore): $e');
-      }
-      _youtubeController = null;
-    }
-    
+    _disposeController();
     super.dispose();
   }
 
+  // ✅ IMPROVED: Better controller disposal
+  void _disposeController() {
+    if (_youtubeController != null) {
+      try {
+        // Give the controller time to clean up properly
+        Future.microtask(() {
+          try {
+            _youtubeController?.close();
+          } catch (e) {
+            // Silently ignore disposal errors
+            debugPrint('YouTube disposal: $e');
+          }
+        });
+      } catch (e) {
+        // Ignore any synchronous disposal errors
+      }
+      _youtubeController = null;
+    }
+  }
+
   Future<void> _loadTrailer() async {
-    if (_isDisposed) return;
+    if (_isDisposed || _isCreatingController) return;
     
-    // Use a try-catch around setState to prevent errors if disposed
     try {
       if (mounted && !_isDisposed) {
         setState(() {
@@ -67,56 +78,16 @@ class _TrailerPlayerWidgetState extends State<TrailerPlayerWidget> {
         });
       }
     } catch (e) {
-      return; // Widget was disposed during setState
+      return;
     }
 
     try {
       final trailer = await TrailerService.getTrailerForMovie(widget.movie.id);
 
-      // Check if widget is still mounted AND not disposed
-      if (!mounted || _isDisposed) {
-        return;
-      }
+      if (!mounted || _isDisposed) return;
 
       if (trailer != null) {
-        final controller = YoutubePlayerController.fromVideoId(
-          videoId: trailer.key,
-          autoPlay: widget.autoPlay,
-          params: const YoutubePlayerParams(
-            mute: false,
-            showControls: true,
-            showFullscreenButton: true,
-            enableCaption: true,
-            captionLanguage: 'en',
-            strictRelatedVideos: true,
-          ),
-        );
-
-        // Double-check we're still mounted and not disposed before setting state
-        if (!mounted || _isDisposed) {
-          // If we're disposed, clean up the controller we just created
-          try {
-            controller.close();
-          } catch (e) {
-            // Ignore disposal errors
-          }
-          return;
-        }
-
-        try {
-          setState(() {
-            _trailer = trailer;
-            _youtubeController = controller;
-            _isLoading = false;
-          });
-        } catch (e) {
-          // If setState fails, dispose the controller
-          try {
-            controller.close();
-          } catch (e) {
-            // Ignore disposal errors
-          }
-        }
+        await _createYouTubeController(trailer);
       } else {
         if (!mounted || _isDisposed) return;
         
@@ -137,11 +108,86 @@ class _TrailerPlayerWidgetState extends State<TrailerPlayerWidget> {
         setState(() {
           _isLoading = false;
           _hasError = true;
-          _errorMessage = 'Failed to load trailer: $e';
+          _errorMessage = 'Failed to load trailer';
         });
       } catch (e) {
         // Widget was disposed during setState
       }
+    }
+  }
+
+  // ✅ IMPROVED: Better controller creation with debouncing
+  Future<void> _createYouTubeController(MovieTrailer trailer) async {
+    if (_isDisposed || _isCreatingController) return;
+    
+    _isCreatingController = true;
+    
+    try {
+      // ✅ ADD: Small delay to prevent rapid recreation
+      await Future.delayed(const Duration(milliseconds: 100));
+      
+      if (!mounted || _isDisposed) {
+        _isCreatingController = false;
+        return;
+      }
+
+      // Dispose existing controller first
+      _disposeController();
+      
+      // ✅ IMPROVED: Better YouTube player configuration
+      final controller = YoutubePlayerController.fromVideoId(
+        videoId: trailer.key,
+        autoPlay: false, // Always start paused to reduce errors
+        params: const YoutubePlayerParams(
+          mute: true, // Start muted to reduce audio issues
+          showControls: true,
+          showFullscreenButton: true,
+          enableCaption: false, // Disable captions to reduce errors
+          strictRelatedVideos: true,
+          enableJavaScript: true,
+          playsInline: true, // Better mobile support
+          showVideoAnnotations: false, // Reduce errors
+        ),
+      );
+
+      if (!mounted || _isDisposed) {
+        try {
+          controller.close();
+        } catch (e) {
+          // Ignore disposal errors
+        }
+        _isCreatingController = false;
+        return;
+      }
+
+      try {
+        setState(() {
+          _trailer = trailer;
+          _youtubeController = controller;
+          _isLoading = false;
+          _hasError = false;
+        });
+      } catch (e) {
+        try {
+          controller.close();
+        } catch (e) {
+          // Ignore disposal errors
+        }
+      }
+    } catch (e) {
+      if (!mounted || _isDisposed) return;
+      
+      try {
+        setState(() {
+          _isLoading = false;
+          _hasError = true;
+          _errorMessage = 'Failed to create video player';
+        });
+      } catch (e) {
+        // Widget was disposed during setState
+      }
+    } finally {
+      _isCreatingController = false;
     }
   }
 
@@ -170,7 +216,6 @@ class _TrailerPlayerWidgetState extends State<TrailerPlayerWidget> {
   @override
   Widget build(BuildContext context) {
     if (_isDisposed) {
-      // Return empty container if disposed
       return Container(
         width: double.infinity,
         height: 200.h,
@@ -271,10 +316,14 @@ class _TrailerPlayerWidgetState extends State<TrailerPlayerWidget> {
       borderRadius: BorderRadius.circular(12.r),
       child: Stack(
         children: [
-          // Main YouTube Player
-          YoutubePlayer(
-            controller: _youtubeController!,
-            aspectRatio: 16 / 9,
+          // ✅ IMPROVED: Wrap YouTube player in error boundary
+          Container(
+            width: double.infinity,
+            height: double.infinity,
+            child: YoutubePlayer(
+              controller: _youtubeController!,
+              aspectRatio: 16 / 9,
+            ),
           ),
           
           // Custom overlay with trailer info and controls

@@ -9,6 +9,7 @@ import '../utils/moodboard_filter.dart';
 import '../utils/debug_loader.dart';
 import 'matches_screen.dart';
 import 'liked_movies_screen.dart';
+import '../utils/movie_loader.dart';
 
 class HomeScreen extends StatefulWidget {
   final UserProfile profile;
@@ -48,10 +49,13 @@ class _HomeScreenState extends State<HomeScreen>
   Animation<double>? _floatingAnimation;
   Animation<double>? _fadeAnimation;
 
+  List<Movie> _completeMovieDatabase = [];
+
   @override
   void initState() {
     super.initState();
     _initializeAnimations();
+    _loadCompleteMovieDatabase();
   }
 
   void _initializeAnimations() {
@@ -111,6 +115,11 @@ class _HomeScreenState extends State<HomeScreen>
     super.dispose();
   }
 
+  Future<void> _loadCompleteMovieDatabase() async {
+    _completeMovieDatabase = await MovieDatabaseLoader.loadMovieDatabase();
+    setState(() {});
+  }
+
   Future<void> _generateRandomPick() async {
     if (_isLoadingRandom || widget.movies.isEmpty) return;
 
@@ -143,18 +152,29 @@ class _HomeScreenState extends State<HomeScreen>
 
   // NEW: Trending movies methods
   List<Movie> _getTrendingMovies() {
+    final movies = _completeMovieDatabase.isNotEmpty ? _completeMovieDatabase : widget.movies;
     final now = DateTime.now();
     
-    // Filter out movies user already liked
-    final candidateMovies = widget.movies.where((movie) {
-      return !widget.profile.likedMovies.contains(movie);
+    // ✅ BETTER FILTERING: Only show high-quality, popular movies
+    final candidateMovies = movies.where((movie) {
+      return !widget.profile.likedMovies.contains(movie) &&
+            movie.rating != null && 
+            movie.rating! >= 7.0 &&                    // Good rating
+            movie.voteCount != null && 
+            movie.voteCount! >= 500 &&                 // Enough votes
+            movie.genres.isNotEmpty &&                 // Has genres
+            !movie.title.toLowerCase().contains('xxx') && // Filter inappropriate
+            !movie.title.toLowerCase().contains('porn');  // Filter inappropriate
     }).toList();
     
-    // Simple trending algorithm - changes weekly
-    candidateMovies.shuffle(Random(now.day + now.month));
+    // Sort by quality score (rating + popularity)
+    candidateMovies.sort((a, b) => b.qualityScore.compareTo(a.qualityScore));
     
-    // Return top 8 trending movies
-    return candidateMovies.take(8).toList();
+    // Take top quality movies and shuffle them
+    final topMovies = candidateMovies.take(50).toList(); // Get top 50 quality movies
+    topMovies.shuffle(Random(now.day + now.month));      // Shuffle for variety
+    
+    return topMovies.take(8).toList();
   }
 
   Map<String, dynamic> _getTrendingStats(Movie movie) {

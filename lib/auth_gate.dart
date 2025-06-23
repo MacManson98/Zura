@@ -6,8 +6,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/auth/login_screen.dart';
 import 'main_navigation.dart';
 import 'models/user_profile.dart';
-import 'movie.dart';
-import 'utils/tmdb_api.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/debug_loader.dart';
 import 'services/session_service.dart';
@@ -42,8 +40,8 @@ class AuthGate extends StatelessWidget {
           return const LoginScreen();
         }
 
-        return FutureBuilder<UserProfileScreenBundle>(
-          future: _loadUserProfileAndMovies(user.uid),
+        return FutureBuilder<UserProfile>(
+          future: _loadUserProfile(user.uid),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Scaffold(
@@ -107,10 +105,8 @@ class AuthGate extends StatelessWidget {
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 24),
-                      // 🆕 FIXED: Retry without signing out
                       ElevatedButton(
                         onPressed: () {
-                          // Force rebuild to retry loading
                           Navigator.of(context).pushReplacement(
                             MaterialPageRoute(builder: (context) => const AuthGate()),
                           );
@@ -121,7 +117,6 @@ class AuthGate extends StatelessWidget {
                         child: const Text('Retry'),
                       ),
                       const SizedBox(height: 16),
-                      // 🆕 SEPARATE: Sign out option if user wants it
                       TextButton(
                         onPressed: () {
                           FirebaseAuth.instance.signOut();
@@ -137,29 +132,26 @@ class AuthGate extends StatelessWidget {
               );
             }
 
-            // 🆕 OPTIONAL: Add cleanup after successful authentication
-            final data = snapshot.data!;
-
-            // Add this line after successful profile load:
+            final profile = snapshot.data!;
             _performPostAuthCleanup();
 
-            DebugLogger.log('➡️ Going directly to MainNavigation');
+            DebugLogger.log('➡️ Going to MainNavigation (movies will load internally)');
             return MainNavigation(
-              profile: data.profile, 
-              movies: data.movies,
+              profile: profile,
+              // ✅ REMOVED: movies parameter - MainNavigation loads them internally
             );
           },
         );
       },
     );
   }
+
   Future<void> _performPostAuthCleanup() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final lastCleanup = prefs.getInt('last_cleanup') ?? 0;
       final now = DateTime.now().millisecondsSinceEpoch;
       
-      // Run cleanup every 6 hours, but only after authentication
       if (now - lastCleanup > 6 * 60 * 60 * 1000) {
         DebugLogger.log("🧹 Starting post-auth cleanup...");
         await SessionService.performMaintenanceCleanup();
@@ -171,15 +163,13 @@ class AuthGate extends StatelessWidget {
     }
   }
 
-  Future<UserProfileScreenBundle> _loadUserProfileAndMovies(String uid) async {
+  Future<UserProfile> _loadUserProfile(String uid) async {
     try {
       final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
 
-      late final UserProfile profile;
-
       if (!doc.exists) {
         // ✅ NEW USERS: Create profile and save to database
-        profile = UserProfile.empty().copyWith(
+        final profile = UserProfile.empty().copyWith(
           uid: uid,
           name: FirebaseAuth.instance.currentUser?.email ?? '',
         );
@@ -189,24 +179,16 @@ class AuthGate extends StatelessWidget {
           .set(profile.toJson(), SetOptions(merge: true));
         
         DebugLogger.log('✅ Created new user profile');
+        return profile;
       } else {
         // ✅ EXISTING USERS: Load their profile
-        profile = UserProfile.fromJson(doc.data()!);
+        final profile = UserProfile.fromJson(doc.data()!);
         DebugLogger.log('✅ Loaded existing user profile');
+        return profile;
       }
-
-      final movies = await TMDBApi.getPopularMovies();
-      return UserProfileScreenBundle(profile, movies);
     } catch (e) {
-      DebugLogger.log('❌ Error in _loadUserProfileAndMovies: $e');
+      DebugLogger.log('❌ Error in _loadUserProfile: $e');
       rethrow;
     }
   }
-}
-
-class UserProfileScreenBundle {
-  final UserProfile profile;
-  final List<Movie> movies;
-
-  UserProfileScreenBundle(this.profile, this.movies);
 }
