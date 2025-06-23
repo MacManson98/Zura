@@ -3,8 +3,7 @@ workflows:
     name: iOS Workflow
     max_build_duration: 120
     instance_type: mac_mini_m1
-    integrations:
-      app_store_connect: CodeMagic Integration
+ # Explicitly reference the integration
     environment:
       ios_signing:
         distribution_type: app_store
@@ -151,6 +150,9 @@ workflows:
       - flutter_drive.log
     publishing:
       app_store_connect:
+        # Use team integration
+        auth: integration
+        
         # Submit to TestFlight automatically
         submit_to_testflight: true
         
