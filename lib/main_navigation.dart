@@ -1,6 +1,5 @@
 // File: lib/main_navigation.dart
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:async';
 import 'screens/matcher_screen.dart';
@@ -50,20 +49,23 @@ class _MainNavigationState extends State<MainNavigation> {
   List<UserProfile> _friendIds = [];
   late Widget _matcherScreen;
   
-  // ✅ BULLETPROOF: State management
+  // ✅ FAST: State management without file dependencies
   List<Movie> _completeMovieDatabase = [];
   bool _isLoadingMovies = false;
   bool _hasAttemptedLoad = false;
   bool _isInitialized = false;
   Timer? _loadTimer;
+  
+  // ✅ IN-MEMORY: Track cleanup without SharedPreferences
+  static DateTime? _lastCleanupTime;
 
   @override
   void initState() {
     super.initState();
     _matcherScreen = _buildMatcherScreen();
     
-    // ✅ SMART: Initialize immediately - iOS readiness already confirmed in main()
-    _safeInitializeUserSession();
+    // ✅ IMMEDIATE: No file system dependencies
+    _initializeUserSession();
   }
 
   @override
@@ -72,38 +74,38 @@ class _MainNavigationState extends State<MainNavigation> {
     super.dispose();
   }
 
-  // ✅ SMART: Quick initialization since iOS is already ready
-  Future<void> _safeInitializeUserSession() async {
+  // ✅ FAST: Immediate initialization without file system
+  Future<void> _initializeUserSession() async {
     if (_isInitialized) return;
     
     try {
       if (kDebugMode) {
-        DebugLogger.log("🔄 MainNavigation: Starting initialization...");
+        print("🔄 MainNavigation: Starting fast initialization...");
       }
       
-      // Load friends first (network only, no local storage)
+      // Load friends (network only)
       await _loadFriends();
       
-      // Mark as initialized BEFORE any file operations
+      // Mark as initialized immediately
       setState(() {
         _isInitialized = true;
         _matcherScreen = _buildMatcherScreen();
       });
       
-      // Start cleanup operations with minimal delay
-      Timer(const Duration(milliseconds: 500), () {
-        if (mounted) _performPostAuthCleanup();
+      // ✅ OPTIONAL: Schedule cleanup for later (non-blocking)
+      Timer(const Duration(seconds: 10), () {
+        if (mounted) _performOptionalCleanup();
       });
       
       if (kDebugMode) {
-        DebugLogger.log("✅ MainNavigation: Initialization completed");
+        print("✅ MainNavigation: Fast initialization completed");
       }
       
     } catch (e) {
       if (kDebugMode) {
-        DebugLogger.log('❌ Error in initialization: $e');
+        print('❌ Error in initialization: $e');
       }
-      // Set as initialized anyway to show UI
+      // Always show UI even if friends loading fails
       if (mounted) {
         setState(() {
           _isInitialized = true;
@@ -113,51 +115,42 @@ class _MainNavigationState extends State<MainNavigation> {
     }
   }
 
-  // ✅ SMART-SAFE: SharedPreferences should work since iOS is ready
-  Future<void> _performPostAuthCleanup() async {
+  // ✅ OPTIONAL: Cleanup without SharedPreferences dependency
+  Future<void> _performOptionalCleanup() async {
     if (!mounted) return;
     
     try {
-      if (kDebugMode) {
-        DebugLogger.log("🧹 Attempting post-auth cleanup...");
+      // ✅ IN-MEMORY: Check if we need cleanup (6 hour interval)
+      final now = DateTime.now();
+      if (_lastCleanupTime != null) {
+        final timeSinceCleanup = now.difference(_lastCleanupTime!);
+        if (timeSinceCleanup.inHours < 6) {
+          if (kDebugMode) {
+            print("ℹ️ Cleanup not needed yet");
+          }
+          return;
+        }
       }
       
-      // ✅ iOS should be ready now, but still handle gracefully
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        
-        final lastCleanup = prefs.getInt('last_cleanup') ?? 0;
-        final now = DateTime.now().millisecondsSinceEpoch;
-        
-        if (now - lastCleanup > 6 * 60 * 60 * 1000) {
-          if (kDebugMode) {
-            DebugLogger.log("🧹 Starting post-auth cleanup...");
-          }
-          await SessionService.performMaintenanceCleanup();
-          await prefs.setInt('last_cleanup', now);
-          if (kDebugMode) {
-            DebugLogger.log("✅ Post-auth cleanup completed");
-          }
-        } else {
-          if (kDebugMode) {
-            DebugLogger.log("ℹ️ Cleanup not needed yet");
-          }
-        }
-      } catch (e) {
-        if (kDebugMode) {
-          DebugLogger.log("⚠️ SharedPreferences still not ready: $e");
-        }
-        // Skip cleanup if still having issues
+      if (kDebugMode) {
+        print("🧹 Starting optional cleanup...");
+      }
+      
+      await SessionService.performMaintenanceCleanup();
+      _lastCleanupTime = now;
+      
+      if (kDebugMode) {
+        print("✅ Optional cleanup completed");
       }
     } catch (e) {
       if (kDebugMode) {
-        DebugLogger.log("Note: Post-auth cleanup failed: $e");
+        print("Note: Optional cleanup failed: $e");
       }
-      // Continue silently - cleanup is not critical
+      // Cleanup failures are not critical
     }
   }
 
-  // ✅ SMART: Load movies immediately since iOS is ready
+  // ✅ FAST: Load movies immediately
   Future<void> _loadCompleteMovieDatabase() async {
     if (_isLoadingMovies || _hasAttemptedLoad || !mounted || !_isInitialized) return;
     
@@ -165,39 +158,26 @@ class _MainNavigationState extends State<MainNavigation> {
     setState(() => _isLoadingMovies = true);
     
     try {
-      // ✅ MINIMAL: Very short delay since iOS is already ready
-      await Future.delayed(const Duration(milliseconds: 200));
-      
-      if (!mounted) return;
-      
       if (kDebugMode) {
-        DebugLogger.log('🎬 MainNavigation: Loading complete movie database...');
+        print('🎬 MainNavigation: Loading complete movie database...');
       }
       
       _completeMovieDatabase = await MovieDatabaseLoader.loadMovieDatabase();
       
       if (kDebugMode) {
-        DebugLogger.log('✅ MainNavigation: Loaded ${_completeMovieDatabase.length} movies with complete data');
-      }
-      
-      if (_completeMovieDatabase.isNotEmpty && mounted) {
-        final firstMovie = _completeMovieDatabase.first;
-        if (kDebugMode) {
-          DebugLogger.log('🔍 Sample movie: ${firstMovie.title}');
-          DebugLogger.log('🔍 Has streaming: ${firstMovie.hasAnyStreamingOptions}');
-        }
+        print('✅ MainNavigation: Loaded ${_completeMovieDatabase.length} movies');
       }
       
     } catch (e) {
       if (kDebugMode) {
-        DebugLogger.log('❌ MainNavigation: Error loading movie database: $e');
+        print('❌ MainNavigation: Error loading movie database: $e');
       }
-      _completeMovieDatabase = []; // ✅ GRACEFUL: Always provide empty list
+      _completeMovieDatabase = [];
     } finally {
       if (mounted) {
         setState(() {
           _isLoadingMovies = false;
-          _matcherScreen = _buildMatcherScreen(); // ✅ REBUILD: Update matcher with movies
+          _matcherScreen = _buildMatcherScreen();
         });
       }
     }
@@ -214,7 +194,7 @@ class _MainNavigationState extends State<MainNavigation> {
       }
     } catch (e) {
       if (kDebugMode) {
-        DebugLogger.log('Error loading friends: $e');
+        print('Error loading friends: $e');
       }
     }
   }
@@ -227,7 +207,7 @@ class _MainNavigationState extends State<MainNavigation> {
 
   void _goToFriendMatcher(UserProfile friend) {
     if (kDebugMode) {
-      DebugLogger.log("🟢 Switching to Matcher tab with ${friend.name}");
+      print("🟢 Switching to Matcher tab with ${friend.name}");
     }
     setState(() {
       _selectedFriend = friend;
@@ -242,7 +222,7 @@ class _MainNavigationState extends State<MainNavigation> {
     
     return MatcherScreen(
       sessionId: sessionId,
-      allMovies: _completeMovieDatabase, // ✅ SAFE: Empty list is handled gracefully
+      allMovies: _completeMovieDatabase,
       currentUser: widget.profile,
       friendIds: _friendIds,
       selectedFriend: _selectedFriend,
@@ -252,10 +232,10 @@ class _MainNavigationState extends State<MainNavigation> {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ SMART: Start movie loading quickly since iOS is ready
+    // ✅ IMMEDIATE: Start movie loading right away
     if (_isInitialized && !_hasAttemptedLoad && !_isLoadingMovies) {
       _loadTimer?.cancel();
-      _loadTimer = Timer(const Duration(milliseconds: 100), () {
+      _loadTimer = Timer(const Duration(milliseconds: 50), () {
         if (mounted) _loadCompleteMovieDatabase();
       });
     }
@@ -271,16 +251,15 @@ class _MainNavigationState extends State<MainNavigation> {
       });
     }
 
-    // ✅ BULLETPROOF: Always build screens, even with empty movie lists
     final screens = [
       HomeScreen(
         profile: widget.profile,
-        movies: _completeMovieDatabase, // ✅ SAFE: Empty list handled gracefully
+        movies: _completeMovieDatabase,
       ),
       _matcherScreen,
       FriendsScreen(
         currentUser: widget.profile,
-        allMovies: _completeMovieDatabase, // ✅ SAFE: Empty list handled gracefully
+        allMovies: _completeMovieDatabase,
         onMatchWithFriend: _goToFriendMatcher,
       ),
       ProfileScreen(
@@ -292,13 +271,12 @@ class _MainNavigationState extends State<MainNavigation> {
       backgroundColor: const Color(0xFF121212),
       body: Stack(
         children: [
-          // ✅ BULLETPROOF: Always show app content
           IndexedStack(
             index: _selectedIndex,
             children: screens,
           ),
           
-          // ✅ BRIEF: Only shows for a moment while loading friends
+          // ✅ BRIEF: Very quick loading screen
           if (!_isInitialized)
             Container(
               color: const Color(0xFF121212).withValues(alpha: 0.95),
@@ -325,21 +303,11 @@ class _MainNavigationState extends State<MainNavigation> {
                         fontWeight: FontWeight.w500,
                       ),
                     ),
-                    SizedBox(height: 8),
-                    Text(
-                      'Almost ready!',
-                      style: TextStyle(
-                        color: Colors.white54,
-                        fontSize: 14,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
                   ],
                 ),
               ),
             ),
           
-          // ✅ BULLETPROOF: Show loading overlay only when loading movies
           if (_isInitialized && _isLoadingMovies)
             Container(
               color: const Color(0xFF121212).withValues(alpha: 0.8),
@@ -353,20 +321,11 @@ class _MainNavigationState extends State<MainNavigation> {
                     ),
                     SizedBox(height: 24),
                     Text(
-                      'Loading movie database...',
+                      'Loading movies...',
                       style: TextStyle(
                         color: Colors.white70,
                         fontSize: 16,
                       ),
-                    ),
-                    SizedBox(height: 8),
-                    Text(
-                      'Just a moment...',
-                      style: TextStyle(
-                        color: Colors.white54,
-                        fontSize: 14,
-                      ),
-                      textAlign: TextAlign.center,
                     ),
                   ],
                 ),
@@ -432,7 +391,7 @@ class _MainNavigationState extends State<MainNavigation> {
     );
   }
 
-  // ... rest of your notification handling methods (unchanged)
+  // ... notification methods remain the same but without SharedPreferences
   Future<void> _handleSessionJoinFromNotification(Map<String, dynamic> invitation) async {
     try {
       DebugLogger.log("📥 Accepting session invitation: ${invitation['sessionId']}");
