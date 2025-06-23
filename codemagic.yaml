@@ -39,6 +39,8 @@ workflows:
               <string>AIzaSyDyslqduejJ35SuAO7TEP4fJ40CQXdunkU</string>
               <key>GCM_SENDER_ID</key>
               <string>173034299087</string>
+              <key>PLIST_VERSION</key>
+              <string>1</string>
               <key>BUNDLE_ID</key>
               <string>com.zura.app</string>
               <key>PROJECT_ID</key>
@@ -57,12 +59,79 @@ workflows:
               <true/>
               <key>IS_SIGNIN_ENABLED</key>
               <true/>
+              <key>CFBundleURLTypes</key>
+              <array>
+                  <dict>
+                      <key>CFBundleURLName</key>
+                      <string>google</string>
+                      <key>CFBundleURLSchemes</key>
+                      <array>
+                          <string>com.googleusercontent.apps.173034299087-ldk8k2rhifd6sdbvm0ac8kgsej9h4uq2</string>
+                      </array>
+                  </dict>
+              </array>
           </dict>
           </plist>
           EOF
           
           echo "✅ GoogleService-Info.plist created"
           ls -la ios/Runner/GoogleService-Info.plist
+          
+          # NEW: Force integration into Xcode project
+          echo "🔧 Integrating GoogleService-Info.plist into Xcode project..."
+          
+          PBXPROJ_FILE="ios/Runner.xcodeproj/project.pbxproj"
+          
+          # Check if already integrated
+          if grep -q "GoogleService-Info.plist" "$PBXPROJ_FILE"; then
+            echo "✅ File already integrated in project"
+          else
+            echo "📝 Adding file reference to Xcode project..."
+            
+            # Generate unique IDs for the file reference
+            FILE_REF_ID="97C146F01CF9000F007C117D"
+            BUILD_FILE_ID="97C146F11CF9000F007C117D"
+            
+            # Add file reference
+            sed -i.bak "/\/\* End PBXFileReference section \*\//i\\
+            \\		${FILE_REF_ID} /* GoogleService-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = \"GoogleService-Info.plist\"; sourceTree = \"<group>\"; };\\
+            " "$PBXPROJ_FILE"
+            
+            # Add to Runner group
+            sed -i.bak "/Runner\/Info.plist.*,/a\\
+            \\				${FILE_REF_ID} /* GoogleService-Info.plist */,\\
+            " "$PBXPROJ_FILE"
+            
+            # Add build file reference
+            sed -i.bak "/\/\* End PBXBuildFile section \*\//i\\
+            \\		${BUILD_FILE_ID} /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = ${FILE_REF_ID} /* GoogleService-Info.plist */; };\\
+            " "$PBXPROJ_FILE"
+            
+            # Add to Copy Bundle Resources
+            sed -i.bak "/\/\* LaunchScreen.storyboard in Resources \*\/,/a\\
+            \\				${BUILD_FILE_ID} /* GoogleService-Info.plist in Resources */,\\
+            " "$PBXPROJ_FILE"
+            
+            # Clean up backup
+            rm -f "${PBXPROJ_FILE}.bak"
+            
+            echo "✅ File successfully integrated into Xcode project"
+          fi
+          
+          # Verify integration
+          if grep -q "GoogleService-Info.plist.*Resources" "$PBXPROJ_FILE"; then
+            echo "✅ File will be bundled into app"
+          else
+            echo "❌ File integration may have failed"
+          fi
+          
+          # Final verification
+          if grep -q "reel-match-e7729" ios/Runner/GoogleService-Info.plist; then
+            echo "✅ File contains correct project ID"
+          else
+            echo "❌ File verification failed"
+            exit 1
+          fi
       
       - name: Get Flutter dependencies
         script: |
