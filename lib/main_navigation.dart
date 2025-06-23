@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'screens/matcher_screen.dart';
 import 'screens/friends_screen.dart';
 import 'screens/profile_screen.dart';
@@ -13,12 +14,11 @@ import '../utils/debug_loader.dart';
 import '../models/matching_models.dart';
 import 'services/group_invitation_service.dart';
 import 'widgets/notifications_bottom_sheet.dart';
-import '../utils/movie_loader.dart'; // ✅ ADD: Import movie loader
+import '../utils/movie_loader.dart';
 
 class MainNavigation extends StatefulWidget {
   final UserProfile profile;
   
-  // ✅ REMOVED: movies parameter
   const MainNavigation({
     super.key,
     required this.profile,
@@ -47,30 +47,44 @@ class _MainNavigationState extends State<MainNavigation> {
   List<UserProfile> _friendIds = [];
   late Widget _matcherScreen;
   
-  // ✅ ADD: State for complete movie database
+  // ✅ BULLETPROOF: State management
   List<Movie> _completeMovieDatabase = [];
-  bool _isLoadingMovies = true;
+  bool _isLoadingMovies = false;
+  bool _hasAttemptedLoad = false;
+  Timer? _loadTimer;
 
   @override
   void initState() {
     super.initState();
+    // ✅ BULLETPROOF: No file access during initialization
     _initializeUserSession();
     _matcherScreen = _buildMatcherScreen();
-    
-    // ✅ BEST: Delay until after first frame renders
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadCompleteMovieDatabase();
-    });
   }
 
-  // ✅ ADD: Load complete movie database with streaming data
+  @override
+  void dispose() {
+    _loadTimer?.cancel();
+    super.dispose();
+  }
+
+  // ✅ BULLETPROOF: Load movies only when safe and needed
   Future<void> _loadCompleteMovieDatabase() async {
+    if (_isLoadingMovies || _hasAttemptedLoad || !mounted) return;
+    
+    _hasAttemptedLoad = true;
+    setState(() => _isLoadingMovies = true);
+    
     try {
+      // ✅ SAFETY: Wait for iOS to be fully ready
+      await Future.delayed(const Duration(milliseconds: 1000));
+      
+      if (!mounted) return;
+      
       DebugLogger.log('🎬 MainNavigation: Loading complete movie database...');
       _completeMovieDatabase = await MovieDatabaseLoader.loadMovieDatabase();
       DebugLogger.log('✅ MainNavigation: Loaded ${_completeMovieDatabase.length} movies with complete data');
       
-      if (_completeMovieDatabase.isNotEmpty) {
+      if (_completeMovieDatabase.isNotEmpty && mounted) {
         final firstMovie = _completeMovieDatabase.first;
         DebugLogger.log('🔍 Sample movie: ${firstMovie.title}');
         DebugLogger.log('🔍 Has streaming: ${firstMovie.hasAnyStreamingOptions}');
@@ -78,9 +92,14 @@ class _MainNavigationState extends State<MainNavigation> {
       
     } catch (e) {
       DebugLogger.log('❌ MainNavigation: Error loading movie database: $e');
-      _completeMovieDatabase = [];
+      _completeMovieDatabase = []; // ✅ GRACEFUL: Always provide empty list
     } finally {
-      setState(() => _isLoadingMovies = false);
+      if (mounted) {
+        setState(() {
+          _isLoadingMovies = false;
+          _matcherScreen = _buildMatcherScreen(); // ✅ REBUILD: Update matcher with movies
+        });
+      }
     }
   }
 
@@ -138,7 +157,7 @@ class _MainNavigationState extends State<MainNavigation> {
     
     return MatcherScreen(
       sessionId: sessionId,
-      allMovies: _completeMovieDatabase, // ✅ CHANGED: Use complete database
+      allMovies: _completeMovieDatabase, // ✅ SAFE: Empty list is handled gracefully
       currentUser: widget.profile,
       friendIds: _friendIds,
       selectedFriend: _selectedFriend,
@@ -148,39 +167,12 @@ class _MainNavigationState extends State<MainNavigation> {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ ADD: Show loading screen while movies are loading
-    if (_isLoadingMovies) {
-      return Scaffold(
-        backgroundColor: const Color(0xFF121212),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CircularProgressIndicator(
-                color: const Color(0xFFE5A00D),
-                strokeWidth: 3,
-              ),
-              SizedBox(height: 24),
-              Text(
-                'Loading movie database...',
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 16,
-                ),
-              ),
-              SizedBox(height: 8),
-              Text(
-                'This may take a moment for the first load',
-                style: TextStyle(
-                  color: Colors.white54,
-                  fontSize: 14,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-      );
+    // ✅ BULLETPROOF: Trigger movie loading when app is stable
+    if (!_hasAttemptedLoad && !_isLoadingMovies) {
+      _loadTimer?.cancel();
+      _loadTimer = Timer(const Duration(milliseconds: 100), () {
+        if (mounted) _loadCompleteMovieDatabase();
+      });
     }
 
     final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
@@ -188,21 +180,22 @@ class _MainNavigationState extends State<MainNavigation> {
     
     if (initialTab != null && initialTab != _selectedIndex) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        setState(() {
-          _selectedIndex = initialTab;
-        });
+        if (mounted) {
+          setState(() => _selectedIndex = initialTab);
+        }
       });
     }
 
+    // ✅ BULLETPROOF: Always build screens, even with empty movie lists
     final screens = [
       HomeScreen(
         profile: widget.profile,
-        movies: _completeMovieDatabase, // ✅ CHANGED: Use complete database
+        movies: _completeMovieDatabase, // ✅ SAFE: Empty list handled gracefully
       ),
       _matcherScreen,
       FriendsScreen(
         currentUser: widget.profile,
-        allMovies: _completeMovieDatabase, // ✅ CHANGED: Use complete database
+        allMovies: _completeMovieDatabase, // ✅ SAFE: Empty list handled gracefully
         onMatchWithFriend: _goToFriendMatcher,
       ),
       ProfileScreen(
@@ -212,9 +205,48 @@ class _MainNavigationState extends State<MainNavigation> {
 
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
-      body: IndexedStack(
-        index: _selectedIndex,
-        children: screens,
+      body: Stack(
+        children: [
+          // ✅ BULLETPROOF: Always show app content
+          IndexedStack(
+            index: _selectedIndex,
+            children: screens,
+          ),
+          
+          // ✅ BULLETPROOF: Show loading overlay only when loading
+          if (_isLoadingMovies)
+            Container(
+              color: const Color(0xFF121212).withOpacity(0.8),
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(
+                      color: const Color(0xFFE5A00D),
+                      strokeWidth: 3,
+                    ),
+                    SizedBox(height: 24),
+                    Text(
+                      'Loading movie database...',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 16,
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      'Just a moment...',
+                      style: TextStyle(
+                        color: Colors.white54,
+                        fontSize: 14,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
       ),
       bottomNavigationBar: StreamBuilder<List<Map<String, dynamic>>>(
         stream: SessionService.watchPendingInvitations(),
@@ -293,20 +325,22 @@ class _MainNavigationState extends State<MainNavigation> {
           MainNavigation._globalSessionCallback!(session);
         }
         
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                Icon(Icons.check_circle, color: Colors.white),
-                SizedBox(width: 8),
-                Text('Joined session! Loading matcher...'),
-              ],
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.white),
+                  SizedBox(width: 8),
+                  Text('Joined session! Loading matcher...'),
+                ],
+              ),
+              backgroundColor: Colors.green,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
-            backgroundColor: Colors.green,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          ),
-        );
+          );
+        }
       }
     } catch (e) {
       DebugLogger.log("❌ Error accepting session invitation: $e");
