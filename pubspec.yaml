@@ -1,6 +1,6 @@
 name: Zura
 description: A smart movie matcher for friends and film lovers.
-version: 1.0.0+11
+version: 1.0.0+12
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
