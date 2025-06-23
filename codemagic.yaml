@@ -4,7 +4,7 @@ workflows:
     max_build_duration: 120
     instance_type: mac_mini_m1
     integrations:
-      app_store_connect: codemagic
+      app_store_connect: # Auto-detect from team integrations
     environment:
       ios_signing:
         distribution_type: app_store
@@ -21,7 +21,6 @@ workflows:
         script: |
           xcode-project use-profiles
       
-      # CRITICAL: Complete clean build process
       - name: Clean build environment (Fix iOS crashes)
         script: |
           echo "🧹 Starting complete clean build process..."
@@ -58,7 +57,7 @@ workflows:
           
           # Deintegrate and reinstall pods completely
           echo "🔄 Deintegrating existing pods..."
-          pod deintegrate
+          pod deintegrate || echo "No pods to deintegrate"
           
           echo "📦 Installing fresh pods..."
           pod install --clean-install --verbose
@@ -151,19 +150,13 @@ workflows:
       - /tmp/xcodebuild_logs/*.log
       - flutter_drive.log
     publishing:
-      # Automatically submit to App Store Connect
       app_store_connect:
-        auth: integration
-        
-        # Submit to App Store Connect
-        submit_to_app_store: false
-        
-        # Submit to TestFlight
+        # Submit to TestFlight automatically
         submit_to_testflight: true
         
         # TestFlight configuration
         beta_groups:
           - App Store Connect Users
         
-        # Release notes
-        submit_to_testflight: true
+        # Don't submit to App Store yet
+        submit_to_app_store: false
