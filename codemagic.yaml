@@ -20,6 +20,28 @@ workflows:
       - name: Set up code signing settings on Xcode project
         script: |
           xcode-project use-profiles
+
+      - name: Clean Xcode project references
+        script: |
+          echo "🧹 Cleaning potential duplicate references..."
+          
+          PBXPROJ_FILE="ios/Runner.xcodeproj/project.pbxproj"
+          
+          # Remove any existing GoogleService-Info.plist references
+          if grep -q "GoogleService-Info.plist" "$PBXPROJ_FILE"; then
+            echo "📝 Removing existing GoogleService-Info.plist references..."
+            
+            # Create backup
+            cp "$PBXPROJ_FILE" "${PBXPROJ_FILE}.backup"
+            
+            # Remove all GoogleService-Info.plist lines
+            sed -i.tmp '/GoogleService-Info.plist/d' "$PBXPROJ_FILE"
+            rm -f "${PBXPROJ_FILE}.tmp"
+            
+            echo "✅ Cleaned existing references"
+          else
+            echo "✅ No existing references found"
+          fi
       
       - name: Create Firebase configuration
         script: |
