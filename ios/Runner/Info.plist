@@ -58,5 +58,10 @@
 	<!-- 🔧 EXPORT COMPLIANCE (Automates TestFlight submission) -->
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>NSCameraUsageDescription</key>
+	<string>Camera access may be requested by embedded video content.</string>
+
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Microphone access may be requested by embedded video content.</string>
 </dict>
 </plist>

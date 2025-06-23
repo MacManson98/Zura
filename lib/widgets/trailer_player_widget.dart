@@ -2,7 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:youtube_player_flutter/youtube_player_flutter.dart';
+import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/trailer_service.dart';
 import '../movie.dart';
@@ -44,10 +44,7 @@ class _TrailerPlayerWidgetState extends State<TrailerPlayerWidget> {
     // Dispose controller safely
     if (_youtubeController != null) {
       try {
-        // Add a small delay to ensure any pending operations complete
-        Future.microtask(() {
-          _youtubeController?.dispose();
-        });
+        _youtubeController?.close();
       } catch (e) {
         // Ignore disposal errors - they're often harmless
         debugPrint('YouTube controller disposal error (safe to ignore): $e');
@@ -82,14 +79,16 @@ class _TrailerPlayerWidgetState extends State<TrailerPlayerWidget> {
       }
 
       if (trailer != null) {
-        final controller = YoutubePlayerController(
-          initialVideoId: trailer.key,
-          flags: YoutubePlayerFlags(
-            autoPlay: widget.autoPlay,
+        final controller = YoutubePlayerController.fromVideoId(
+          videoId: trailer.key,
+          autoPlay: widget.autoPlay,
+          params: const YoutubePlayerParams(
             mute: false,
+            showControls: true,
+            showFullscreenButton: true,
             enableCaption: true,
             captionLanguage: 'en',
-            showLiveFullscreenButton: true,
+            strictRelatedVideos: true,
           ),
         );
 
@@ -97,7 +96,7 @@ class _TrailerPlayerWidgetState extends State<TrailerPlayerWidget> {
         if (!mounted || _isDisposed) {
           // If we're disposed, clean up the controller we just created
           try {
-            controller.dispose();
+            controller.close();
           } catch (e) {
             // Ignore disposal errors
           }
@@ -113,7 +112,7 @@ class _TrailerPlayerWidgetState extends State<TrailerPlayerWidget> {
         } catch (e) {
           // If setState fails, dispose the controller
           try {
-            controller.dispose();
+            controller.close();
           } catch (e) {
             // Ignore disposal errors
           }
@@ -268,76 +267,69 @@ class _TrailerPlayerWidgetState extends State<TrailerPlayerWidget> {
       return _buildNoTrailerState();
     }
     
-    return YoutubePlayerBuilder(
-      player: YoutubePlayer(
-        controller: _youtubeController!,
-        showVideoProgressIndicator: true,
-        progressIndicatorColor: const Color(0xFFE5A00D),
-        progressColors: ProgressBarColors(
-          playedColor: const Color(0xFFE5A00D),
-          handleColor: const Color(0xFFE5A00D),
-        ),
-      ),
-      builder: (context, player) {
-        return ClipRRect(
-          borderRadius: BorderRadius.circular(12.r),
-          child: Stack(
-            children: [
-              player,
-              if (widget.showControls && !_isDisposed)
-                Positioned(
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  child: Container(
-                    padding: EdgeInsets.all(12.w),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.transparent,
-                          Colors.black.withValues(alpha: 0.7),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12.r),
+      child: Stack(
+        children: [
+          // Main YouTube Player
+          YoutubePlayer(
+            controller: _youtubeController!,
+            aspectRatio: 16 / 9,
+          ),
+          
+          // Custom overlay with trailer info and controls
+          if (widget.showControls && !_isDisposed)
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                padding: EdgeInsets.all(12.w),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.transparent,
+                      Colors.black.withValues(alpha: 0.7),
+                    ],
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _trailer?.name ?? '',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 12.sp,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(
+                            (_trailer?.type ?? '') + ((_trailer?.official ?? false) ? ' • Official' : ''),
+                            style: TextStyle(color: Colors.white70, fontSize: 10.sp),
+                          ),
                         ],
                       ),
                     ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                _trailer?.name ?? '',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12.sp,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              Text(
-                                (_trailer?.type ?? '') + ((_trailer?.official ?? false) ? ' • Official' : ''),
-                                style: TextStyle(color: Colors.white70, fontSize: 10.sp),
-                              ),
-                            ],
-                          ),
-                        ),
-                        IconButton(
-                          onPressed: _isDisposed ? null : _openInYouTube,
-                          icon: Icon(Icons.open_in_new, color: Colors.white, size: 20.sp),
-                          tooltip: 'Open in YouTube',
-                        ),
-                      ],
+                    IconButton(
+                      onPressed: _isDisposed ? null : _openInYouTube,
+                      icon: Icon(Icons.open_in_new, color: Colors.white, size: 20.sp),
+                      tooltip: 'Open in YouTube',
                     ),
-                  ),
+                  ],
                 ),
-            ],
-          ),
-        );
-      },
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
