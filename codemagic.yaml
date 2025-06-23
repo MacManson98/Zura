@@ -1,0 +1,115 @@
+workflows:
+  ios-workflow:
+    name: iOS Workflow
+    max_build_duration: 120
+    instance_type: mac_mini_m1
+    integrations:
+      app_store_connect: codemagic
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.zura.app
+      vars:
+        BUNDLE_ID: "com.zura.app"
+        XCODE_WORKSPACE: "Runner.xcworkspace"
+        XCODE_SCHEME: "Runner"
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Set up code signing settings on Xcode project
+        script: |
+          xcode-project use-profiles
+      
+      # CRITICAL: Complete clean build process
+      - name: Clean build environment (Fix iOS crashes)
+        script: |
+          echo "🧹 Starting complete clean build process..."
+          
+          # Clean Flutter completely
+          echo "🔄 Cleaning Flutter cache..."
+          flutter clean
+          
+          # Remove all iOS build artifacts
+          echo "🗑️ Removing iOS build artifacts..."
+          rm -rf ios/Pods
+          rm -rf ios/.symlinks
+          rm -f ios/Podfile.lock
+          rm -f pubspec.lock
+          
+          # Clean derived data
+          echo "🗑️ Cleaning Xcode derived data..."
+          rm -rf ~/Library/Developer/Xcode/DerivedData
+          
+          echo "✅ Clean environment complete!"
+      
+      - name: Get Flutter dependencies with clean resolution
+        script: |
+          echo "📦 Getting Flutter dependencies..."
+          flutter pub get
+          
+          echo "📋 Dependency tree check..."
+          flutter pub deps
+      
+      - name: Clean iOS dependencies and reinstall
+        script: |
+          echo "🍎 Setting up iOS dependencies..."
+          cd ios
+          
+          # Deintegrate and reinstall pods completely
+          echo "🔄 Deintegrating existing pods..."
+          pod deintegrate
+          
+          echo "📦 Installing fresh pods..."
+          pod install --clean-install --verbose
+          
+          cd ..
+          echo "✅ iOS dependencies ready!"
+      
+      - name: Verify Firebase configuration
+        script: |
+          echo "🔥 Verifying Firebase setup..."
+          
+          # Check if GoogleService-Info.plist exists
+          if [ -f "ios/Runner/GoogleService-Info.plist" ]; then
+            echo "✅ GoogleService-Info.plist found"
+          else
+            echo "❌ GoogleService-Info.plist missing!"
+            exit 1
+          fi
+          
+          # Verify Firebase configuration
+          echo "🔍 Firebase config verification complete"
+      
+      - name: Build iOS app with verbose logging
+        script: |
+          echo "🏗️ Building iOS app..."
+          flutter build ios --release --verbose
+      
+      - name: Build iOS IPA
+        script: |
+          echo "📦 Creating IPA..."
+          xcode-project build-ipa \
+            --workspace ios/$XCODE_WORKSPACE \
+            --scheme $XCODE_SCHEME
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+      - flutter_drive.log
+    publishing:
+      # Automatically submit to App Store Connect
+      app_store_connect:
+        auth: integration
+        
+        # Submit to App Store Connect
+        submit_to_app_store: false
+        
+        # Submit to TestFlight
+        submit_to_testflight: true
+        
+        # TestFlight configuration
+        beta_groups:
+          - App Store Connect Users
+        
+        # Release notes
+        submit_to_testflight: true

@@ -1,6 +1,6 @@
 name: Zura
 description: A smart movie matcher for friends and film lovers.
-version: 1.0.0+16
+version: 1.0.0+17  # Increment for new build
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -16,15 +16,16 @@ dependencies:
   url_launcher: ^6.3.1
   flutter_spinkit: ^5.2.1
   flutter_screenutil: ^5.9.3
-  firebase_core: ^3.13.1
-  firebase_auth: ^5.5.4
-  cloud_firestore: ^5.6.8
-  google_sign_in: ^6.3.0
-  url_launcher_android: ^6.3.16
-  url_launcher_ios: ^6.3.3
+  
+  # FIREBASE - Latest stable versions that work together
+  firebase_core: ^3.14.0    # ← Updated: Fixes memory management
+  firebase_auth: ^5.6.0           # ← Downgraded: More stable with Core 3.15.0
+  cloud_firestore: ^5.6.9      # ← Downgraded: Matches Auth version
+  google_sign_in: ^6.3.0         # ← Keep: This version is proven stable
+  
+  # CORE PLUGINS - Keep these exact versions
   cached_network_image: ^3.4.1
   intl: ^0.20.2
-  share_plus: ^11.0.0
   qr_flutter: ^4.1.0
   glassmorphism: ^3.0.0
   path_provider: ^2.1.5

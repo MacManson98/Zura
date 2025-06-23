@@ -1,32 +1,31 @@
 // File: lib/main.dart
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/foundation.dart';
-import 'auth_gate.dart';
+
+import 'auth_gate.dart'; // ✅ Your existing entry point
 
 void main() async {
-  // ✅ NO DELAYS: Normal app startup
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Initialize Firebase normally
+
+  // Optional: lock to portrait
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
+
   try {
     await Firebase.initializeApp();
-    if (kDebugMode) {
-      print("✅ Firebase initialized successfully");
-    }
+    await Future.delayed(const Duration(milliseconds: 300));
+    print('✅ Firebase initialized successfully');
   } catch (e) {
-    if (kDebugMode) {
-      print("❌ Firebase initialization failed: $e");
-    }
+    print('❌ Firebase initialization error: $e');
+    // Proceed anyway
   }
-  
-  runApp(ScreenUtilInit(
-    designSize: const Size(360, 690),
-    minTextAdapt: true,
-    splitScreenMode: true,
-    builder: (context, child) => const MyApp(),
-  ));
+
+  runApp(const MyApp());
 }
 
 class MyApp extends StatefulWidget {
@@ -50,11 +49,31 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Optional: handle lifecycle state changes
+    super.didChangeAppLifecycleState(state);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Zura',
-      theme: ThemeData.dark(),
-      home: const AuthGate(),
+    return ScreenUtilInit(
+      designSize: const Size(375, 812),
+      minTextAdapt: true,
+      splitScreenMode: true,
+      builder: (context, child) {
+        return MaterialApp(
+          title: 'Zura',
+          debugShowCheckedModeBanner: false,
+          theme: ThemeData.dark().copyWith(
+            scaffoldBackgroundColor: const Color(0xFF121212),
+            primaryColor: const Color(0xFFE5A00D),
+            colorScheme: const ColorScheme.dark(
+              primary: Color(0xFFE5A00D),
+            ),
+          ),
+          home: const AuthGate(), // ✅ Your existing entry point
+        );
+      },
     );
   }
 }

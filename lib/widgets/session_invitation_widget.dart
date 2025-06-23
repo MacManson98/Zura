@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:glassmorphism/glassmorphism.dart';
-import 'package:share_plus/share_plus.dart';
 import '../models/session_models.dart';
 import '../services/session_service.dart';
 import '../models/user_profile.dart';
@@ -684,28 +683,6 @@ class _SessionInvitationWidgetState extends State<SessionInvitationWidget> {
                         ),
                         style: TextButton.styleFrom(
                           side: BorderSide(color: const Color(0xFFE5A00D)),
-                          padding: EdgeInsets.symmetric(vertical: 12.h),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12.r),
-                          ),
-                        ),
-                      ),
-                    ),
-                    SizedBox(width: 12.w),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          Share.share(
-                            'Join my ${selectedMood.displayName} movie session! ${selectedMood.emoji}\n\nCode: $sessionCode\n\nWe\'ll find movies that match this vibe together! 🎬',
-                          );
-                        },
-                        icon: Icon(Icons.share, size: 18.sp, color: Colors.white),
-                        label: Text(
-                          "Share",
-                          style: TextStyle(fontSize: 13.sp, color: Colors.white),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFE5A00D),
                           padding: EdgeInsets.symmetric(vertical: 12.h),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12.r),
