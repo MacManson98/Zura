@@ -54,9 +54,13 @@ class _MainNavigationState extends State<MainNavigation> {
   @override
   void initState() {
     super.initState();
-    _loadCompleteMovieDatabase(); // ✅ ADD: Load complete database first
     _initializeUserSession();
     _matcherScreen = _buildMatcherScreen();
+    
+    // ✅ BEST: Delay until after first frame renders
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadCompleteMovieDatabase();
+    });
   }
 
   // ✅ ADD: Load complete movie database with streaming data
