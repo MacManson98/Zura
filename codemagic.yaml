@@ -21,17 +21,48 @@ workflows:
         script: |
           xcode-project use-profiles
       
-      - name: Configure Firebase automatically
+      - name: Create Firebase configuration
         script: |
-          # Install FlutterFire CLI
-          dart pub global activate flutterfire_cli
+          echo "🔥 Creating Firebase configuration..."
           
-          # Auto-configure Firebase (this properly integrates the plist)
-          flutterfire configure \
-            --project=reel-match-e7729 \
-            --platforms=ios \
-            --ios-bundle-id=com.zura.app \
-            --yes
+          # Create the file directly from your content
+          cat > ios/Runner/GoogleService-Info.plist << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CLIENT_ID</key>
+              <string>173034299087-ldk8k2rhifd6sdbvm0ac8kgsej9h4uq2.apps.googleusercontent.com</string>
+              <key>REVERSED_CLIENT_ID</key>
+              <string>com.googleusercontent.apps.173034299087-ldk8k2rhifd6sdbvm0ac8kgsej9h4uq2</string>
+              <key>API_KEY</key>
+              <string>AIzaSyDyslqduejJ35SuAO7TEP4fJ40CQXdunkU</string>
+              <key>GCM_SENDER_ID</key>
+              <string>173034299087</string>
+              <key>BUNDLE_ID</key>
+              <string>com.zura.app</string>
+              <key>PROJECT_ID</key>
+              <string>reel-match-e7729</string>
+              <key>STORAGE_BUCKET</key>
+              <string>reel-match-e7729.firebasestorage.app</string>
+              <key>GOOGLE_APP_ID</key>
+              <string>1:173034299087:ios:1dd69486e75fdd475ee1ba</string>
+              <key>IS_ADS_ENABLED</key>
+              <false/>
+              <key>IS_ANALYTICS_ENABLED</key>
+              <false/>
+              <key>IS_APPINVITE_ENABLED</key>
+              <true/>
+              <key>IS_GCM_ENABLED</key>
+              <true/>
+              <key>IS_SIGNIN_ENABLED</key>
+              <true/>
+          </dict>
+          </plist>
+          EOF
+          
+          echo "✅ GoogleService-Info.plist created"
+          ls -la ios/Runner/GoogleService-Info.plist
       
       - name: Get Flutter dependencies
         script: |
