@@ -133,13 +133,9 @@ class AuthGate extends StatelessWidget {
             }
 
             final profile = snapshot.data!;
-            _performPostAuthCleanup();
-
+            Future.microtask(() => _performPostAuthCleanup()); // ✅ FIXED: delayed execution
             DebugLogger.log('➡️ Going to MainNavigation (movies will load internally)');
-            return MainNavigation(
-              profile: profile,
-              // ✅ REMOVED: movies parameter - MainNavigation loads them internally
-            );
+            return MainNavigation(profile: profile);
           },
         );
       },
@@ -168,7 +164,6 @@ class AuthGate extends StatelessWidget {
       final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
 
       if (!doc.exists) {
-        // ✅ NEW USERS: Create profile and save to database
         final profile = UserProfile.empty().copyWith(
           uid: uid,
           name: FirebaseAuth.instance.currentUser?.email ?? '',
@@ -181,7 +176,6 @@ class AuthGate extends StatelessWidget {
         DebugLogger.log('✅ Created new user profile');
         return profile;
       } else {
-        // ✅ EXISTING USERS: Load their profile
         final profile = UserProfile.fromJson(doc.data()!);
         DebugLogger.log('✅ Loaded existing user profile');
         return profile;

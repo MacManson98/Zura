@@ -2,7 +2,7 @@
 
 class DebugLogger {
   // Set this to false to disable ALL debug logs instantly
-  static const bool _debugEnabled = true; // Change to false for production
+  static const bool _debugEnabled = false; // Change to false for production
   
   static void log(String message, [String? tag]) {
     if (_debugEnabled) {
