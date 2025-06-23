@@ -1,3 +1,4 @@
+// File: lib/main_navigation.dart
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
@@ -54,44 +55,122 @@ class _MainNavigationState extends State<MainNavigation> {
   List<Movie> _completeMovieDatabase = [];
   bool _isLoadingMovies = false;
   bool _hasAttemptedLoad = false;
+  bool _isInitialized = false;
   Timer? _loadTimer;
+  Timer? _initTimer;
 
   @override
   void initState() {
     super.initState();
-    // ✅ BULLETPROOF: Safe initialization with iOS delays
-    _safeInitializeUserSession();
     _matcherScreen = _buildMatcherScreen();
-  }
-
-  // 🆕 iOS-SAFE: Wrapper for initialization with proper delays
-  Future<void> _safeInitializeUserSession() async {
-    try {
-      // 🆕 iOS-SPECIFIC: Add delay before accessing SharedPreferences
-      if (!kIsWeb && Platform.isIOS) {
-        await Future.delayed(const Duration(milliseconds: 1000));
-      }
-      
-      await _initializeUserSession();
-      
-      // 🆕 iOS-SAFE: Delayed cleanup after proper initialization
-      if (!kIsWeb && Platform.isIOS) {
-        await Future.delayed(const Duration(milliseconds: 500));
-      }
-      
-      _performPostAuthCleanup();
-    } catch (e) {
-      DebugLogger.log('Error in safe initialization: $e');
-      // Continue without cleanup if initialization fails
+    
+    // 🆕 AGGRESSIVE: Delay ALL initialization for iOS
+    if (!kIsWeb && Platform.isIOS) {
+      _initTimer = Timer(const Duration(milliseconds: 3000), () {
+        if (mounted) _safeInitializeUserSession();
+      });
+    } else {
+      // Android can initialize immediately
+      _safeInitializeUserSession();
     }
   }
 
-  // 🆕 iOS-SAFE: SharedPreferences access with error handling
-  Future<void> _performPostAuthCleanup() async {
+  @override
+  void dispose() {
+    _loadTimer?.cancel();
+    _initTimer?.cancel();
+    super.dispose();
+  }
+
+  // 🆕 COMPLETELY SAFE: No file operations until much later
+  Future<void> _safeInitializeUserSession() async {
+    if (_isInitialized) return;
+    
     try {
-      final prefs = await _safeGetSharedPreferences();
+      if (kDebugMode) {
+        print("🔄 MainNavigation: Starting safe initialization...");
+      }
+      
+      // 🆕 STEP 1: Load friends first (network only, no local storage)
+      await _loadFriends();
+      
+      // 🆕 STEP 2: Mark as initialized BEFORE any file operations
+      setState(() {
+        _isInitialized = true;
+        _matcherScreen = _buildMatcherScreen();
+      });
+      
+      // 🆕 STEP 3: Delay cleanup operations significantly
+      if (!kIsWeb && Platform.isIOS) {
+        Timer(const Duration(milliseconds: 5000), () {
+          if (mounted) _performPostAuthCleanup();
+        });
+      } else {
+        Timer(const Duration(milliseconds: 1000), () {
+          if (mounted) _performPostAuthCleanup();
+        });
+      }
+      
+      if (kDebugMode) {
+        print("✅ MainNavigation: Safe initialization completed");
+      }
+      
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Error in safe initialization: $e');
+      }
+      // Set as initialized anyway to show UI
+      if (mounted) {
+        setState(() {
+          _isInitialized = true;
+          _matcherScreen = _buildMatcherScreen();
+        });
+      }
+    }
+  }
+
+  // 🆕 ULTRA-SAFE: SharedPreferences with maximum error handling
+  Future<void> _performPostAuthCleanup() async {
+    if (!mounted) return;
+    
+    try {
+      if (kDebugMode) {
+        print("🧹 Attempting post-auth cleanup...");
+      }
+      
+      SharedPreferences? prefs;
+      
+      // 🆕 MULTIPLE RETRY ATTEMPTS for iOS
+      if (!kIsWeb && Platform.isIOS) {
+        for (int attempt = 1; attempt <= 5; attempt++) {
+          try {
+            await Future.delayed(Duration(milliseconds: 500 * attempt));
+            prefs = await SharedPreferences.getInstance();
+            if (kDebugMode) {
+              print("✅ SharedPreferences obtained on attempt $attempt");
+            }
+            break;
+          } catch (e) {
+            if (kDebugMode) {
+              print("⚠️ SharedPreferences attempt $attempt failed: $e");
+            }
+            if (attempt == 5) {
+              if (kDebugMode) {
+                print("❌ All SharedPreferences attempts failed, continuing without cleanup");
+              }
+              return; // Give up gracefully
+            }
+          }
+        }
+      } else {
+        // Android - normal approach
+        prefs = await SharedPreferences.getInstance();
+      }
+      
       if (prefs == null) {
-        DebugLogger.log("⚠️ SharedPreferences not available, skipping cleanup");
+        if (kDebugMode) {
+          print("⚠️ SharedPreferences not available, skipping cleanup");
+        }
         return;
       }
       
@@ -99,71 +178,66 @@ class _MainNavigationState extends State<MainNavigation> {
       final now = DateTime.now().millisecondsSinceEpoch;
       
       if (now - lastCleanup > 6 * 60 * 60 * 1000) {
-        DebugLogger.log("🧹 Starting post-auth cleanup...");
+        if (kDebugMode) {
+          print("🧹 Starting post-auth cleanup...");
+        }
         await SessionService.performMaintenanceCleanup();
         await prefs.setInt('last_cleanup', now);
-        DebugLogger.log("✅ Post-auth cleanup completed");
-      }
-    } catch (e) {
-      DebugLogger.log("Note: Post-auth cleanup failed: $e");
-    }
-  }
-
-  // 🆕 iOS-SAFE: Wrapper for SharedPreferences with proper error handling
-  Future<SharedPreferences?> _safeGetSharedPreferences() async {
-    try {
-      // 🆕 iOS-SPECIFIC: Extra delay and retry logic for SharedPreferences
-      if (!kIsWeb && Platform.isIOS) {
-        for (int attempt = 0; attempt < 3; attempt++) {
-          try {
-            await Future.delayed(Duration(milliseconds: 200 * (attempt + 1)));
-            final prefs = await SharedPreferences.getInstance();
-            return prefs;
-          } catch (e) {
-            DebugLogger.log("SharedPreferences attempt ${attempt + 1} failed: $e");
-            if (attempt == 2) rethrow;
-          }
+        if (kDebugMode) {
+          print("✅ Post-auth cleanup completed");
+        }
+      } else {
+        if (kDebugMode) {
+          print("ℹ️ Cleanup not needed yet");
         }
       }
-      
-      return await SharedPreferences.getInstance();
     } catch (e) {
-      DebugLogger.log("❌ SharedPreferences unavailable: $e");
-      return null;
+      if (kDebugMode) {
+        print("Note: Post-auth cleanup failed: $e");
+      }
+      // Continue silently - cleanup is not critical
     }
   }
 
-  @override
-  void dispose() {
-    _loadTimer?.cancel();
-    super.dispose();
-  }
-
-  // ✅ BULLETPROOF: Load movies only when safe and needed
+  // ✅ SAFE: Load movies with ultra-conservative timing
   Future<void> _loadCompleteMovieDatabase() async {
-    if (_isLoadingMovies || _hasAttemptedLoad || !mounted) return;
+    if (_isLoadingMovies || _hasAttemptedLoad || !mounted || !_isInitialized) return;
     
     _hasAttemptedLoad = true;
     setState(() => _isLoadingMovies = true);
     
     try {
-      // ✅ SAFETY: Wait for iOS to be fully ready
-      await Future.delayed(const Duration(milliseconds: 1000));
+      // 🆕 AGGRESSIVE: Extra long delay for iOS movie loading
+      if (!kIsWeb && Platform.isIOS) {
+        await Future.delayed(const Duration(milliseconds: 2000));
+      } else {
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
       
       if (!mounted) return;
       
-      DebugLogger.log('🎬 MainNavigation: Loading complete movie database...');
+      if (kDebugMode) {
+        print('🎬 MainNavigation: Loading complete movie database...');
+      }
+      
       _completeMovieDatabase = await MovieDatabaseLoader.loadMovieDatabase();
-      DebugLogger.log('✅ MainNavigation: Loaded ${_completeMovieDatabase.length} movies with complete data');
+      
+      if (kDebugMode) {
+        print('✅ MainNavigation: Loaded ${_completeMovieDatabase.length} movies with complete data');
+      }
       
       if (_completeMovieDatabase.isNotEmpty && mounted) {
         final firstMovie = _completeMovieDatabase.first;
-        DebugLogger.log('🔍 Sample movie: ${firstMovie.title}');
-        DebugLogger.log('🔍 Has streaming: ${firstMovie.hasAnyStreamingOptions}');
+        if (kDebugMode) {
+          print('🔍 Sample movie: ${firstMovie.title}');
+          print('🔍 Has streaming: ${firstMovie.hasAnyStreamingOptions}');
+        }
       }
       
     } catch (e) {
-      DebugLogger.log('❌ MainNavigation: Error loading movie database: $e');
+      if (kDebugMode) {
+        print('❌ MainNavigation: Error loading movie database: $e');
+      }
       _completeMovieDatabase = []; // ✅ GRACEFUL: Always provide empty list
     } finally {
       if (mounted) {
@@ -172,25 +246,6 @@ class _MainNavigationState extends State<MainNavigation> {
           _matcherScreen = _buildMatcherScreen(); // ✅ REBUILD: Update matcher with movies
         });
       }
-    }
-  }
-
-  Future<void> _initializeUserSession() async {
-    try {
-      await _loadFriends();
-      _performUserCleanup();
-    } catch (e) {
-      DebugLogger.log('Error initializing user session: $e');
-    }
-  }
-
-  Future<void> _performUserCleanup() async {
-    try {
-      DebugLogger.log("🧹 Cleaning up user data for ${widget.profile.name}...");
-      await SessionService.cleanupUserInvitations(widget.profile.uid);
-      DebugLogger.log("✅ User cleanup completed");
-    } catch (e) {
-      DebugLogger.log("Note: User cleanup failed: $e");
     }
   }
 
@@ -204,7 +259,9 @@ class _MainNavigationState extends State<MainNavigation> {
         });
       }
     } catch (e) {
-      DebugLogger.log('Error loading friends: $e');
+      if (kDebugMode) {
+        print('Error loading friends: $e');
+      }
     }
   }
 
@@ -215,7 +272,9 @@ class _MainNavigationState extends State<MainNavigation> {
   }
 
   void _goToFriendMatcher(UserProfile friend) {
-    DebugLogger.log("🟢 Switching to Matcher tab with ${friend.name}");
+    if (kDebugMode) {
+      print("🟢 Switching to Matcher tab with ${friend.name}");
+    }
     setState(() {
       _selectedFriend = friend;
       _matcherMode = MatchingMode.friend;
@@ -239,10 +298,11 @@ class _MainNavigationState extends State<MainNavigation> {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ BULLETPROOF: Trigger movie loading when app is stable
-    if (!_hasAttemptedLoad && !_isLoadingMovies) {
+    // 🆕 CONSERVATIVE: Only start movie loading when fully initialized
+    if (_isInitialized && !_hasAttemptedLoad && !_isLoadingMovies) {
       _loadTimer?.cancel();
-      _loadTimer = Timer(const Duration(milliseconds: 100), () {
+      final delay = !kIsWeb && Platform.isIOS ? 1000 : 100;
+      _loadTimer = Timer(Duration(milliseconds: delay), () {
         if (mounted) _loadCompleteMovieDatabase();
       });
     }
@@ -285,10 +345,53 @@ class _MainNavigationState extends State<MainNavigation> {
             children: screens,
           ),
           
-          // ✅ BULLETPROOF: Show loading overlay only when loading
-          if (_isLoadingMovies)
+          // 🆕 SHOW INITIALIZATION STATUS
+          if (!_isInitialized)
             Container(
-              color: const Color(0xFF121212).withOpacity(0.8),
+              color: const Color(0xFF121212).withValues(alpha: 0.95),
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.movie_filter,
+                      size: 64,
+                      color: const Color(0xFFE5A00D),
+                    ),
+                    SizedBox(height: 24),
+                    CircularProgressIndicator(
+                      color: const Color(0xFFE5A00D),
+                      strokeWidth: 3,
+                    ),
+                    SizedBox(height: 24),
+                    Text(
+                      'Initializing app...',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      Platform.isIOS 
+                        ? 'Preparing iOS environment...' 
+                        : 'Loading app data...',
+                      style: TextStyle(
+                        color: Colors.white54,
+                        fontSize: 14,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          
+          // ✅ BULLETPROOF: Show loading overlay only when loading movies
+          if (_isInitialized && _isLoadingMovies)
+            Container(
+              color: const Color(0xFF121212).withValues(alpha: 0.8),
               child: Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -320,62 +423,65 @@ class _MainNavigationState extends State<MainNavigation> {
             ),
         ],
       ),
-      bottomNavigationBar: StreamBuilder<List<Map<String, dynamic>>>(
-        stream: SessionService.watchPendingInvitations(),
-        builder: (context, sessionSnapshot) {
-          return StreamBuilder<List<Map<String, dynamic>>>(
-            stream: FriendshipService.getPendingFriendRequests(widget.profile.uid),
-            builder: (context, friendSnapshot) {
+      bottomNavigationBar: !_isInitialized 
+        ? null 
+        : StreamBuilder<List<Map<String, dynamic>>>(
+            stream: SessionService.watchPendingInvitations(),
+            builder: (context, sessionSnapshot) {
               return StreamBuilder<List<Map<String, dynamic>>>(
-                stream: GroupInvitationService().watchPendingGroupInvitations(widget.profile.uid),
-                builder: (context, groupSnapshot) {
-                  final sessionCount = sessionSnapshot.data?.length ?? 0;
-                  final friendCount = friendSnapshot.data?.length ?? 0;
-                  final groupCount = groupSnapshot.data?.length ?? 0;
-                  final totalNotifications = sessionCount + friendCount + groupCount;
-                  final hasHighPriority = sessionCount > 0 || friendCount > 0;
+                stream: FriendshipService.getPendingFriendRequests(widget.profile.uid),
+                builder: (context, friendSnapshot) {
+                  return StreamBuilder<List<Map<String, dynamic>>>(
+                    stream: GroupInvitationService().watchPendingGroupInvitations(widget.profile.uid),
+                    builder: (context, groupSnapshot) {
+                      final sessionCount = sessionSnapshot.data?.length ?? 0;
+                      final friendCount = friendSnapshot.data?.length ?? 0;
+                      final groupCount = groupSnapshot.data?.length ?? 0;
+                      final totalNotifications = sessionCount + friendCount + groupCount;
+                      final hasHighPriority = sessionCount > 0 || friendCount > 0;
 
-                  return CustomNavBar(
-                    selectedIndex: _selectedIndex,
-                    onItemTapped: _onItemTapped,
-                    notificationCount: totalNotifications,
-                    hasHighPriorityNotifications: hasHighPriority,
-                    onNotificationTap: () {
-                      final sessionInvites = sessionSnapshot.data ?? [];
-                      final friendRequests = friendSnapshot.data ?? [];
-                      
-                      showModalBottomSheet(
-                        context: context,
-                        isScrollControlled: true,
-                        backgroundColor: Colors.transparent,
-                        builder: (context) => NotificationBottomSheet(
-                          sessionInvites: sessionInvites,
-                          friendRequests: friendRequests,
-                          regularNotifications: [],
-                          onSessionAccept: (invitation) {
-                            Navigator.pop(context);
-                            _handleSessionJoinFromNotification(invitation);
-                          },
-                          onFriendAccept: (request) {
-                            _handleFriendRequestAccept(request);
-                          },
-                          onClearAll: () {
-                            Navigator.pop(context);
-                            _handleClearAllNotifications();
-                          },
-                        ),
+                      return CustomNavBar(
+                        selectedIndex: _selectedIndex,
+                        onItemTapped: _onItemTapped,
+                        notificationCount: totalNotifications,
+                        hasHighPriorityNotifications: hasHighPriority,
+                        onNotificationTap: () {
+                          final sessionInvites = sessionSnapshot.data ?? [];
+                          final friendRequests = friendSnapshot.data ?? [];
+                          
+                          showModalBottomSheet(
+                            context: context,
+                            isScrollControlled: true,
+                            backgroundColor: Colors.transparent,
+                            builder: (context) => NotificationBottomSheet(
+                              sessionInvites: sessionInvites,
+                              friendRequests: friendRequests,
+                              regularNotifications: [],
+                              onSessionAccept: (invitation) {
+                                Navigator.pop(context);
+                                _handleSessionJoinFromNotification(invitation);
+                              },
+                              onFriendAccept: (request) {
+                                _handleFriendRequestAccept(request);
+                              },
+                              onClearAll: () {
+                                Navigator.pop(context);
+                                _handleClearAllNotifications();
+                              },
+                            ),
+                          );
+                        },
                       );
                     },
                   );
                 },
               );
             },
-          );
-        },
-      ),
+          ),
     );
   }
 
+  // ... rest of your notification handling methods (unchanged)
   Future<void> _handleSessionJoinFromNotification(Map<String, dynamic> invitation) async {
     try {
       DebugLogger.log("📥 Accepting session invitation: ${invitation['sessionId']}");

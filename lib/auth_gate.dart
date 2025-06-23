@@ -8,7 +8,6 @@ import 'screens/auth/login_screen.dart';
 import 'main_navigation.dart';
 import 'models/user_profile.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../utils/debug_loader.dart';
 
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
@@ -19,24 +18,57 @@ class AuthGate extends StatelessWidget {
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            backgroundColor: Color(0xFF121212),
+          return Scaffold(
+            backgroundColor: const Color(0xFF121212),
             body: Center(
-              child: CircularProgressIndicator(
-                color: Color(0xFFE5A00D),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.movie_filter,
+                    size: 64,
+                    color: const Color(0xFFE5A00D),
+                  ),
+                  SizedBox(height: 24),
+                  CircularProgressIndicator(
+                    color: const Color(0xFFE5A00D),
+                  ),
+                  SizedBox(height: 16),
+                  Text(
+                    'Checking authentication...',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                    ),
+                  ),
+                  if (!kIsWeb && Platform.isIOS) ...[
+                    SizedBox(height: 8),
+                    Text(
+                      'Initializing iOS environment...',
+                      style: TextStyle(
+                        color: Colors.white54,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
           );
         }
 
         final user = snapshot.data;
-        DebugLogger.log('🔥 Auth state changed:');
-        DebugLogger.log('  user: $user');
-        DebugLogger.log('  isAnonymous: ${user?.isAnonymous}');
-        DebugLogger.log('  uid: ${user?.uid}');
+        if (kDebugMode) {
+          print('🔥 Auth state changed:');
+          print('  user: $user');
+          print('  isAnonymous: ${user?.isAnonymous}');
+          print('  uid: ${user?.uid}');
+        }
         
         if (user == null || user.isAnonymous) {
-          DebugLogger.log('➡️ Showing LoginScreen');
+          if (kDebugMode) {
+            print('➡️ Showing LoginScreen');
+          }
           return const LoginScreen();
         }
 
@@ -44,8 +76,8 @@ class AuthGate extends StatelessWidget {
           future: _loadUserProfile(user.uid),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Scaffold(
-                backgroundColor: Color(0xFF121212),
+              return Scaffold(
+                backgroundColor: const Color(0xFF121212),
                 body: Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -53,11 +85,11 @@ class AuthGate extends StatelessWidget {
                       Icon(
                         Icons.movie_filter,
                         size: 64,
-                        color: Color(0xFFE5A00D),
+                        color: const Color(0xFFE5A00D),
                       ),
                       SizedBox(height: 24),
                       CircularProgressIndicator(
-                        color: Color(0xFFE5A00D),
+                        color: const Color(0xFFE5A00D),
                       ),
                       SizedBox(height: 16),
                       Text(
@@ -67,6 +99,16 @@ class AuthGate extends StatelessWidget {
                           fontSize: 16,
                         ),
                       ),
+                      if (!kIsWeb && Platform.isIOS) ...[
+                        SizedBox(height: 8),
+                        Text(
+                          'Preparing app for iOS...',
+                          style: TextStyle(
+                            color: Colors.white54,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -74,7 +116,9 @@ class AuthGate extends StatelessWidget {
             }
 
             if (snapshot.hasError) {
-              DebugLogger.log('❌ Error loading profile: ${snapshot.error}');
+              if (kDebugMode) {
+                print('❌ Error loading profile: ${snapshot.error}');
+              }
               return Scaffold(
                 backgroundColor: const Color(0xFF121212),
                 body: Center(
@@ -133,7 +177,9 @@ class AuthGate extends StatelessWidget {
             }
 
             final profile = snapshot.data!;
-            DebugLogger.log('➡️ Going to MainNavigation (movies will load internally)');
+            if (kDebugMode) {
+              print('➡️ Going to MainNavigation (movies will load internally)');
+            }
             return MainNavigation(profile: profile);
           },
         );
@@ -141,62 +187,175 @@ class AuthGate extends StatelessWidget {
     );
   }
 
-  // 🆕 iOS-SAFE: Add delays for Firestore operations on iOS
+  // 🆕 ULTRA-AGGRESSIVE: Maximum delays and retry logic for iOS
   Future<UserProfile> _loadUserProfile(String uid) async {
     try {
-      // 🆕 iOS-SPECIFIC: Add delay before Firestore operations
+      // 🆕 AGGRESSIVE iOS DELAY: Much longer delay before Firestore operations
       if (!kIsWeb && Platform.isIOS) {
-        await Future.delayed(const Duration(milliseconds: 500));
+        if (kDebugMode) {
+          print("⏳ iOS: Waiting before Firestore operations...");
+        }
+        await Future.delayed(const Duration(milliseconds: 2000));
       }
 
-      final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      if (kDebugMode) {
+        print("🔥 Starting Firestore profile load for uid: $uid");
+      }
+
+      DocumentSnapshot<Map<String, dynamic>>? doc;
+      
+      // 🆕 RETRY LOGIC: Multiple attempts for iOS Firestore operations
+      if (!kIsWeb && Platform.isIOS) {
+        for (int attempt = 1; attempt <= 3; attempt++) {
+          try {
+            if (kDebugMode) {
+              print("📖 iOS Firestore attempt $attempt...");
+            }
+            doc = await FirebaseFirestore.instance
+                .collection('users')
+                .doc(uid)
+                .get();
+            if (kDebugMode) {
+              print("✅ iOS Firestore attempt $attempt succeeded");
+            }
+            break;
+          } catch (e) {
+            if (kDebugMode) {
+              print("⚠️ iOS Firestore attempt $attempt failed: $e");
+            }
+            if (attempt < 3) {
+              await Future.delayed(Duration(milliseconds: 1000 * attempt));
+            } else {
+              rethrow;
+            }
+          }
+        }
+      } else {
+        // Android - normal approach
+        doc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .get();
+      }
+
+      if (doc == null) {
+        throw Exception("Failed to load user document after retries");
+      }
 
       if (!doc.exists) {
+        if (kDebugMode) {
+          print("📝 Creating new user profile...");
+        }
+        
         final profile = UserProfile.empty().copyWith(
           uid: uid,
           name: FirebaseAuth.instance.currentUser?.email ?? '',
         );
         
-        // 🆕 iOS-SAFE: Additional delay before write operations
+        // 🆕 ADDITIONAL DELAY: Before write operations on iOS
         if (!kIsWeb && Platform.isIOS) {
-          await Future.delayed(const Duration(milliseconds: 200));
+          await Future.delayed(const Duration(milliseconds: 500));
         }
         
-        await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .set(profile.toJson(), SetOptions(merge: true));
+        // 🆕 RETRY WRITE OPERATIONS: Multiple attempts for iOS
+        if (!kIsWeb && Platform.isIOS) {
+          for (int attempt = 1; attempt <= 3; attempt++) {
+            try {
+              if (kDebugMode) {
+                print("💾 iOS Firestore write attempt $attempt...");
+              }
+              await FirebaseFirestore.instance
+                .collection('users')
+                .doc(uid)
+                .set(profile.toJson(), SetOptions(merge: true));
+              if (kDebugMode) {
+                print("✅ iOS Firestore write attempt $attempt succeeded");
+              }
+              break;
+            } catch (e) {
+              if (kDebugMode) {
+                print("⚠️ iOS Firestore write attempt $attempt failed: $e");
+              }
+              if (attempt < 3) {
+                await Future.delayed(Duration(milliseconds: 500 * attempt));
+              } else {
+                // If write fails, just return the profile anyway
+                if (kDebugMode) {
+                  print("⚠️ Write failed but continuing with profile");
+                }
+                break;
+              }
+            }
+          }
+        } else {
+          await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .set(profile.toJson(), SetOptions(merge: true));
+        }
         
-        DebugLogger.log('✅ Created new user profile');
+        if (kDebugMode) {
+          print('✅ Created new user profile');
+        }
         return profile;
       } else {
         final profile = UserProfile.fromJson(doc.data()!);
-        DebugLogger.log('✅ Loaded existing user profile');
+        if (kDebugMode) {
+          print('✅ Loaded existing user profile');
+        }
         return profile;
       }
     } catch (e) {
-      DebugLogger.log('❌ Error in _loadUserProfile: $e');
+      if (kDebugMode) {
+        print('❌ Error in _loadUserProfile: $e');
+      }
       
-      // 🆕 iOS-SAFE: Retry logic for iOS-specific failures
-      if (!kIsWeb && Platform.isIOS && e.toString().contains('path') || e.toString().contains('permission')) {
-        DebugLogger.log('🔄 Retrying profile load after iOS path/permission error...');
-        await Future.delayed(const Duration(milliseconds: 1000));
+      // 🆕 ULTRA-AGGRESSIVE RETRY: One final attempt for iOS
+      if (!kIsWeb && Platform.isIOS && 
+          (e.toString().contains('path') || 
+           e.toString().contains('permission') ||
+           e.toString().contains('swift_getObjectType'))) {
+        
+        if (kDebugMode) {
+          print('🔄 Final retry for iOS path/permission error...');
+        }
+        await Future.delayed(const Duration(milliseconds: 3000));
         
         try {
-          final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+          final doc = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(uid)
+              .get();
           
           if (!doc.exists) {
             final profile = UserProfile.empty().copyWith(
               uid: uid,
               name: FirebaseAuth.instance.currentUser?.email ?? '',
             );
+            if (kDebugMode) {
+              print('✅ Final retry: created emergency profile');
+            }
             return profile;
           } else {
+            if (kDebugMode) {
+              print('✅ Final retry: loaded existing profile');
+            }
             return UserProfile.fromJson(doc.data()!);
           }
         } catch (retryError) {
-          DebugLogger.log('❌ Retry also failed: $retryError');
-          rethrow;
+          if (kDebugMode) {
+            print('❌ Final retry also failed: $retryError');
+          }
+          
+          // 🆕 EMERGENCY FALLBACK: Create offline profile
+          final emergencyProfile = UserProfile.empty().copyWith(
+            uid: uid,
+            name: FirebaseAuth.instance.currentUser?.email ?? 'User',
+          );
+          if (kDebugMode) {
+            print('🆘 Using emergency offline profile');
+          }
+          return emergencyProfile;
         }
       }
       
