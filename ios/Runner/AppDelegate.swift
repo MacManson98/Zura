@@ -15,7 +15,7 @@ import Firebase
     
     // CRITICAL: Add small delay to ensure Firebase is fully initialized
     // This prevents race conditions between Firebase and other plugins
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
       // Firebase is now safely initialized
     }
     
