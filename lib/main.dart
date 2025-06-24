@@ -1,29 +1,24 @@
-// File: lib/main.dart
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart'; // ← This is the new file we generated
 
-import 'auth_gate.dart'; // ✅ Your existing entry point
+import 'auth_gate.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Optional: lock to portrait
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
 
-  try {
-    await Firebase.initializeApp();
-    await Future.delayed(const Duration(milliseconds: 300));
-    print('✅ Firebase initialized successfully');
-  } catch (e) {
-    print('❌ Firebase initialization error: $e');
-    // Proceed anyway
-  }
+  // ✅ Modern Firebase initialization - no more crashes!
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  print('✅ Firebase initialized successfully');
 
   runApp(const MyApp());
 }
@@ -50,7 +45,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Optional: handle lifecycle state changes
     super.didChangeAppLifecycleState(state);
   }
 
@@ -71,7 +65,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
               primary: Color(0xFFE5A00D),
             ),
           ),
-          home: const AuthGate(), // ✅ Your existing entry point
+          home: const AuthGate(),
         );
       },
     );

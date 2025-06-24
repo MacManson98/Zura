@@ -9,10 +9,23 @@
       "client_info": {
         "mobilesdk_app_id": "1:173034299087:android:f9e1e9f0b7dd6aa45ee1ba",
         "android_client_info": {
-          "package_name": "com.example.zura"
+          "package_name": "com.example.movie_matcher_clean"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "173034299087-e19et72342kquoliq32200nmdb2207hk.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.movie_matcher_clean",
+            "certificate_hash": "75fe7e0790258d4465c58501f04f9cf5f7fbb776"
+          }
+        },
+        {
+          "client_id": "173034299087-i3lfbatlkmlq9lvo15ckdq1coaa8q6d1.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyDB5YWzZGS_F-XGzNpZgEJXN7LId5mEmOs"
@@ -20,18 +33,35 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "173034299087-i3lfbatlkmlq9lvo15ckdq1coaa8q6d1.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "173034299087-ldk8k2rhifd6sdbvm0ac8kgsej9h4uq2.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.zura.app"
+              }
+            }
+          ]
         }
       }
     },
     {
       "client_info": {
-        "mobilesdk_app_id": "1:173034299087:android:6a0c4734c34810fa5ee1ba",
+        "mobilesdk_app_id": "1:173034299087:android:c7078ca974a06fd75ee1ba",
         "android_client_info": {
-          "package_name": "com.maclusky.reelmatch"
+          "package_name": "com.example.zura"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "173034299087-i3lfbatlkmlq9lvo15ckdq1coaa8q6d1.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyDB5YWzZGS_F-XGzNpZgEJXN7LId5mEmOs"
@@ -39,7 +69,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "173034299087-i3lfbatlkmlq9lvo15ckdq1coaa8q6d1.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "173034299087-ldk8k2rhifd6sdbvm0ac8kgsej9h4uq2.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.zura.app"
+              }
+            }
+          ]
         }
       }
     }

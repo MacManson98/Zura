@@ -13,103 +13,37 @@ workflows:
         BUNDLE_ID: "com.zura.app"
         XCODE_WORKSPACE: "Runner.xcworkspace"
         XCODE_SCHEME: "Runner"
+      groups:
+        - firebase_secrets
       flutter: stable
       xcode: latest
       cocoapods: default
     scripts:
-      - name: Set up code signing settings on Xcode project
+      - name: Set up Firebase configuration
+        script: |
+          echo "🔥 Setting up Firebase configuration..."
+          echo $IOS_FIREBASE_SECRET | base64 --decode > ios/Runner/GoogleService-Info.plist
+          echo $ANDROID_FIREBASE_SECRET | base64 --decode > android/app/google-services.json
+          echo "✅ Firebase configuration complete"
+
+      - name: Set up code signing
         script: |
           xcode-project use-profiles
 
-      
-      - name: Integrate existing Firebase configuration
+      - name: Get dependencies
         script: |
-          echo "🔥 Integrating existing GoogleService-Info.plist..."
-          
-          # Verify the existing file exists
-          if [ ! -f "ios/Runner/GoogleService-Info.plist" ]; then
-            echo "❌ GoogleService-Info.plist not found in repo"
-            exit 1
-          fi
-          
-          echo "✅ Found existing GoogleService-Info.plist"
-          
-          # Verify content
-          if grep -q "reel-match-e7729" ios/Runner/GoogleService-Info.plist; then
-            echo "✅ File contains correct project ID"
-          else
-            echo "❌ File verification failed"
-            exit 1
-          fi
-          
-          # CRITICAL: Add the file to the Xcode project properly
-          echo "🔧 Adding GoogleService-Info.plist to Xcode project..."
-          
-          # Generate unique UUIDs for the file references
-          PLIST_UUID=$(uuidgen | tr '[:lower:]' '[:upper:]' | tr -d '-')
-          PLIST_BUILD_UUID=$(uuidgen | tr '[:lower:]' '[:upper:]' | tr -d '-')
-          
-          # Get the path to project.pbxproj
-          PBXPROJ_PATH="ios/Runner.xcodeproj/project.pbxproj"
-          
-          # Check if file is already in project (avoid duplicates)
-          if grep -q "GoogleService-Info.plist" "$PBXPROJ_PATH"; then
-            echo "⚠️  GoogleService-Info.plist already in project, skipping integration"
-          else
-            echo "📝 Adding file references to project..."
-            
-            # Add the file reference to PBXFileReference section
-            sed -i '' "/\/\* End PBXFileReference section \*\//i\\
-            \\t\\t${PLIST_UUID} \/\* GoogleService-Info.plist \*\/ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = \"GoogleService-Info.plist\"; sourceTree = \"<group>\"; };
-            " "$PBXPROJ_PATH"
-            
-            # Add the file to the Runner group
-            sed -i '' "/\/\* Runner \*\/ = {/,/children = (/,/);/{
-              /children = (/a\\
-            \\t\\t\\t\\t${PLIST_UUID} \/\* GoogleService-Info.plist \*\/,
-            }" "$PBXPROJ_PATH"
-            
-            # Add to PBXBuildFile section
-            sed -i '' "/\/\* End PBXBuildFile section \*\//i\\
-            \\t\\t${PLIST_BUILD_UUID} \/\* GoogleService-Info.plist in Resources \*\/ = {isa = PBXBuildFile; fileRef = ${PLIST_UUID} \/\* GoogleService-Info.plist \*\/; };
-            " "$PBXPROJ_PATH"
-            
-            # Add to PBXResourcesBuildPhase
-            sed -i '' "/\/\* Resources \*\/ = {/,/files = (/,/);/{
-              /files = (/a\\
-            \\t\\t\\t\\t${PLIST_BUILD_UUID} \/\* GoogleService-Info.plist in Resources \*\/,
-            }" "$PBXPROJ_PATH"
-            
-            echo "✅ GoogleService-Info.plist successfully integrated into Xcode project"
-          fi
-          
-          # Final verification
-          if grep -q "GoogleService-Info.plist" "$PBXPROJ_PATH"; then
-            echo "✅ File is now part of Xcode project"
-          else
-            echo "❌ Failed to integrate file into project"
-            exit 1
-          fi
-      
-      - name: Get Flutter dependencies
-        script: |
-          echo "📦 Getting Flutter dependencies..."
-          flutter clean
           flutter pub get
 
       - name: Install iOS dependencies
         script: |
-          echo "🍎 Installing iOS dependencies..."
           cd ios && pod install
       
       - name: Build iOS app
         script: |
-          echo "🏗️ Building iOS app..."
           flutter build ios --release
       
-      - name: Build iOS IPA
+      - name: Build IPA
         script: |
-          echo "📦 Creating IPA..."
           xcode-project build-ipa \
             --workspace ios/$XCODE_WORKSPACE \
             --scheme $XCODE_SCHEME
