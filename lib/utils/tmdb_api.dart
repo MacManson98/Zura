@@ -362,4 +362,37 @@ static Future<List<StreamingProvider>> getPopularStreamingServices() async {
   }
 }
 
+static Future<List<String>> getTrendingMovieIds({String timeWindow = 'week'}) async {
+  try {
+    final url = Uri.parse('$baseUrl/trending/movie/$timeWindow?api_key=$apiKey');
+    final response = await http.get(url);
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      final List results = data['results'];
+
+      // Filter out adult content and extract IDs
+      final movieIds = results
+          .where((movieData) => movieData['adult'] != true)
+          .where((movieData) {
+            final title = (movieData['title'] ?? '').toLowerCase();
+            final overview = (movieData['overview'] ?? '').toLowerCase();
+            final bannedWords = ['porn', 'sex', 'erotic', 'lust', 'dare', 'hentai', 'bdsm'];
+            return !bannedWords.any((word) => title.contains(word) || overview.contains(word));
+          })
+          .map((movieData) => movieData['id'].toString())
+          .toList();
+
+      DebugLogger.log("✅ Fetched ${movieIds.length} trending movie IDs from TMDB");
+      return movieIds;
+    } else {
+      DebugLogger.log('❌ Failed to fetch trending movies: ${response.statusCode}');
+      return [];
+    }
+  } catch (e) {
+    DebugLogger.log('❌ Error fetching trending movies: $e');
+    return [];
+  }
+}
+
 }

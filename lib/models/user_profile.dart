@@ -35,6 +35,7 @@ class MovieLike {
 class UserProfile {
   String uid;
   String name;
+  String email;
   Set<String> likedMovieIds;
   Set<String> matchedMovieIds;
   List<CompletedSession> sessionHistory;
@@ -59,6 +60,7 @@ class UserProfile {
   UserProfile({
     required this.uid,
     this.name = '',
+    this.email = '',
     this.friendIds = const [],
     this.groupIds = const [],
     required this.likedMovieIds,
@@ -204,6 +206,7 @@ class UserProfile {
     return UserProfile(
       uid: '',
       name: '',
+      email: '',
       friendIds: const [],
       groupIds: const [],
       likedMovieIds: {},
@@ -218,6 +221,7 @@ class UserProfile {
   UserProfile copyWith({
     String? uid,
     String? name,
+    String? email,
     List<String>? friendIds,
     List<String>? groupIds,
     Set<String>? likedMovieIds,
@@ -243,6 +247,7 @@ class UserProfile {
     final newProfile = UserProfile(
       uid: uid ?? this.uid,
       name: name ?? this.name,
+      email: email ?? this.email,
       friendIds: friendIds ?? this.friendIds,
       groupIds: groupIds ?? this.groupIds,
       likedMovieIds: likedMovieIds ?? this.likedMovieIds,
@@ -270,6 +275,7 @@ class UserProfile {
     return {
       'uid': uid,
       'name': name,
+      'email': email,
       'friendIds': friendIds,
       'groupIds': groupIds,
       'likedMovieIds': likedMovieIds.toList(),
@@ -303,6 +309,7 @@ class UserProfile {
     return UserProfile(
       uid: json['uid'] ?? '',
       name: json['name'] ?? '',
+      email: json['email'] ?? '',
       friendIds: List<String>.from(json['friendIds'] ?? []),
       groupIds: List<String>.from(json['groupIds'] ??[]),
       likedMovieIds: Set<String>.from(json['likedMovieIds'] ?? []),

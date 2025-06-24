@@ -205,18 +205,6 @@ class _MainNavigationState extends State<MainNavigation> {
     });
   }
 
-  void _goToFriendMatcher(UserProfile friend) {
-    if (kDebugMode) {
-      print("🟢 Switching to Matcher tab with ${friend.name}");
-    }
-    setState(() {
-      _selectedFriend = friend;
-      _matcherMode = MatchingMode.friend;
-      _matcherScreen = _buildMatcherScreen();
-      _selectedIndex = matcherTabIndex;
-    });
-  }
-
   Widget _buildMatcherScreen() {
     final sessionId = DateTime.now().millisecondsSinceEpoch.toString();
     
@@ -251,21 +239,41 @@ class _MainNavigationState extends State<MainNavigation> {
       });
     }
 
-    final screens = [
-      HomeScreen(
-        profile: widget.profile,
-        movies: _completeMovieDatabase,
-      ),
-      _matcherScreen,
-      FriendsScreen(
-        currentUser: widget.profile,
-        allMovies: _completeMovieDatabase,
-        onMatchWithFriend: _goToFriendMatcher,
-      ),
-      ProfileScreen(
-        currentUser: widget.profile,
-      ),
-    ];
+  final screens = [
+    HomeScreen(
+      profile: widget.profile,
+      movies: _completeMovieDatabase,
+      onNavigateToMatches: () {
+        // Navigate to matches if you have that functionality
+        setState(() => _selectedIndex = matcherTabIndex);
+      },
+      onNavigateToMatcher: _goToSoloMatcher, // Default to solo for backward compatibility
+      onNavigateToFriends: () {
+        setState(() => _selectedIndex = 2); // Friends tab
+      },
+      onNavigateToNotifications: () {
+        // Handle notifications if needed
+      },
+      onProfileUpdate: (updatedProfile) {
+        // Handle profile updates if needed
+      },
+      // NEW: Add the specific mode callbacks
+      onNavigateToSoloMatcher: _goToSoloMatcher,
+      onNavigateToFriendMatcher: _goToFriendMatcherTab,
+      onNavigateToGroupMatcher: _goToGroupMatcher,
+    ),
+    _matcherScreen,
+    FriendsScreen(
+      currentUser: widget.profile,
+      allMovies: _completeMovieDatabase,
+      onMatchWithFriend: _goToFriendMatcher,
+    ),
+    ProfileScreen(
+      currentUser: widget.profile,
+    ),
+  ];
+
+  
 
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
@@ -331,63 +339,70 @@ class _MainNavigationState extends State<MainNavigation> {
                 ),
               ),
             ),
-        ],
-      ),
-      bottomNavigationBar: !_isInitialized 
-        ? null 
-        : StreamBuilder<List<Map<String, dynamic>>>(
-            stream: SessionService.watchPendingInvitations(),
-            builder: (context, sessionSnapshot) {
-              return StreamBuilder<List<Map<String, dynamic>>>(
-                stream: FriendshipService.getPendingFriendRequests(widget.profile.uid),
-                builder: (context, friendSnapshot) {
+            
+          // Floating nav bar - moved outside the loading container
+          if (_isInitialized)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: StreamBuilder<List<Map<String, dynamic>>>(
+                stream: SessionService.watchPendingInvitations(),
+                builder: (context, sessionSnapshot) {
                   return StreamBuilder<List<Map<String, dynamic>>>(
-                    stream: GroupInvitationService().watchPendingGroupInvitations(widget.profile.uid),
-                    builder: (context, groupSnapshot) {
-                      final sessionCount = sessionSnapshot.data?.length ?? 0;
-                      final friendCount = friendSnapshot.data?.length ?? 0;
-                      final groupCount = groupSnapshot.data?.length ?? 0;
-                      final totalNotifications = sessionCount + friendCount + groupCount;
-                      final hasHighPriority = sessionCount > 0 || friendCount > 0;
+                    stream: FriendshipService.getPendingFriendRequests(widget.profile.uid),
+                    builder: (context, friendSnapshot) {
+                      return StreamBuilder<List<Map<String, dynamic>>>(
+                        stream: GroupInvitationService().watchPendingGroupInvitations(widget.profile.uid),
+                        builder: (context, groupSnapshot) {
+                          final sessionCount = sessionSnapshot.data?.length ?? 0;
+                          final friendCount = friendSnapshot.data?.length ?? 0;
+                          final groupCount = groupSnapshot.data?.length ?? 0;
+                          final totalNotifications = sessionCount + friendCount + groupCount;
+                          final hasHighPriority = sessionCount > 0 || friendCount > 0;
 
-                      return CustomNavBar(
-                        selectedIndex: _selectedIndex,
-                        onItemTapped: _onItemTapped,
-                        notificationCount: totalNotifications,
-                        hasHighPriorityNotifications: hasHighPriority,
-                        onNotificationTap: () {
-                          final sessionInvites = sessionSnapshot.data ?? [];
-                          final friendRequests = friendSnapshot.data ?? [];
-                          
-                          showModalBottomSheet(
-                            context: context,
-                            isScrollControlled: true,
-                            backgroundColor: Colors.transparent,
-                            builder: (context) => NotificationBottomSheet(
-                              sessionInvites: sessionInvites,
-                              friendRequests: friendRequests,
-                              regularNotifications: [],
-                              onSessionAccept: (invitation) {
-                                Navigator.pop(context);
-                                _handleSessionJoinFromNotification(invitation);
-                              },
-                              onFriendAccept: (request) {
-                                _handleFriendRequestAccept(request);
-                              },
-                              onClearAll: () {
-                                Navigator.pop(context);
-                                _handleClearAllNotifications();
-                              },
-                            ),
+                          return CustomNavBar(
+                            selectedIndex: _selectedIndex,
+                            onItemTapped: _onItemTapped,
+                            notificationCount: totalNotifications,
+                            hasHighPriorityNotifications: hasHighPriority,
+                            onNotificationTap: () {
+                              final sessionInvites = sessionSnapshot.data ?? [];
+                              final friendRequests = friendSnapshot.data ?? [];
+                              
+                              showModalBottomSheet(
+                                context: context,
+                                isScrollControlled: true,
+                                backgroundColor: Colors.transparent,
+                                builder: (context) => NotificationBottomSheet(
+                                  sessionInvites: sessionInvites,
+                                  friendRequests: friendRequests,
+                                  regularNotifications: [],
+                                  onSessionAccept: (invitation) {
+                                    Navigator.pop(context);
+                                    _handleSessionJoinFromNotification(invitation);
+                                  },
+                                  onFriendAccept: (request) {
+                                    _handleFriendRequestAccept(request);
+                                  },
+                                  onClearAll: () {
+                                    Navigator.pop(context);
+                                    _handleClearAllNotifications();
+                                  },
+                                ),
+                              );
+                            },
                           );
                         },
                       );
                     },
                   );
                 },
-              );
-            },
-          ),
+              ),
+            ),
+        ],
+      ),
+      bottomNavigationBar: null,
     );
   }
 
@@ -568,4 +583,52 @@ class _MainNavigationState extends State<MainNavigation> {
       }
     }
   }
+
+  void _goToSoloMatcher() {
+    if (kDebugMode) {
+      print("🔍 Navigating to Solo Matcher");
+    }
+    setState(() {
+      _matcherMode = MatchingMode.solo;
+      _selectedFriend = null; // Clear any selected friend
+      _selectedIndex = matcherTabIndex; // Switch to matcher tab
+      _matcherScreen = _buildMatcherScreen();
+    });
+  }
+
+  void _goToFriendMatcher(UserProfile friend) {
+    if (kDebugMode) {
+      print("🟢 Switching to Matcher tab with ${friend.name}");
+    }
+    setState(() {
+      _selectedFriend = friend;
+      _matcherMode = MatchingMode.friend;
+      _matcherScreen = _buildMatcherScreen();
+      _selectedIndex = matcherTabIndex;
+    });
+  }
+
+  void _goToGroupMatcher() {
+    if (kDebugMode) {
+      print("🔍 Navigating to Group Matcher");
+    }
+    setState(() {
+      _matcherMode = MatchingMode.group;
+      _selectedFriend = null; // Clear any selected friend
+      _selectedIndex = matcherTabIndex; // Switch to matcher tab
+      _matcherScreen = _buildMatcherScreen();
+    });
+  }
+
+  void _goToFriendMatcherTab() {
+  if (kDebugMode) {
+    print("🟢 Switching to Friend Matcher");
+  }
+  setState(() {
+    _matcherMode = MatchingMode.friend;
+    _matcherScreen = _buildMatcherScreen();
+    _selectedIndex = matcherTabIndex;
+  });
+}
+
 }

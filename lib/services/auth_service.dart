@@ -1,18 +1,37 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../utils/debug_loader.dart';
+import '../utils/user_profile_storage.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final GoogleSignIn _googleSignIn = GoogleSignIn();
 
-  // Sign in as guest (anonymous)
-  Future<User?> signInAsGuest() async {
-    final result = await _auth.signInAnonymously();
+  // ✅ ADD: Login with username or email
+  Future<User?> loginWithUsernameOrEmail(String usernameOrEmail, String password) async {
+    String email;
+    
+    // Check if input contains @ (email) or not (username)
+    if (usernameOrEmail.contains('@')) {
+      // It's an email, use directly
+      email = usernameOrEmail;
+    } else {
+      // It's a username, lookup email
+      final foundEmail = await UserProfileStorage.getEmailByUsername(usernameOrEmail);
+      if (foundEmail == null) {
+        throw FirebaseAuthException(
+          code: 'user-not-found',
+          message: 'No user found with that username.',
+        );
+      }
+      email = foundEmail;
+    }
+    
+    // Login with email
+    final result = await _auth.signInWithEmailAndPassword(email: email, password: password);
     return result.user;
   }
 
-  // Register with email & password
   Future<User?> registerWithEmail(String email, String password) async {
     final result = await _auth.createUserWithEmailAndPassword(email: email, password: password);
     return result.user;

@@ -2,7 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-// import 'package:youtube_player_iframe/youtube_player_iframe.dart'; // ← REMOVED - This was causing crashes
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/trailer_service.dart';
 import '../movie.dart';
@@ -24,12 +24,12 @@ class TrailerPlayerWidget extends StatefulWidget {
 }
 
 class _TrailerPlayerWidgetState extends State<TrailerPlayerWidget> {
-  // YoutubePlayerController? _youtubeController; // ← REMOVED - No more YouTube controller
   MovieTrailer? _trailer;
   bool _isLoading = true;
   bool _hasError = false;
   String? _errorMessage;
   bool _isDisposed = false;
+  bool _webViewLoading = true;
 
   @override
   void initState() {
@@ -40,7 +40,6 @@ class _TrailerPlayerWidgetState extends State<TrailerPlayerWidget> {
   @override
   void dispose() {
     _isDisposed = true;
-    // No more controller to dispose - safer!
     super.dispose();
   }
 
@@ -64,12 +63,12 @@ class _TrailerPlayerWidgetState extends State<TrailerPlayerWidget> {
       if (!mounted || _isDisposed) return;
 
       if (trailer != null) {
-        // No controller creation - just store the trailer data
         try {
           setState(() {
             _trailer = trailer;
             _isLoading = false;
             _hasError = false;
+            _webViewLoading = true;
           });
         } catch (e) {
           // Widget was disposed during setState
@@ -100,6 +99,21 @@ class _TrailerPlayerWidgetState extends State<TrailerPlayerWidget> {
         // Widget was disposed during setState
       }
     }
+  }
+
+  String _getYouTubeEmbedUrl() {
+    if (_trailer == null) return '';
+    
+    final autoplay = widget.autoPlay ? '1' : '0';
+    return 'https://www.youtube.com/embed/${_trailer!.key}?'
+           'autoplay=$autoplay&'
+           'controls=1&'
+           'modestbranding=1&'
+           'rel=0&'
+           'showinfo=0&'
+           'iv_load_policy=3&'
+           'enablejsapi=1&'
+           'origin=https://zura.app';
   }
 
   Future<void> _openInYouTube() async {
@@ -183,7 +197,10 @@ class _TrailerPlayerWidgetState extends State<TrailerPlayerWidget> {
           ),
         ],
       ),
-      child: _buildContent(),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12.r),
+        child: _buildContent(),
+      ),
     );
   }
 
@@ -191,281 +208,255 @@ class _TrailerPlayerWidgetState extends State<TrailerPlayerWidget> {
     if (_isDisposed) return _buildNoTrailerState();
     if (_isLoading) return _buildLoadingState();
     if (_hasError) return _buildErrorState();
-    if (_trailer != null) return _buildTrailerFoundState();
+    if (_trailer != null) return _buildPlayerState();
     return _buildNoTrailerState();
   }
 
   Widget _buildLoadingState() {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        CircularProgressIndicator(
-          color: const Color(0xFFE5A00D),
-          strokeWidth: 2.w,
-        ),
-        SizedBox(height: 16.h),
-        Text(
-          'Finding trailer...',
-          style: TextStyle(color: Colors.white70, fontSize: 14.sp),
-        ),
-      ],
+    return Container(
+      color: const Color(0xFF1F1F1F),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircularProgressIndicator(
+            color: const Color(0xFFE5A00D),
+            strokeWidth: 2.w,
+          ),
+          SizedBox(height: 16.h),
+          Text(
+            'Finding trailer...',
+            style: TextStyle(color: Colors.white70, fontSize: 14.sp),
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildErrorState() {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(Icons.error_outline, color: Colors.white54, size: 48.sp),
-        SizedBox(height: 16.h),
-        Text(
-          _errorMessage ?? 'Failed to load trailer',
-          style: TextStyle(color: Colors.white70, fontSize: 14.sp),
-          textAlign: TextAlign.center,
-        ),
-        SizedBox(height: 16.h),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            ElevatedButton.icon(
-              onPressed: _isDisposed ? null : _loadTrailer,
-              icon: Icon(Icons.refresh, size: 16.sp),
-              label: Text('Retry', style: TextStyle(fontSize: 14.sp)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFE5A00D),
-                foregroundColor: Colors.white,
-                padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
+    return Container(
+      color: const Color(0xFF1F1F1F),
+      padding: EdgeInsets.symmetric(horizontal: 20.w),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.error_outline, color: Colors.white54, size: 48.sp),
+          SizedBox(height: 16.h),
+          Text(
+            _errorMessage ?? 'Failed to load trailer',
+            style: TextStyle(color: Colors.white70, fontSize: 14.sp),
+            textAlign: TextAlign.center,
+          ),
+          SizedBox(height: 20.h),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Flexible(
+                child: ElevatedButton.icon(
+                  onPressed: _isDisposed ? null : _loadTrailer,
+                  icon: Icon(Icons.refresh, size: 16.sp),
+                  label: Text('Retry', style: TextStyle(fontSize: 12.sp)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFE5A00D),
+                    foregroundColor: Colors.white,
+                    padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
+                  ),
+                ),
               ),
-            ),
-            SizedBox(width: 12.w),
-            OutlinedButton.icon(
-              onPressed: _isDisposed ? null : _searchYouTubeTrailer,
-              icon: Icon(Icons.search, size: 16.sp),
-              label: Text('Search YouTube', style: TextStyle(fontSize: 14.sp)),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.white70,
-                side: BorderSide(color: Colors.white30),
-                padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
+              SizedBox(width: 8.w),
+              Flexible(
+                child: OutlinedButton.icon(
+                  onPressed: _isDisposed ? null : _searchYouTubeTrailer,
+                  icon: Icon(Icons.search, size: 16.sp),
+                  label: Text('Search', style: TextStyle(fontSize: 12.sp)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white70,
+                    side: BorderSide(color: Colors.white30),
+                    padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
+                  ),
+                ),
               ),
-            ),
-          ],
-        ),
-      ],
+            ],
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildNoTrailerState() {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(Icons.movie_outlined, color: Colors.white54, size: 48.sp),
-        SizedBox(height: 16.h),
-        Text(
-          'No trailer found',
-          style: TextStyle(color: Colors.white70, fontSize: 16.sp, fontWeight: FontWeight.bold),
-        ),
-        SizedBox(height: 8.h),
-        Text(
-          'But you can search for one!',
-          style: TextStyle(color: Colors.white54, fontSize: 12.sp),
-        ),
-        SizedBox(height: 16.h),
-        ElevatedButton.icon(
-          onPressed: _isDisposed ? null : _searchYouTubeTrailer,
-          icon: Icon(Icons.search, size: 20.sp),
-          label: Text('Search on YouTube', style: TextStyle(fontSize: 14.sp)),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.red,
-            foregroundColor: Colors.white,
-            padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 12.h),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12.r),
+    return Container(
+      color: const Color(0xFF1F1F1F),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.movie_outlined, color: Colors.white54, size: 48.sp),
+          SizedBox(height: 16.h),
+          Text(
+            'No trailer found',
+            style: TextStyle(color: Colors.white70, fontSize: 16.sp, fontWeight: FontWeight.bold),
+          ),
+          SizedBox(height: 8.h),
+          Text(
+            'But you can search for one!',
+            style: TextStyle(color: Colors.white54, fontSize: 12.sp),
+          ),
+          SizedBox(height: 16.h),
+          ElevatedButton.icon(
+            onPressed: _isDisposed ? null : _searchYouTubeTrailer,
+            icon: Icon(Icons.search, size: 20.sp),
+            label: Text('Search on YouTube', style: TextStyle(fontSize: 14.sp)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 12.h),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12.r),
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
-  Widget _buildTrailerFoundState() {
+  Widget _buildPlayerState() {
     if (_isDisposed || _trailer == null) {
       return _buildNoTrailerState();
     }
-    
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12.r),
-      child: Stack(
-        children: [
-          // Beautiful gradient background instead of video player
-          Container(
-            width: double.infinity,
-            height: double.infinity,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Colors.red.withValues(alpha: 0.8),
-                  Colors.red.withValues(alpha: 0.6),
-                  Colors.orange.withValues(alpha: 0.7),
-                ],
-              ),
-            ),
+
+    return Stack(
+      children: [
+        // WebView Player
+        InAppWebView(
+          initialUrlRequest: URLRequest(
+            url: WebUri(_getYouTubeEmbedUrl()),
           ),
-          
-          // Play button and info overlay
+          initialSettings: InAppWebViewSettings(
+            mediaPlaybackRequiresUserGesture: false,
+            allowsInlineMediaPlayback: true,
+            allowsPictureInPictureMediaPlayback: true,
+            iframeAllow: "camera; microphone; autoplay; encrypted-media; picture-in-picture",
+            iframeAllowFullscreen: true,
+            supportZoom: false,
+            javaScriptEnabled: true,
+            domStorageEnabled: true,
+            transparentBackground: true,
+          ),
+          onLoadStart: (controller, url) {
+            if (!_isDisposed && mounted) {
+              setState(() {
+                _webViewLoading = true;
+              });
+            }
+          },
+          onLoadStop: (controller, url) {
+            if (!_isDisposed && mounted) {
+              setState(() {
+                _webViewLoading = false;
+              });
+            }
+          },
+          onReceivedError: (controller, request, error) {
+            if (!_isDisposed && mounted) {
+              setState(() {
+                _webViewLoading = false;
+                _hasError = true;
+                _errorMessage = 'Failed to load video player';
+              });
+            }
+          },
+        ),
+
+        // Loading overlay
+        if (_webViewLoading)
           Container(
-            width: double.infinity,
-            height: double.infinity,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.black.withValues(alpha: 0.3),
-                  Colors.black.withValues(alpha: 0.7),
-                ],
-              ),
-            ),
+            color: const Color(0xFF1F1F1F),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Large play button
-                Container(
-                  width: 80.w,
-                  height: 80.h,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.9),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.3),
-                        blurRadius: 12.r,
-                        offset: Offset(0, 4.h),
-                      ),
-                    ],
-                  ),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(40.r),
-                      onTap: _isDisposed ? null : _openInYouTube,
-                      child: Icon(
-                        Icons.play_arrow,
-                        color: Colors.red,
-                        size: 48.sp,
-                      ),
-                    ),
-                  ),
+                CircularProgressIndicator(
+                  color: const Color(0xFFE5A00D),
+                  strokeWidth: 2.w,
                 ),
-                
                 SizedBox(height: 16.h),
-                
-                // Trailer title
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16.w),
-                  child: Text(
-                    _trailer!.name.isNotEmpty 
-                        ? _trailer!.name 
-                        : '${widget.movie.title} Trailer',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16.sp,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                
-                SizedBox(height: 8.h),
-                
-                // Trailer type and official badge
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    if (_trailer!.type.isNotEmpty) ...[
-                      Container(
-                        padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(12.r),
-                        ),
-                        child: Text(
-                          _trailer!.type.toUpperCase(),
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 10.sp,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      SizedBox(width: 8.w),
-                    ],
-                    if (_trailer!.official) ...[
-                      Container(
-                        padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
-                        decoration: BoxDecoration(
-                          color: Colors.green.withValues(alpha: 0.8),
-                          borderRadius: BorderRadius.circular(12.r),
-                        ),
-                        child: Text(
-                          'OFFICIAL',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 10.sp,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-                
-                SizedBox(height: 12.h),
-                
-                // Watch button
-                ElevatedButton.icon(
-                  onPressed: _isDisposed ? null : _openInYouTube,
-                  icon: Icon(Icons.open_in_new, size: 16.sp),
-                  label: Text(
-                    'Watch on YouTube',
-                    style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.bold),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: Colors.red,
-                    padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 10.h),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20.r),
-                    ),
-                    elevation: 4,
-                  ),
+                Text(
+                  'Loading player...',
+                  style: TextStyle(color: Colors.white70, fontSize: 14.sp),
                 ),
               ],
             ),
           ),
-          
-          // Info button in corner
-          if (widget.showControls && !_isDisposed)
-            Positioned(
-              top: 12.h,
-              right: 12.w,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.6),
-                  shape: BoxShape.circle,
-                ),
-                child: IconButton(
-                  onPressed: _isDisposed ? null : _openInYouTube,
-                  icon: Icon(Icons.info_outline, color: Colors.white, size: 20.sp),
-                  tooltip: 'Trailer Info',
+
+        // Custom controls overlay
+        if (widget.showControls && !_webViewLoading && !_isDisposed)
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: Container(
+              padding: EdgeInsets.all(12.w),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.transparent,
+                    Colors.black.withValues(alpha: 0.8),
+                  ],
                 ),
               ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _trailer!.name.isNotEmpty 
+                              ? _trailer!.name 
+                              : '${widget.movie.title} Trailer',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 13.sp,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if (_trailer!.type.isNotEmpty || _trailer!.official)
+                          Row(
+                            children: [
+                              if (_trailer!.type.isNotEmpty)
+                                Text(
+                                  _trailer!.type.toUpperCase(),
+                                  style: TextStyle(color: Colors.white70, fontSize: 10.sp),
+                                ),
+                              if (_trailer!.type.isNotEmpty && _trailer!.official)
+                                Text(
+                                  ' • ',
+                                  style: TextStyle(color: Colors.white70, fontSize: 10.sp),
+                                ),
+                              if (_trailer!.official)
+                                Text(
+                                  'OFFICIAL',
+                                  style: TextStyle(color: Colors.green, fontSize: 10.sp, fontWeight: FontWeight.bold),
+                                ),
+                            ],
+                          ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: _openInYouTube,
+                    icon: Icon(Icons.open_in_new, color: Colors.white, size: 20.sp),
+                    tooltip: 'Open in YouTube',
+                    splashRadius: 20.r,
+                  ),
+                ],
+              ),
             ),
-        ],
-      ),
+          ),
+      ],
     );
   }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 import '../models/user_profile.dart';
 import '../movie.dart';
 import 'dart:math';
@@ -10,6 +11,9 @@ import '../utils/debug_loader.dart';
 import 'matches_screen.dart';
 import 'liked_movies_screen.dart';
 import '../utils/movie_loader.dart';
+import '../utils/tmdb_api.dart';
+import 'trending_movies_screen';
+import '../models/matching_models.dart';
 
 class HomeScreen extends StatefulWidget {
   final UserProfile profile;
@@ -20,6 +24,11 @@ class HomeScreen extends StatefulWidget {
   final VoidCallback? onNavigateToNotifications;
   final Function(UserProfile)? onProfileUpdate;
 
+  // NEW: Add specific mode callbacks
+  final VoidCallback? onNavigateToSoloMatcher;
+  final VoidCallback? onNavigateToFriendMatcher;
+  final VoidCallback? onNavigateToGroupMatcher;
+
   const HomeScreen({
     super.key,
     required this.profile,
@@ -29,6 +38,9 @@ class HomeScreen extends StatefulWidget {
     this.onNavigateToFriends,
     this.onNavigateToNotifications,
     this.onProfileUpdate,
+    this.onNavigateToSoloMatcher,
+    this.onNavigateToFriendMatcher,
+    this.onNavigateToGroupMatcher,
   });
 
   @override
@@ -50,12 +62,29 @@ class _HomeScreenState extends State<HomeScreen>
   Animation<double>? _fadeAnimation;
 
   List<Movie> _completeMovieDatabase = [];
+  List<Movie> _trendingMovies = [];
+  bool _isLoadingTrending = true;
 
   @override
   void initState() {
     super.initState();
     _initializeAnimations();
     _loadCompleteMovieDatabase();
+    _loadTrendingMovies();
+  }
+
+  Future<void> _loadTrendingMovies() async {
+    setState(() => _isLoadingTrending = true);
+    try {
+      final trending = await _getTrendingMovies();
+      setState(() {
+        _trendingMovies = trending;
+        _isLoadingTrending = false;
+      });
+    } catch (e) {
+      DebugLogger.log("❌ Error loading trending movies: $e");
+      setState(() => _isLoadingTrending = false);
+    }
   }
 
   void _initializeAnimations() {
@@ -150,44 +179,153 @@ class _HomeScreenState extends State<HomeScreen>
     return picks.take(8).toList();
   }
 
-  // NEW: Trending movies methods
-  List<Movie> _getTrendingMovies() {
-    final movies = _completeMovieDatabase.isNotEmpty ? _completeMovieDatabase : widget.movies;
-    final now = DateTime.now();
-    
-    // ✅ BETTER FILTERING: Only show high-quality, popular movies
-    final candidateMovies = movies.where((movie) {
-      return !widget.profile.likedMovies.contains(movie) &&
-            movie.rating != null && 
-            movie.rating! >= 7.0 &&                    // Good rating
-            movie.voteCount != null && 
-            movie.voteCount! >= 500 &&                 // Enough votes
-            movie.genres.isNotEmpty &&                 // Has genres
-            !movie.title.toLowerCase().contains('xxx') && // Filter inappropriate
-            !movie.title.toLowerCase().contains('porn');  // Filter inappropriate
-    }).toList();
-    
-    // Sort by quality score (rating + popularity)
-    candidateMovies.sort((a, b) => b.qualityScore.compareTo(a.qualityScore));
-    
-    // Take top quality movies and shuffle them
-    final topMovies = candidateMovies.take(50).toList(); // Get top 50 quality movies
-    topMovies.shuffle(Random(now.day + now.month));      // Shuffle for variety
-    
-    return topMovies.take(8).toList();
+  Future<List<Movie>> _getTrendingMovies() async {
+    try {
+      DebugLogger.log("🔥 Loading trending movies from TMDB + local database...");
+      
+      // Step 1: Get trending movie IDs from TMDB API
+      final trendingIds = await TMDBApi.getTrendingMovieIds(timeWindow: 'week');
+      DebugLogger.log("📋 Got ${trendingIds.length} trending IDs from TMDB: ${trendingIds.take(5)}");
+      
+      if (trendingIds.isEmpty) {
+        DebugLogger.log("⚠️ No trending IDs from TMDB, using fallback");
+        return _getFallbackTrendingMovies();
+      }
+      
+      // Step 2: Load your complete local movie database
+      final localMovieDatabase = await MovieDatabaseLoader.loadMovieDatabase();
+      DebugLogger.log("💾 Local database loaded: ${localMovieDatabase.length} movies");
+      
+      if (localMovieDatabase.isEmpty) {
+        DebugLogger.log("⚠️ Local database is empty, using widget.movies as fallback");
+        return _getFallbackTrendingMovies();
+      }
+      
+      // Step 3: Find trending movies in your local database (preserving TMDB order)
+      final trendingMovies = <Movie>[];
+          int foundCount = 0;
+          int notFoundCount = 0;
+          
+          for (final trendingId in trendingIds) {
+            // Find movie in local database by ID
+            final foundMovie = localMovieDatabase.cast<Movie?>().firstWhere(
+              (movie) => movie?.id == trendingId,
+              orElse: () => null,
+            );
+            
+            if (foundMovie != null && !widget.profile.likedMovies.contains(foundMovie)) {
+              trendingMovies.add(foundMovie);
+              foundCount++;
+              DebugLogger.log("✅ Found trending movie: ${foundMovie.title} (ID: $trendingId)");
+            } else {
+              notFoundCount++;
+              if (notFoundCount <= 3) { // Only log first few misses to avoid spam
+                DebugLogger.log("❌ Trending movie ID $trendingId not found in local database");
+              }
+            }
+            
+            // Stop when we have enough movies
+            if (trendingMovies.length >= 8) break;
+          }
+          
+          DebugLogger.log("📊 Trending results: Found $foundCount, Not found $notFoundCount");
+          
+      // Step 4: If we don't have enough trending matches, fill with high-quality local movies
+      if (trendingMovies.length < 3) {
+        DebugLogger.log("⚠️ Only found ${trendingMovies.length} trending movies, adding high-quality local movies");
+        final fallbackMovies = MovieDatabaseLoader.getHighQualityMovies(
+          localMovieDatabase,
+          minRating: 7.0,
+          minVotes: 500,
+          limit: 8 - trendingMovies.length,
+        );
+        
+        // Add fallback movies that aren't already in trending and user hasn't liked
+        for (final movie in fallbackMovies) {
+          if (!trendingMovies.contains(movie) && 
+              !widget.profile.likedMovies.contains(movie) &&
+              trendingMovies.length < 8) {
+            trendingMovies.add(movie);
+          }
+        }
+      }
+      
+      DebugLogger.log("🎬 Final trending list: ${trendingMovies.length} movies");
+      DebugLogger.log("🎭 Sample: ${trendingMovies.take(3).map((m) => m.title).join(', ')}");
+      
+      return trendingMovies;
+      
+    } catch (e) {
+      DebugLogger.log("❌ Error loading trending movies: $e");
+      return _getFallbackTrendingMovies();
+    }
   }
 
-  Map<String, dynamic> _getTrendingStats(Movie movie) {
-    final random = Random(movie.title.hashCode);
-    final views = 150 + random.nextInt(400); // 150-550 views
-    final likes = 20 + random.nextInt(80);   // 20-100 likes
-    final trend = random.nextBool() ? "up" : "hot";
+// Update your fallback method to use MovieDatabaseLoader:
+List<Movie> _getFallbackTrendingMovies() {
+  try {
+    // Use complete movie database if available
+    final movies = _completeMovieDatabase.isNotEmpty ? _completeMovieDatabase : widget.movies;
+    
+    if (movies.isEmpty) {
+      DebugLogger.log("⚠️ No movies available for fallback trending");
+      return [];
+    }
+    
+    // Use MovieDatabaseLoader to get high-quality movies
+    final highQualityMovies = MovieDatabaseLoader.getHighQualityMovies(
+      movies,
+      minRating: 7.0,
+      minVotes: 500,
+      limit: 20,
+    );
+    
+    // Filter out already liked movies
+    final candidateMovies = highQualityMovies.where((movie) =>
+      !widget.profile.likedMovies.contains(movie)
+    ).toList();
+    
+    // Shuffle for variety
+    final now = DateTime.now();
+    candidateMovies.shuffle(Random(now.day + now.month));
+    
+    DebugLogger.log("🔄 Fallback trending: ${candidateMovies.length} high-quality movies");
+    return candidateMovies.take(8).toList();
+    
+  } catch (e) {
+    DebugLogger.log("❌ Error in fallback trending: $e");
+    return [];
+  }
+}
+
+  // Update your _getTrendingStats method to be more realistic:
+  Map<String, dynamic> _getTrendingStats(Movie movie, int rank) {
+    final random = Random(movie.title.hashCode + rank);
+    final baseViews = 800 - (rank * 50); // Higher rank = more views
+    final views = baseViews + random.nextInt(300);
+    final likes = (views * 0.12).round() + random.nextInt(40);
+    final trend = rank <= 3 ? "hot" : (random.nextBool() ? "up" : "stable");
     
     return {
       'views': views,
       'likes': likes,
       'trend': trend,
     };
+  }
+
+  // Add this method to handle navigation to trending screen:
+  void _navigateToTrendingMovies() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => TrendingMoviesScreen(
+          currentUser: widget.profile,
+          onProfileUpdate: (updatedProfile) {
+            widget.onProfileUpdate?.call(updatedProfile);
+          },
+        ),
+      ),
+    );
   }
 
   String _getGreeting() {
@@ -287,7 +425,10 @@ class _HomeScreenState extends State<HomeScreen>
                 // Quick Stats Dashboard
                 _buildQuickStats(),
                 SizedBox(height: 24.h),
-                
+
+                //Qucik Access Carousel
+                _buildSwipingModeCarousel(),
+                SizedBox(height: 24.h,),
                 // Enhanced Quick Actions
                 _buildEnhancedQuickActions(),
                 SizedBox(height: 24.h),
@@ -522,7 +663,9 @@ class _HomeScreenState extends State<HomeScreen>
           ),
           _buildStatDivider(),
           _buildStatItem(
-            '${_getTrendingMovies().length}',
+          _isLoadingTrending 
+              ? '...' 
+              : '${_trendingMovies.length}', // ✅ Use the state variable instead
             'Trending Now',
             Colors.orange,
             Icons.whatshot,
@@ -601,55 +744,185 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Widget _buildEnhancedQuickActions() {
+  Widget _buildSwipingModeCarousel() {
+    final PageController _pageController = PageController(viewportFraction: 0.85);
+
+    final List<Map<String, dynamic>> swipingModes = [
+      {
+        'title': 'Solo',
+        'subtitle': 'Your taste',
+        'icon': Icons.person,
+        'gradient': const LinearGradient(colors: [Color(0xFFE5A00D), Color(0xFFFF8A00)]),
+        'onTap': () => _navigateToMatcher(MatchingMode.solo),
+      },
+      {
+        'title': 'Friend',
+        'subtitle': 'Match together',
+        'icon': Icons.people,
+        'gradient': LinearGradient(colors: [Colors.purple.shade600, Colors.purple.shade800]),
+        'onTap': () => _navigateToMatcher(MatchingMode.friend),
+      },
+      {
+        'title': 'Group',
+        'subtitle': 'Party mode',
+        'icon': Icons.groups,
+        'gradient': LinearGradient(colors: [Colors.indigo.shade600, Colors.indigo.shade800]),
+        'onTap': () => _navigateToMatcher(MatchingMode.group),
+      },
+    ];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Quick Actions',
+          Text(
+                      textAlign: TextAlign.center,
+          'Choose how you watch',
           style: TextStyle(
             fontSize: 20.sp,
             fontWeight: FontWeight.bold,
             color: Colors.white,
           ),
         ),
-        SizedBox(height: 16.h),
-        
-        // Primary action - Start Swiping (matches your session controls styling)
-        _buildActionButton(
-          onTap: widget.onNavigateToMatcher ?? () {},
-          icon: Icons.swipe_right,
-          label: "Start Swiping",
-          subtitle: "Discover new movies",
-          isPrimary: true,
-        ),
-        
         SizedBox(height: 12.h),
-        
-        // Secondary actions row
-        Row(
-          children: [
-            Expanded(
-              child: _buildSecondaryActionCard(
-                title: 'My Matches',
-                subtitle: '${widget.profile.matchHistory.length} found',
-                icon: Icons.people,
-                onTap: _navigateToMatches,
-              ),
+        SizedBox(
+          height: 180.h,
+          child: PageView.builder(
+            controller: _pageController,
+            itemCount: swipingModes.length,
+            itemBuilder: (context, index) {
+              final item = swipingModes[index];
+
+              return AnimatedBuilder(
+                animation: _pageController,
+                builder: (context, child) {
+                  double value = 1.0;
+                    if (_pageController.position.haveDimensions) {
+                      value = ((1 - (value.abs() * 0.2)).clamp(0.8, 1.0)).toDouble();
+                    }
+                  return Transform.scale(
+                    scale: value,
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 8.w),
+                      child: GestureDetector(
+                        onTap: item['onTap'],
+                        child: Container(
+                          padding: EdgeInsets.all(20.w),
+                          decoration: BoxDecoration(
+                            gradient: item['gradient'],
+                            borderRadius: BorderRadius.circular(24),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.25),
+                                blurRadius: 16,
+                                offset: Offset(0, 6),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(item['icon'], size: 42.sp, color: Colors.white),
+                              SizedBox(height: 16.h),
+                              Text(
+                                item['title'],
+                                style: TextStyle(
+                                  fontSize: 18.sp,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              SizedBox(height: 6.h),
+                              Text(
+                                item['subtitle'],
+                                style: TextStyle(
+                                  fontSize: 14.sp,
+                                  color: Colors.white70,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+        SizedBox(height: 12.h),
+        Center(
+          child: SmoothPageIndicator(
+            controller: _pageController,
+            count: swipingModes.length,
+            effect: ExpandingDotsEffect(
+              dotHeight: 6.h,
+              dotWidth: 6.h,
+              activeDotColor: Colors.white,
+              dotColor: Colors.white24,
             ),
-            SizedBox(width: 12.w),
-            Expanded(
-              child: _buildSecondaryActionCard(
-                title: 'My Likes',
-                subtitle: '${widget.profile.likedMovieIds.length} found',
-                icon: Icons.favorite,
-                onTap: _navigateToLikedMovies,
-              ),
-            ),
-          ],
+          ),
         ),
       ],
     );
+  }
+
+
+
+  Widget _buildEnhancedQuickActions() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+            SizedBox(height: 20.h),
+            
+            // Quick access section header
+            Text(
+              'Quick Access',
+              style: TextStyle(
+                fontSize: 16.sp,
+                fontWeight: FontWeight.w600,
+                color: Colors.white70,
+              ),
+            ),
+            
+            SizedBox(height: 12.h),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildSecondaryActionCard(
+                    title: 'My Matches',
+                    subtitle: '${widget.profile.matchHistory.length} found',
+                    icon: Icons.favorite,
+                    onTap: _navigateToMatches,
+                  ),
+                ),
+                SizedBox(width: 12.w),
+                Expanded(
+                  child: _buildSecondaryActionCard(
+                    title: 'My Likes',
+                    subtitle: '${widget.profile.likedMovieIds.length} movies',
+                    icon: Icons.thumb_up,
+                    onTap: _navigateToLikedMovies,
+                  ),
+                ),
+              ],
+            ),
+          ],
+    );
+  }
+
+  void _navigateToMatcher(MatchingMode mode) {
+    switch (mode) {
+      case MatchingMode.solo:
+        widget.onNavigateToSoloMatcher?.call();
+        break;
+      case MatchingMode.friend:
+        widget.onNavigateToFriendMatcher?.call();
+        break;
+      case MatchingMode.group:
+        widget.onNavigateToGroupMatcher?.call();
+        break;
+    }
   }
 
   Widget _buildActionButton({
@@ -862,8 +1135,6 @@ class _HomeScreenState extends State<HomeScreen>
 
   // NEW: Trending This Week section (replaces friend activity)
   Widget _buildTrendingThisWeek() {
-    final trendingMovies = _getTrendingMovies();
-    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -897,7 +1168,11 @@ class _HomeScreenState extends State<HomeScreen>
                       ),
                     ),
                     Text(
-                      'Popular among movie lovers',
+                      _isLoadingTrending 
+                          ? 'Loading from TMDB...'
+                          : _trendingMovies.isEmpty
+                              ? 'No trending movies found'
+                              : 'Popular on TMDB',
                       style: TextStyle(
                         fontSize: 12.sp,
                         color: Colors.white60,
@@ -921,13 +1196,13 @@ class _HomeScreenState extends State<HomeScreen>
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    Icons.whatshot,
+                    _isLoadingTrending ? Icons.hourglass_empty : Icons.whatshot,
                     color: const Color(0xFFE5A00D),
                     size: 12.sp,
                   ),
                   SizedBox(width: 4.w),
                   Text(
-                    'Live',
+                    _isLoadingTrending ? 'Loading' : 'Live',
                     style: TextStyle(
                       color: const Color(0xFFE5A00D),
                       fontSize: 12.sp,
@@ -941,199 +1216,261 @@ class _HomeScreenState extends State<HomeScreen>
         ),
         SizedBox(height: 16.h),
         
-        // Show top 3 trending movies
-        ...trendingMovies.take(3).map((movie) {
-          final stats = _getTrendingStats(movie);
-          final rank = trendingMovies.indexOf(movie) + 1;
-          
-          return Container(
-            margin: EdgeInsets.only(bottom: 12.h),
-            padding: EdgeInsets.all(16.w),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1F1F1F),
-              borderRadius: BorderRadius.circular(12.r),
-              border: rank == 1 ? Border.all(
-                color: const Color(0xFFE5A00D).withValues(alpha: 0.3),
-                width: 1.w,
-              ) : null,
-            ),
-            child: GestureDetector(
-              onTap: () {
-                showMovieDetails(
-                  context: context,
-                  movie: movie,
-                  currentUser: widget.profile,
-                );
-              },
+        // Loading state
+        if (_isLoadingTrending)
+          Container(
+            height: 120.h,
+            child: Center(
               child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Rank badge
-                  Container(
-                    width: 32.w,
-                    height: 32.w,
-                    decoration: BoxDecoration(
-                      color: rank == 1 
-                        ? const Color(0xFFE5A00D) 
-                        : rank == 2 
-                          ? Colors.grey[600]
-                          : Colors.grey[700],
-                      borderRadius: BorderRadius.circular(8.r),
-                    ),
-                    child: Center(
-                      child: Text(
-                        '$rank',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14.sp,
-                        ),
-                      ),
+                  SizedBox(
+                    width: 20.w,
+                    height: 20.w,
+                    child: CircularProgressIndicator(
+                      color: const Color(0xFFE5A00D),
+                      strokeWidth: 2.w,
                     ),
                   ),
                   SizedBox(width: 12.w),
-                  
-                  // Movie poster
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8.r),
-                    child: Image.network(
-                      movie.posterUrl,
-                      width: 50.w,
-                      height: 75.h,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                        width: 50.w,
-                        height: 75.h,
-                        color: Colors.grey[800],
-                        child: Icon(Icons.movie, size: 20.sp, color: Colors.white30),
-                      ),
-                    ),
-                  ),
-                  SizedBox(width: 16.w),
-                  
-                  // Movie info
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          movie.title,
-                          style: TextStyle(
-                            fontSize: 16.sp,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        SizedBox(height: 4.h),
-                        Text(
-                          movie.genres.take(2).join(' • '),
-                          style: TextStyle(
-                            color: const Color(0xFFE5A00D),
-                            fontSize: 12.sp,
-                          ),
-                        ),
-                        SizedBox(height: 8.h),
-                        
-                        // Trending stats
-                        Row(
-                          children: [
-                            Icon(
-                              stats['trend'] == 'up' ? Icons.trending_up : Icons.whatshot,
-                              color: stats['trend'] == 'up' ? Colors.green : Colors.orange,
-                              size: 14.sp,
-                            ),
-                            SizedBox(width: 4.w),
-                            Text(
-                              '${stats['views']} views',
-                              style: TextStyle(
-                                color: Colors.white60,
-                                fontSize: 11.sp,
-                              ),
-                            ),
-                            SizedBox(width: 12.w),
-                            Icon(
-                              Icons.favorite,
-                              color: Colors.red,
-                              size: 12.sp,
-                            ),
-                            SizedBox(width: 4.w),
-                            Text(
-                              '${stats['likes']}',
-                              style: TextStyle(
-                                color: Colors.white60,
-                                fontSize: 11.sp,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  
-                  // Action button
-                  Container(
-                    padding: EdgeInsets.all(8.w),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE5A00D).withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8.r),
-                    ),
-                    child: Icon(
-                      Icons.play_arrow,
-                      color: const Color(0xFFE5A00D),
-                      size: 20.sp,
+                  Text(
+                    'Loading trending from TMDB...',
+                    style: TextStyle(
+                      color: Colors.white60,
+                      fontSize: 14.sp,
                     ),
                   ),
                 ],
               ),
             ),
-          );
-        }).toList(),
-        
-        // "View all trending" button
-        SizedBox(height: 8.h),
-        GestureDetector(
-          onTap: () {
-            // TODO: Navigate to full trending page
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Full trending page coming soon!'),
-                backgroundColor: const Color(0xFF1F1F1F),
+          )
+        // Empty state
+        else if (_trendingMovies.isEmpty)
+          Container(
+            height: 120.h,
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.trending_down,
+                    color: Colors.white30,
+                    size: 32.sp,
+                  ),
+                  SizedBox(height: 8.h),
+                  Text(
+                    'No trending movies available',
+                    style: TextStyle(
+                      color: Colors.white60,
+                      fontSize: 14.sp,
+                    ),
+                  ),
+                  SizedBox(height: 8.h),
+                  GestureDetector(
+                    onTap: _loadTrendingMovies,
+                    child: Text(
+                      'Tap to retry',
+                      style: TextStyle(
+                        color: const Color(0xFFE5A00D),
+                        fontSize: 12.sp,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          )
+        // Trending movies list
+        else ...[
+          // Show top 3 trending movies
+          ..._trendingMovies.take(3).toList().asMap().entries.map((entry) {
+            final index = entry.key;
+            final movie = entry.value;
+            final rank = index + 1;
+            final stats = _getTrendingStats(movie, rank);
+            
+            return Container(
+              margin: EdgeInsets.only(bottom: 12.h),
+              padding: EdgeInsets.all(16.w),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1F1F1F),
+                borderRadius: BorderRadius.circular(12.r),
+                border: rank == 1 ? Border.all(
+                  color: const Color(0xFFE5A00D).withValues(alpha: 0.3),
+                  width: 1.w,
+                ) : null,
+              ),
+              child: GestureDetector(
+                onTap: () {
+                  showMovieDetails(
+                    context: context,
+                    movie: movie,
+                    currentUser: widget.profile,
+                  );
+                },
+                child: Row(
+                  children: [
+                    // Rank badge
+                    Container(
+                      width: 32.w,
+                      height: 32.w,
+                      decoration: BoxDecoration(
+                        color: rank == 1 
+                          ? const Color(0xFFE5A00D) 
+                          : rank == 2 
+                            ? Colors.grey[600]
+                            : Colors.grey[700],
+                        borderRadius: BorderRadius.circular(8.r),
+                      ),
+                      child: Center(
+                        child: Text(
+                          '$rank',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14.sp,
+                          ),
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: 12.w),
+                    
+                    // Movie poster
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8.r),
+                      child: Image.network(
+                        movie.posterUrl,
+                        width: 50.w,
+                        height: 75.h,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          width: 50.w,
+                          height: 75.h,
+                          color: Colors.grey[800],
+                          child: Icon(Icons.movie, size: 20.sp, color: Colors.white30),
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: 16.w),
+                    
+                    // Movie info
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            movie.title,
+                            style: TextStyle(
+                              fontSize: 16.sp,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          SizedBox(height: 4.h),
+                          Text(
+                            movie.genres.take(2).join(' • '),
+                            style: TextStyle(
+                              color: const Color(0xFFE5A00D),
+                              fontSize: 12.sp,
+                            ),
+                          ),
+                          SizedBox(height: 8.h),
+                          
+                          // Trending stats
+                          Row(
+                            children: [
+                              Icon(
+                                stats['trend'] == 'up' ? Icons.trending_up : Icons.whatshot,
+                                color: stats['trend'] == 'up' ? Colors.green : Colors.orange,
+                                size: 14.sp,
+                              ),
+                              SizedBox(width: 4.w),
+                              Text(
+                                '${stats['views']} views',
+                                style: TextStyle(
+                                  color: Colors.white60,
+                                  fontSize: 11.sp,
+                                ),
+                              ),
+                              SizedBox(width: 12.w),
+                              Icon(
+                                Icons.favorite,
+                                color: Colors.red,
+                                size: 12.sp,
+                              ),
+                              SizedBox(width: 4.w),
+                              Text(
+                                '${stats['likes']}',
+                                style: TextStyle(
+                                  color: Colors.white60,
+                                  fontSize: 11.sp,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    
+                    // Action button
+                    Container(
+                      padding: EdgeInsets.all(8.w),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE5A00D).withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8.r),
+                      ),
+                      child: Icon(
+                        Icons.play_arrow,
+                        color: const Color(0xFFE5A00D),
+                        size: 20.sp,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             );
-          },
-          child: Container(
-            width: double.infinity,
-            padding: EdgeInsets.symmetric(vertical: 12.h),
-            decoration: BoxDecoration(
-              color: Colors.transparent,
-              borderRadius: BorderRadius.circular(8.r),
-              border: Border.all(
-                color: const Color(0xFFE5A00D).withValues(alpha: 0.3),
-                width: 1.w,
+          }).toList(),
+          
+          // "View all trending" button
+          SizedBox(height: 8.h),
+          GestureDetector(
+            onTap: _navigateToTrendingMovies,
+            child: Container(
+              width: double.infinity,
+              padding: EdgeInsets.symmetric(vertical: 12.h),
+              decoration: BoxDecoration(
+                color: Colors.transparent,
+                borderRadius: BorderRadius.circular(8.r),
+                border: Border.all(
+                  color: const Color(0xFFE5A00D).withValues(alpha: 0.3),
+                  width: 1.w,
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'View All Trending',
+                    style: TextStyle(
+                      color: const Color(0xFFE5A00D),
+                      fontSize: 14.sp,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  SizedBox(width: 8.w),
+                  Icon(
+                    Icons.arrow_forward_ios,
+                    color: const Color(0xFFE5A00D),
+                    size: 14.sp,
+                  ),
+                ],
               ),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  'View All Trending',
-                  style: TextStyle(
-                    color: const Color(0xFFE5A00D),
-                    fontSize: 14.sp,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                SizedBox(width: 8.w),
-                Icon(
-                  Icons.arrow_forward_ios,
-                  color: const Color(0xFFE5A00D),
-                  size: 14.sp,
-                ),
-              ],
-            ),
           ),
-        ),
+        ],
       ],
     );
   }
