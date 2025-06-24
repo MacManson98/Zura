@@ -22,67 +22,72 @@ workflows:
           xcode-project use-profiles
 
       
-      - name: Create Firebase configuration
+      - name: Integrate existing Firebase configuration
         script: |
-          echo "🔥 Creating Firebase configuration..."
+          echo "🔥 Integrating existing GoogleService-Info.plist..."
           
-          # Create the file directly from your content
-          cat > ios/Runner/GoogleService-Info.plist << 'EOF'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>CLIENT_ID</key>
-              <string>173034299087-ldk8k2rhifd6sdbvm0ac8kgsej9h4uq2.apps.googleusercontent.com</string>
-              <key>REVERSED_CLIENT_ID</key>
-              <string>com.googleusercontent.apps.173034299087-ldk8k2rhifd6sdbvm0ac8kgsej9h4uq2</string>
-              <key>API_KEY</key>
-              <string>AIzaSyDyslqduejJ35SuAO7TEP4fJ40CQXdunkU</string>
-              <key>GCM_SENDER_ID</key>
-              <string>173034299087</string>
-              <key>PLIST_VERSION</key>
-              <string>1</string>
-              <key>BUNDLE_ID</key>
-              <string>com.zura.app</string>
-              <key>PROJECT_ID</key>
-              <string>reel-match-e7729</string>
-              <key>STORAGE_BUCKET</key>
-              <string>reel-match-e7729.firebasestorage.app</string>
-              <key>GOOGLE_APP_ID</key>
-              <string>1:173034299087:ios:1dd69486e75fdd475ee1ba</string>
-              <key>IS_ADS_ENABLED</key>
-              <false/>
-              <key>IS_ANALYTICS_ENABLED</key>
-              <false/>
-              <key>IS_APPINVITE_ENABLED</key>
-              <true/>
-              <key>IS_GCM_ENABLED</key>
-              <true/>
-              <key>IS_SIGNIN_ENABLED</key>
-              <true/>
-              <key>CFBundleURLTypes</key>
-              <array>
-                  <dict>
-                      <key>CFBundleURLName</key>
-                      <string>google</string>
-                      <key>CFBundleURLSchemes</key>
-                      <array>
-                          <string>com.googleusercontent.apps.173034299087-ldk8k2rhifd6sdbvm0ac8kgsej9h4uq2</string>
-                      </array>
-                  </dict>
-              </array>
-          </dict>
-          </plist>
-          EOF
+          # Verify the existing file exists
+          if [ ! -f "ios/Runner/GoogleService-Info.plist" ]; then
+            echo "❌ GoogleService-Info.plist not found in repo"
+            exit 1
+          fi
           
-          echo "✅ GoogleService-Info.plist created"
-          ls -la ios/Runner/GoogleService-Info.plist
+          echo "✅ Found existing GoogleService-Info.plist"
           
-          # Simple verification only
+          # Verify content
           if grep -q "reel-match-e7729" ios/Runner/GoogleService-Info.plist; then
             echo "✅ File contains correct project ID"
           else
             echo "❌ File verification failed"
+            exit 1
+          fi
+          
+          # CRITICAL: Add the file to the Xcode project properly
+          echo "🔧 Adding GoogleService-Info.plist to Xcode project..."
+          
+          # Generate unique UUIDs for the file references
+          PLIST_UUID=$(uuidgen | tr '[:lower:]' '[:upper:]' | tr -d '-')
+          PLIST_BUILD_UUID=$(uuidgen | tr '[:lower:]' '[:upper:]' | tr -d '-')
+          
+          # Get the path to project.pbxproj
+          PBXPROJ_PATH="ios/Runner.xcodeproj/project.pbxproj"
+          
+          # Check if file is already in project (avoid duplicates)
+          if grep -q "GoogleService-Info.plist" "$PBXPROJ_PATH"; then
+            echo "⚠️  GoogleService-Info.plist already in project, skipping integration"
+          else
+            echo "📝 Adding file references to project..."
+            
+            # Add the file reference to PBXFileReference section
+            sed -i '' "/\/\* End PBXFileReference section \*\//i\\
+            \\t\\t${PLIST_UUID} \/\* GoogleService-Info.plist \*\/ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = \"GoogleService-Info.plist\"; sourceTree = \"<group>\"; };
+            " "$PBXPROJ_PATH"
+            
+            # Add the file to the Runner group
+            sed -i '' "/\/\* Runner \*\/ = {/,/children = (/,/);/{
+              /children = (/a\\
+            \\t\\t\\t\\t${PLIST_UUID} \/\* GoogleService-Info.plist \*\/,
+            }" "$PBXPROJ_PATH"
+            
+            # Add to PBXBuildFile section
+            sed -i '' "/\/\* End PBXBuildFile section \*\//i\\
+            \\t\\t${PLIST_BUILD_UUID} \/\* GoogleService-Info.plist in Resources \*\/ = {isa = PBXBuildFile; fileRef = ${PLIST_UUID} \/\* GoogleService-Info.plist \*\/; };
+            " "$PBXPROJ_PATH"
+            
+            # Add to PBXResourcesBuildPhase
+            sed -i '' "/\/\* Resources \*\/ = {/,/files = (/,/);/{
+              /files = (/a\\
+            \\t\\t\\t\\t${PLIST_BUILD_UUID} \/\* GoogleService-Info.plist in Resources \*\/,
+            }" "$PBXPROJ_PATH"
+            
+            echo "✅ GoogleService-Info.plist successfully integrated into Xcode project"
+          fi
+          
+          # Final verification
+          if grep -q "GoogleService-Info.plist" "$PBXPROJ_PATH"; then
+            echo "✅ File is now part of Xcode project"
+          else
+            echo "❌ Failed to integrate file into project"
             exit 1
           fi
       
