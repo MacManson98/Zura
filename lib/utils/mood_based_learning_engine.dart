@@ -5,17 +5,27 @@ import '../movie.dart';
 import '../models/user_profile.dart';
 import '../utils/debug_loader.dart';
 
-// Mood-based session management
+// Mood-based session management - Updated 10 distinct moods
 enum CurrentMood {
-  perfectForMe('Perfect For Me', '🎯', [], []), // Reserved for future feature
-  perfectForUs('Perfect For Us', '🤝', [], []), // Reserved for future feature
-  trueStory('True Stories', '📖', ['Biography', 'History', 'Drama', 'Documentary'], ['Based on a True Story', 'Real Events', 'True Story']),
-  emotional('Deep & Emotional', '💭', ['Drama', 'Romance'], ['Emotional', 'Heartwarming', 'Moving']),
-  thoughtful('Mind-Bending', '🤔', ['Drama', 'Sci-Fi', 'Mystery', 'Thriller'], ['Mind-Bending', 'Complex', 'Thought-Provoking', 'Twist']),
-  lighthearted('Laid-Back & Fun', '🎉', ['Family', 'Animation', 'Comedy', 'TV Movie'], ['Comfort', 'Peaceful', 'Wholesome', 'Cozy', 'Funny', 'Silly', 'Upbeat']),
-  scary('Thrills & Chills', '😱', ['Horror', 'Thriller'], ['Scary', 'Suspenseful', 'Dark']),
-  romantic('Love Stories', '💕', ['Romance'], ['Romantic', 'Sweet', 'Heartwarming']),
-  adventurous('Epic Adventure', '🗺️', ['Adventure', 'Fantasy', 'Action'], ['Epic', 'Action-Packed', 'Journey']);
+  pureComedy('Pure Comedy', '😂', ['Comedy'], ['Funny', 'Silly', 'Upbeat', 'Light-Hearted', 'Hilarious', 'Witty']),
+  epicAction('Epic Action', '💥', ['Action'], ['Action-Packed', 'High Stakes', 'Fast-Paced', 'Adrenaline', 'Intense', 'Explosive']),
+  scaryAndSuspenseful('Scary & Suspenseful', '😱', ['Horror', 'Thriller'], ['Scary', 'Suspenseful', 'Dark', 'Creepy', 'Terrifying', 'Spine-Chilling']),
+  romantic('Romantic', '💕', ['Romance'], ['Romantic', 'Sweet', 'Heartwarming', 'Love Story', 'Passionate', 'Tender']),
+  mindBending('Mind-Bending', '🤔', ['Drama', 'Sci-Fi', 'Mystery', 'Thriller'], ['Mind-Bending', 'Complex', 'Thought-Provoking', 'Twist', 'Cerebral', 'Psychological']),
+  emotionalDrama('Emotional Drama', '💭', ['Drama'], ['Emotional', 'Heartwarming', 'Moving', 'Deep', 'Touching', 'Meaningful']),
+  trueStories('True Stories', '📖', ['Biography', 'History', 'Drama', 'Documentary'], ['Based on a True Story', 'Real Events', 'True Story', 'Historical', 'Biographical']),
+  mysteryCrime('Mystery & Crime', '🔍', ['Crime', 'Mystery', 'Thriller'], ['Mystery', 'Crime', 'Investigation', 'Detective', 'Intrigue', 'Puzzle']),
+  adventureFantasy('Adventure & Fantasy', '🗺️', ['Adventure', 'Fantasy', 'Sci-Fi'], ['Epic', 'Adventure', 'Journey', 'Fantasy', 'Magical', 'Otherworldly']),
+  musicalDance('Musical & Dance', '🎵', ['Musical'], ['Uplifting', 'Musical', 'Dance']),
+  familyFun('Family Fun', '👨‍👩‍👧‍👦', ['Family', 'Animation'], ['Family-Friendly', 'Kids', 'Wholesome']),
+  sciFiFuture('Sci-Fi & Future', '🚀', ['Sci-Fi'], ['Futuristic', 'Space', 'Technology']),
+  worldCinema('World Cinema', '🌍', ['Foreign', 'Drama'], ['International', 'Cultural', 'Subtitled']),
+  cultClassic('Cult Classic', '🎞️', ['Drama', 'Comedy', 'Horror'], ['Cult Classic', 'Underground', 'Retro', 'Campy', 'Weird', 'Quirky', 'B-Movie', 'Niche']),
+  twistEnding('Twist Ending', '🔄', ['Thriller', 'Mystery', 'Drama'], ['Plot Twist', 'Surprise Ending', 'Shocking', 'Mind-Bending', 'Unexpected', 'Psychological']),
+  highStakes('High Stakes', '🧨', ['Action', 'Thriller', 'Crime'], ['Tension', 'Urgent', 'Unrelenting', 'Time-Sensitive', 'Race Against Time', 'Explosive']);
+
+
+  
 
   const CurrentMood(this.displayName, this.emoji, this.preferredGenres, this.preferredVibes);
   
@@ -23,9 +33,6 @@ enum CurrentMood {
   final String emoji;
   final List<String> preferredGenres;
   final List<String> preferredVibes;
-  
-  // Helper to check if this is a profile-based mood (reserved for future)
-  bool get isProfileBased => this == CurrentMood.perfectForMe || this == CurrentMood.perfectForUs;
 }
 
 class SessionContext {
@@ -51,13 +58,6 @@ class MoodBasedLearningEngine {
     required Set<String> sessionPassedMovieIds,
     int sessionSize = 30,
   }) async {
-    // Handle profile-based moods (reserved for future feature)
-    if (sessionContext.moods == CurrentMood.perfectForMe || 
-        sessionContext.moods == CurrentMood.perfectForUs) {
-      DebugLogger.log("⚠️ Profile-based moods not yet implemented");
-      return _getFallbackMovies(movieDatabase, seenMovieIds, sessionSize);
-    }
-    
     DebugLogger.log("🎭 Generating mood session: ${sessionContext.moods.displayName}");
     DebugLogger.log("   Target genres: ${sessionContext.moods.preferredGenres}");
     DebugLogger.log("   Target vibes: ${sessionContext.moods.preferredVibes}");
@@ -92,12 +92,6 @@ class MoodBasedLearningEngine {
     required Set<String> seenMovieIds,
     int sessionSize = 25,
   }) async {
-    // Handle "Perfect For Us" mood (reserved for future feature)
-    if (sessionContext.moods == CurrentMood.perfectForUs) {
-      DebugLogger.log("⚠️ Perfect For Us not yet implemented");
-      return _getFallbackMovies(movieDatabase, seenMovieIds, sessionSize);
-    }
-    
     DebugLogger.log("👥 Generating shared mood pool for ${groupMembers.length} people: ${sessionContext.moods.displayName}");
     
     // Step 1: Filter by mood (same for everyone)
@@ -130,202 +124,152 @@ class MoodBasedLearningEngine {
     Set<String> sessionPassedMovieIds
   ) {
     final moodMovies = <Movie>[];
-    final targetGenres = mood.preferredGenres.toSet();
-    final targetVibes = mood.preferredVibes.toSet();
-    
     final excludedMovieIds = <String>{};
     excludedMovieIds.addAll(seenMovieIds);
     excludedMovieIds.addAll(sessionPassedMovieIds);
-
-    final disqualifyingTagsPerMood = {
-      'Laid-Back & Fun': {
-        'Disturbing',
-        'Dark',
-        'Mind-Bending',
-        'Twisty',
-        'Grim',
-        'Sad',
-        'Philosophical',
-        'Traumatic',
-        'Violent',
-        'War',
-        'Tragic',
-        'Horror',
-        'Slow Burn',
-        'Emotional',
-        'Trauma',
-        'Gory',
-        'Grief',
-        'Serious',
-        'Heavy',
-        'Depressing',
-        'Romantic Drama',
-        'Melancholy',
-        'Cerebral',
-        'Slasher',
-      },
-      'Deep & Emotional': {
-        'Twisty',
-        'Action-Packed',
-        'Violent',
-        'Gory',
-        'Disturbing',
-        'Supernatural',
-        'Slasher',
-        'Fantasy',
-        'Abstract',
-        'High Stakes',
-        'Fast-Paced',
-        'Experimental',
-        'Over-Stylized',
-        'Weird',
-        'Silly',
-        'Parody',
-        'Horror',
-        'Dark Comedy',
-        'Stalker',
-        'Cynical Humor',
-        'Cringe',
-        'Uncomfortable',
-        'Obsession',
-        'Psychological Comedy'
-      },
-      'Mind-Bending': {
-        'Silly',
-        'Wholesome',
-        'Light-Hearted',
-        'Family-Friendly',
-        'Romantic Comedy',
-        'Slapstick',
-        'Simple',
-        'Straightforward',
-        'Comfort',
-        'Cozy',
-        'Heartwarming',
-        'Musical',
-        'Kids',
-        'Rewatchable',
-        'Uplifting',
-        'Cheesy',
-        'Predictable'
-      },
-      'Thrills & Chills': {
-        'Comfort',
-        'Cozy',
-        'Peaceful',
-        'Wholesome',
-        'Heartwarming',
-        'Feel-Good',
-        'Romantic',
-        'Light-Hearted',
-        'Family-Friendly',
-        'Animation',
-        'Musical',
-        'Funny',
-        'Silly',
-        'Uplifting',
-        'Easy Watch',
-        'Kids',
-        'Rewatchable',
-        'Cheesy'
-      },
-      'Love Stories': {
-        'Horror',
-        'Violent',
-        'Dark',
-        'Disturbing',
-        'Mind-Bending',
-        'Surrealism',
-        'Twisty',
-        'Sci-Fi/Techy',
-        'War',
-        'Crime',
-        'Gory',
-        'Slasher',
-        'Supernatural',
-        'Abstract',
-        'High Stakes',
-        'Action-Packed',
-        'Cynical',
-        'Unromantic',
-        'Grim',
-        'Trauma',
-        'Philosophical',
-        'Experimental'
-      },
-      'Epic Adventure': {
-        'Romantic',
-        'Heartwarming',
-        'Wholesome',
-        'Cozy',
-        'Light-Hearted',
-        'Slow Burn',
-        'Philosophical',
-        'Abstract',
-        'Surrealism',
-        'Emotional',
-        'Musical',
-        'Family-Friendly',
-        'Slice of Life',
-        'Peaceful',
-        'Minimalist',
-        'Feel-Good',
-        'Domestic',
-        'Cerebral',
-        'Comedy-Driven',
-        'Sad',
-        'Tragic'
-      },
-      'True Stories': {
-        'Sci-Fi/Techy',
-        'Fantasy',
-        'Supernatural',
-        'Mind-Bending',
-        'Surrealism',
-        'Magical',
-        'Alien',
-        'Time Travel',
-        'Multiverse',
-        'Mythical',
-        'Epic Fantasy',
-        'Superhero',
-        'Paranormal',
-        'Witchcraft',
-        'Space',
-        'Cyberpunk',
-        'Monster',
-        'Fictional',
-        'Made Up',
-        'Alternate Reality',
-        'Dystopian'
-      }
-    };
-
-    final disqualifyingTags = disqualifyingTagsPerMood[mood.displayName] ?? {};
 
     for (final movie in movieDatabase) {
       if (excludedMovieIds.contains(movie.id)) continue;
       if (!_meetsQualityThreshold(movie)) continue;
       if (!_isSfwMovie(movie)) continue;
 
-      // Runtime check (only for Laid-Back & Fun)
-      if (mood.displayName == 'Laid-Back & Fun' && movie.runtime != null && movie.runtime! > 130) continue;
-
-      // Disqualifying tags check
-      final hasConflictTag = movie.tags.any((tag) => disqualifyingTags.contains(tag));
-      if (hasConflictTag) continue;
-
-      // Must match genre OR vibe
-      final hasGenreMatch = movie.genres.any((g) => targetGenres.contains(g));
-      final hasVibeMatch = movie.tags.any((v) => targetVibes.contains(v));
-
-      if (hasGenreMatch || hasVibeMatch) {
+      if (_matchesMoodCriteria(movie, mood)) {
         moodMovies.add(movie);
       }
     }
 
     DebugLogger.log("✅ Found ${moodMovies.length} movies matching mood: ${mood.displayName}");
     return moodMovies;
+  }
+
+  /// Simple mood matching: Genre first, then tag filtering
+  static bool _matchesMoodCriteria(Movie movie, CurrentMood mood) {
+    final movieGenres = movie.genres.map((g) => g.toLowerCase()).toSet();
+    final movieTags = movie.tags.map((t) => t.toLowerCase()).toSet();
+
+    switch (mood) {
+      case CurrentMood.musicalDance:
+      // 🎵 CORRECTED: Look for "Music" genre OR "musical" tag
+      final hasMusicalGenre = movieGenres.contains('music'); // Changed from 'musical' to 'music'
+      final hasMusicalTag = movieTags.contains('musical');   // Added tag check
+      
+      if (!hasMusicalGenre && !hasMusicalTag) {
+        return false;
+      }
+      
+      // Exclude obvious non-musicals (refinement)
+      final badTags = {'horror', 'thriller', 'war', 'crime', 'dark', 'violent'};
+      return !movieTags.any((tag) => badTags.contains(tag));
+
+      case CurrentMood.pureComedy:
+        // 😂 Must have Comedy genre, exclude dramatic/serious content
+        if (!movieGenres.contains('comedy')) return false;
+        
+        final badTags = {'horror', 'thriller', 'war', 'crime', 'dramatic', 'serious', 'sad'};
+        return !movieTags.any((tag) => badTags.contains(tag));
+
+      case CurrentMood.romantic:
+        // 💕 Must have Romance genre, exclude violent/scary content
+        if (!movieGenres.contains('romance')) return false;
+        
+        final badTags = {'horror', 'violent', 'war', 'crime', 'scary', 'dark'};
+        return !movieTags.any((tag) => badTags.contains(tag));
+
+      case CurrentMood.scaryAndSuspenseful:
+        // 😱 Must have Horror OR Thriller genre, exclude feel-good content
+        if (!movieGenres.any((g) => ['horror', 'thriller'].contains(g))) return false;
+        
+        final badTags = {'comedy', 'funny', 'feel-good', 'wholesome', 'family-friendly', 'romantic'};
+        return !movieTags.any((tag) => badTags.contains(tag));
+
+      case CurrentMood.epicAction:
+        // 💥 Must have Action genre, exclude slow/peaceful content
+        if (!movieGenres.contains('action')) return false;
+        
+        final badTags = {'slow', 'peaceful', 'romantic', 'cozy', 'gentle', 'contemplative'};
+        return !movieTags.any((tag) => badTags.contains(tag));
+
+      case CurrentMood.mindBending:
+        // 🤔 Thriller, Mystery, or Sci-Fi + complex tags
+        if (!movieGenres.any((g) => ['thriller', 'mystery', 'sci-fi'].contains(g))) return false;
+        
+        // Must have complexity indicators
+        final complexTags = {'mind-bending', 'complex', 'psychological', 'cerebral', 'thought-provoking'};
+        if (!movieTags.any((tag) => complexTags.contains(tag))) return false;
+        
+        final badTags = {'simple', 'family-friendly', 'comedy', 'feel-good'};
+        return !movieTags.any((tag) => badTags.contains(tag));
+
+      case CurrentMood.emotionalDrama:
+        // 💭 Must have Drama genre + emotional tags
+        if (!movieGenres.contains('drama')) return false;
+        
+        final emotionalTags = {'emotional', 'touching', 'moving', 'heartwarming', 'meaningful'};
+        if (!movieTags.any((tag) => emotionalTags.contains(tag))) return false;
+        
+        final badTags = {'comedy', 'action', 'silly', 'superficial'};
+        return !movieTags.any((tag) => badTags.contains(tag));
+
+      case CurrentMood.trueStories:
+        // 📖 Biography, History, Documentary OR true story tags
+        final trueGenres = movieGenres.any((g) => ['biography', 'history', 'documentary'].contains(g));
+        final trueTags = movieTags.any((tag) => ['true story', 'based on', 'real events', 'biographical'].contains(tag));
+        
+        if (!trueGenres && !trueTags) return false;
+        
+        final badTags = {'sci-fi', 'fantasy', 'supernatural', 'fictional'};
+        return !movieTags.any((tag) => badTags.contains(tag));
+
+      case CurrentMood.mysteryCrime:
+        // 🔍 Crime, Mystery, or Thriller + investigation tags
+        if (!movieGenres.any((g) => ['crime', 'mystery', 'thriller'].contains(g))) return false;
+        
+        final investigationTags = {'mystery', 'crime', 'detective', 'investigation'};
+        return movieTags.any((tag) => investigationTags.contains(tag));
+
+      case CurrentMood.adventureFantasy:
+        // 🗺️ Adventure, Fantasy, or Sci-Fi genres
+        return movieGenres.any((g) => ['adventure', 'fantasy', 'sci-fi'].contains(g));
+
+      case CurrentMood.familyFun:
+        // 👨‍👩‍👧‍👦 Family or Animation genre, exclude mature content
+        if (!movieGenres.any((g) => ['family', 'animation'].contains(g))) return false;
+        
+        final badTags = {'horror', 'violent', 'adult', 'mature', 'scary'};
+        return !movieTags.any((tag) => badTags.contains(tag));
+
+      case CurrentMood.sciFiFuture:
+        // 🚀 Must have Sci-Fi genre
+        return movieGenres.contains('sci-fi');
+
+      case CurrentMood.worldCinema:
+        // 🌍 Foreign genre OR international tags
+        final worldGenres = movieGenres.contains('foreign');
+        final worldTags = movieTags.any((tag) => ['international', 'foreign', 'subtitled'].contains(tag));
+        
+        return worldGenres || worldTags;
+
+      case CurrentMood.twistEnding:
+        // 🔄 Thriller, Mystery, or Drama genres with twist-related tags
+        if (!movieGenres.any((g) => ['thriller', 'mystery', 'drama'].contains(g))) return false;
+
+        final twistTags = {'twist', 'plot twist', 'unexpected', 'surprise ending', 'mind-bending', 'shock'};
+        return movieTags.any((tag) => twistTags.contains(tag));
+
+      case CurrentMood.cultClassic:
+        // 🎞️ Look for tags that signify cult status or niche appeal
+        final cultTags = {
+          'cult classic', 'underground', 'b-movie', 'retro', 'iconic', 'campy', 'midnight', 'niche', 'weird', 'quirky'
+        };
+        return movieTags.any((tag) => cultTags.contains(tag));
+
+      case CurrentMood.highStakes:
+        // 🎞️ Look for tags that signify cult status or niche appeal
+        final highStakesTags = {
+          'Tension', 'Urgent', 'Unrelenting', 'Time-Sensitive', 'Race Against Time', 'Explosive', 'High Stakes', 'taking a risk'
+        };
+        return movieTags.any((tag) => highStakesTags.contains(tag));
+    }
   }
   
   /// Sort movies by quality (no personalization)

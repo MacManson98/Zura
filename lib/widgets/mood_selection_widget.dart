@@ -20,274 +20,416 @@ class MoodSelectionWidget extends StatefulWidget {
   State<MoodSelectionWidget> createState() => _MoodSelectionWidgetState();
 }
 
+class MoodCategory {
+  final String icon;
+  final List<CurrentMood> moods;
+
+  MoodCategory({
+    required this.icon,
+    required this.moods,
+  });
+}
+
 class _MoodSelectionWidgetState extends State<MoodSelectionWidget>
     with TickerProviderStateMixin {
   Set<CurrentMood> selectedMoods = {};
-  late AnimationController _pulseController;
-  late Animation<double> _pulseAnimation;
+  late TabController _tabController;
+  late AnimationController _fadeController;
+  late AnimationController _headerController; // Header animation
+  late AnimationController _buttonController; // ✅ Button animation
+  late Animation<double> _fadeAnimation;
+  late Animation<double> _headerAnimation; 
+  late Animation<double> _buttonAnimation; // ✅ Button slide animation
 
   @override
   void initState() {
     super.initState();
-    _pulseController = AnimationController(
-      duration: const Duration(milliseconds: 1000),
+
+    _tabController = TabController(length: _moodCategories.length, vsync: this);
+
+    _fadeController = AnimationController(
       vsync: this,
+      duration: const Duration(milliseconds: 500),
     );
-    _pulseAnimation = Tween<double>(
-      begin: 1.0,
-      end: 1.1,
-    ).animate(CurvedAnimation(
-      parent: _pulseController,
+
+    // Header animation controller
+    _headerController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+
+    // ✅ Button animation controller
+    _buttonController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
+
+    _fadeAnimation = CurvedAnimation(
+      parent: _fadeController,
       curve: Curves.easeInOut,
-    ));
-    _pulseController.repeat(reverse: true);
+    );
+
+    // Header animation (1.0 = visible, 0.0 = hidden)
+    _headerAnimation = CurvedAnimation(
+      parent: _headerController,
+      curve: Curves.easeInOut,
+    );
+
+    // ✅ Button slide animation (0.0 = hidden below, 1.0 = visible)
+    _buttonAnimation = CurvedAnimation(
+      parent: _buttonController,
+      curve: Curves.easeOutBack, // Nice bouncy effect
+    );
+
+    _fadeController.forward();
+    _headerController.forward(); // Start with header visible
   }
 
   @override
   void dispose() {
-    _pulseController.dispose();
+    _tabController.dispose();
+    _fadeController.dispose();
+    _headerController.dispose();
+    _buttonController.dispose(); // ✅ Dispose button controller
+
     super.dispose();
   }
 
-  // Get the appropriate moods based on mode
-  List<CurrentMood> get _availableMoods {
-    if (widget.isGroupMode) {
-      // Group/Friend modes get all moods except perfectForMe
-      return CurrentMood.values.where((mood) => mood != CurrentMood.perfectForMe).toList();
-    } else {
-      // Solo mode gets all moods except perfectForUs
-      return CurrentMood.values.where((mood) => mood != CurrentMood.perfectForUs).toList();
-    }
-  }
+  // Organized mood categories with balanced distribution
+  Map<String, MoodCategory> get _moodCategories => {
+  'Feel Good': MoodCategory(
+    icon: '💖',
+    moods: [
+      CurrentMood.pureComedy,
+      CurrentMood.romantic,
+      CurrentMood.familyFun,
+      CurrentMood.musicalDance,
+    ],
+  ),
+  'Intense': MoodCategory(
+    icon: '🔥',
+    moods: [
+      CurrentMood.scaryAndSuspenseful,
+      CurrentMood.mindBending,
+      CurrentMood.emotionalDrama,
+      CurrentMood.highStakes,
+    ],
+  ),
+  'Adventure': MoodCategory(
+    icon: '⚡',
+    moods: [
+      CurrentMood.epicAction,
+      CurrentMood.adventureFantasy,
+      CurrentMood.sciFiFuture,
+      CurrentMood.mysteryCrime,
+    ],
+  ),
+  'Wildcard': MoodCategory(
+    icon: '🌀',
+    moods: [
+      CurrentMood.cultClassic,   // 🎞️ iconic oddball cinema
+      CurrentMood.trueStories,   // 📰 real-world narratives
+      CurrentMood.twistEnding,   // 🔄 shocking finales
+      CurrentMood.worldCinema,   // 🌍 global voices
+    ],
+  ),
+};
 
-  // Check if a mood is profile-based
-  bool _isProfileBased(CurrentMood mood) {
-    return mood == CurrentMood.perfectForMe || mood == CurrentMood.perfectForUs;
-  }
-
-  // Handle mood selection with mutual exclusivity logic
   void _toggleMood(CurrentMood mood) {
     setState(() {
-      if (_isProfileBased(mood)) {
-        // Profile-based mood: clear all others and select only this one
-        selectedMoods.clear();
-        selectedMoods.add(mood);
+      if (selectedMoods.contains(mood)) {
+        selectedMoods.remove(mood);
       } else {
-        // Non-profile mood
-        if (selectedMoods.contains(mood)) {
-          // Deselecting current mood
-          selectedMoods.remove(mood);
-        } else {
-          // Selecting new mood: remove any profile-based moods first
-          selectedMoods.removeWhere((m) => _isProfileBased(m));
-          selectedMoods.add(mood);
-        }
+        selectedMoods.add(mood);
       }
     });
-  }
 
-  // Get display text for selected moods
-  String _getSelectedMoodsText() {
-    if (selectedMoods.isEmpty) return "";
-    if (selectedMoods.length == 1) return selectedMoods.first.displayName;
-    if (selectedMoods.length == 2) {
-      return "${selectedMoods.first.displayName} + ${selectedMoods.last.displayName}";
+    // ✅ Animate header and button based on selection state
+    if (selectedMoods.isNotEmpty) {
+      _headerController.reverse(); // Hide category headers
+      _buttonController.forward(); // Show button
+    } else {
+      _headerController.forward(); // Show category headers
+      _buttonController.reverse(); // Hide button
     }
-    return "${selectedMoods.first.displayName} + ${selectedMoods.length - 1} more";
-  }
-
-  // Get combined emoji for selected moods
-  String _getSelectedMoodsEmoji() {
-    if (selectedMoods.isEmpty) return "";
-    if (selectedMoods.length == 1) return selectedMoods.first.emoji;
-    return selectedMoods.take(3).map((m) => m.emoji).join();
   }
 
   @override
   Widget build(BuildContext context) {
-    // Get the bottom padding to account for navigation bar
-    final bottomPadding = MediaQuery.of(context).viewPadding.bottom;
-    // Your nav bar: 70.h height + 25.h from bottom position = 95.h total
-    final totalNavBarSpace = 70.h + 25.h;
-    
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            const Color(0xFF1A1A1A),
-            const Color(0xFF0F0F0F),
+  return Container(
+    decoration: BoxDecoration(
+      gradient: LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          const Color(0xFF1A1A1A),
+          const Color(0xFF0F0F0F),
+        ],
+      ),
+    ),
+    child: SafeArea(
+      child: FadeTransition(
+        opacity: _fadeAnimation,
+        child: Stack( // ✅ Changed to Stack to allow positioned button
+          children: [
+            Column(
+              children: [
+                _buildHeader(), // Keep main header always visible
+                _buildTabBar(),
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: _moodCategories.entries.map((entry) {
+                      return _buildTabContent(entry.key, entry.value);
+                    }).toList(),
+                  ),
+                ),
+              ],
+            ),
+            _buildAnimatedContinueButton(), // ✅ Positioned button overlays content
           ],
         ),
       ),
-      child: SafeArea(
-        child: Column(
-          children: [
-            // Header
-            Padding(
-              padding: EdgeInsets.all(24.r),
+    ),
+  );
+}
+
+  Widget _buildHeader() {
+    return Container(
+      padding: EdgeInsets.fromLTRB(24.w, 0.h, 24.w, 12.h), // Reduced top padding for modal
+      child: Column(
+        children: [
+          Text(
+            widget.isGroupMode 
+                ? "What's the group vibe?" 
+                : "What's your mood?",
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 26.sp, // Slightly smaller for modal
+              fontWeight: FontWeight.bold,
+              height: 1.2,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          SizedBox(height: 12.h),
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE5A00D).withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(20.r),
+              border: Border.all(
+                color: const Color(0xFFE5A00D).withValues(alpha: 0.3),
+                width: 1.w,
+              ),
+            ),
+            child: Text(
+              widget.isGroupMode
+                  ? "Choose vibes for your group of ${widget.groupSize}"
+                  : "Browse categories and mix moods for perfect recommendations",
+              style: TextStyle(
+                color: const Color(0xFFE5A00D),
+                fontSize: 13.sp, // Slightly smaller for modal
+                fontWeight: FontWeight.w600,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabBar() {
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: 16.w),
+      decoration: BoxDecoration(
+        color: const Color(0xFF2A2A2A),
+        borderRadius: BorderRadius.circular(16.r),
+        border: Border.all(
+          color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
+          width: 1.w,
+        ),
+      ),
+      child: TabBar(
+        controller: _tabController,
+        indicator: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [const Color(0xFFE5A00D), Colors.orange.shade600],
+          ),
+          borderRadius: BorderRadius.circular(12.r),
+        ),
+        indicatorSize: TabBarIndicatorSize.tab,
+        indicatorPadding: EdgeInsets.all(4.r),
+        dividerColor: Colors.transparent,
+        labelColor: Colors.white,
+        unselectedLabelColor: Colors.white.withValues(alpha: 0.7),
+        labelStyle: TextStyle(
+          fontSize: 13.sp,
+          fontWeight: FontWeight.bold,
+        ),
+        unselectedLabelStyle: TextStyle(
+          fontSize: 13.sp,
+          fontWeight: FontWeight.w500,
+        ),
+        tabs: _moodCategories.entries.map((entry) {
+          final MoodCategory category = entry.value;
+          return Tab(
+            child: SizedBox(
+              height: 48.h, // ✅ Force tab height
               child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    widget.isGroupMode 
-                        ? "What's the group mood?" 
-                        : "What's your mood?",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 28.sp,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    textAlign: TextAlign.center,
+                    category.icon,
+                    style: TextStyle(fontSize: 16.sp),
                   ),
-                  SizedBox(height: 8.h),
+                  SizedBox(height: 2.h), // tighter spacing
                   Text(
-                    widget.isGroupMode
-                        ? "Pick the vibe(s) that match your group of ${widget.groupSize}"
-                        : "Pick your mood(s) - we'll blend them perfectly for you",
-                    style: TextStyle(
-                      color: Colors.grey[400],
-                      fontSize: 16.sp,
-                    ),
+                    entry.key,
+                    style: TextStyle(fontSize: 12.sp, fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.center,
+                    maxLines: 1,
                   ),
                 ],
               ),
             ),
+          );
+        }).toList(),
+      ),
+    );
+  }
 
-            // Mood Grid - FIXED: Add bottom padding when button is visible
-            Expanded(
-              child: GridView.builder(
-                padding: EdgeInsets.only(
-                  left: 16.w,
-                  right: 16.w,
-                  bottom: selectedMoods.isNotEmpty 
-                      ? (140.h + totalNavBarSpace) // Space for button + your floating nav bar
-                      : 16.h,
-                ),
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  mainAxisSpacing: 12.h,
-                  crossAxisSpacing: 12.w,
-                  childAspectRatio: 1.3,
-                ),
-                itemCount: _availableMoods.length,
-                itemBuilder: (context, index) {
-                  final mood = _availableMoods[index];
-                  final isSelected = selectedMoods.contains(mood);
-                  
-                  return AnimatedBuilder(
-                    animation: _pulseAnimation,
-                    builder: (context, child) {
-                      return Transform.scale(
-                        scale: isSelected ? _pulseAnimation.value : 1.0,
-                        child: _buildMoodCard(mood, isSelected),
-                      );
-                    },
-                  );
-                },
-              ),
-            ),
+  Widget _buildTabContent(String categoryName, MoodCategory categoryData) {
+    final List<CurrentMood> moods = categoryData.moods;
+    final int moodCount = moods.length;
 
-            // FIXED: Continue Button that accounts for navigation bar
-            if (selectedMoods.isNotEmpty) ...[
-              Container(
-                // CRITICAL FIX: Add proper bottom padding for your floating navigation bar
-                padding: EdgeInsets.only(
-                  left: 24.w,
-                  right: 24.w,
-                  top: 16.h,
-                  bottom: bottomPadding + totalNavBarSpace + 8.h,
-                ),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.transparent,
-                      const Color(0xFF0F0F0F).withOpacity(0.8),
-                      const Color(0xFF0F0F0F),
-                    ],
-                  ),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
+    return SingleChildScrollView(
+      padding: EdgeInsets.fromLTRB(24.w, 20.h, 24.w, 120.h), // Adjusted for modal
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // ✅ Animated category header that slides up/down based on selections
+          SizeTransition(
+            sizeFactor: _headerAnimation,
+            axisAlignment: -1.0, // Align to top
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Selected moods preview
-                    Container(
-                      padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 12.h),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(25.r),
-                        border: Border.all(
-                          color: const Color(0xFFE5A00D),
-                          width: 1.5.w,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            _getSelectedMoodsEmoji(),
-                            style: TextStyle(fontSize: 20.sp),
-                          ),
-                          SizedBox(width: 8.w),
-                          Flexible(
-                            child: Text(
-                              _getSelectedMoodsText(),
-                              style: TextStyle(
-                                color: const Color(0xFFE5A00D),
-                                fontSize: 14.sp,
-                                fontWeight: FontWeight.w600,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
+                    Text(categoryData.icon, style: TextStyle(fontSize: 24.sp)),
+                    SizedBox(width: 12.w),
+                    Text(
+                      categoryName,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 24.sp,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                    SizedBox(height: 16.h),
-                    
-                    // Continue button
-                    SizedBox(
-                      width: double.infinity,
-                      height: 56.h,
-                      child: ElevatedButton(
-                        onPressed: () => widget.onMoodsSelected(selectedMoods.toList()),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFE5A00D),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(28.r),
-                          ),
-                          elevation: 8,
-                          shadowColor: const Color(0xFFE5A00D).withValues(alpha: 0.3),
+                    SizedBox(width: 8.w),
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE5A00D).withAlpha(51),
+                        borderRadius: BorderRadius.circular(12.r),
+                        border: Border.all(
+                          color: const Color(0xFFE5A00D).withAlpha(102),
                         ),
-                        child: Text(
-                          "Start Swiping",
-                          style: TextStyle(
-                            color: Colors.black,
-                            fontSize: 18.sp,
-                            fontWeight: FontWeight.bold,
-                          ),
+                      ),
+                      child: Text(
+                        '$moodCount',
+                        style: TextStyle(
+                          color: const Color(0xFFE5A00D),
+                          fontSize: 12.sp,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     ),
                   ],
                 ),
-              ),
-            ],
-          ],
-        ),
+                SizedBox(height: 32.h),
+              ],
+            ),
+          ),
+          _buildMoodGrid(moods),
+        ],
       ),
     );
+  }
+
+  Widget _buildMoodGrid(List<CurrentMood> moods) {
+    // Dynamic grid layout based on mood count
+    if (moods.length == 3) {
+      return Column(
+        children: [
+          // Top row
+          SizedBox(
+            height: 160.h,
+            child: Row(
+              children: [
+                Expanded(child: _buildMoodCard(moods[0], selectedMoods.contains(moods[0]))),
+                SizedBox(width: 16.w),
+                Expanded(child: _buildMoodCard(moods[1], selectedMoods.contains(moods[1]))),
+              ],
+            ),
+          ),
+          SizedBox(height: 16.h),
+          // Bottom row
+          SizedBox(
+            height: 160.h,
+            child: Row(
+              children: [
+                const Spacer(),
+                Expanded(flex: 2, child: _buildMoodCard(moods[2], selectedMoods.contains(moods[2]))),
+                const Spacer(),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+ else {
+      // 4 moods: 2x2 grid
+      return GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          mainAxisSpacing: 16.h,
+          crossAxisSpacing: 16.w,
+          childAspectRatio: 1.0,
+        ),
+        itemCount: moods.length,
+        itemBuilder: (context, index) {
+          final mood = moods[index];
+          final isSelected = selectedMoods.contains(mood);
+          
+          return TweenAnimationBuilder<double>(
+            duration: Duration(milliseconds: 400 + (index * 100)),
+            tween: Tween(begin: 0.0, end: 1.0),
+            builder: (context, value, child) {
+              return Transform.translate(
+                offset: Offset(0, 30 * (1 - value)),
+                child: Opacity(
+                  opacity: value,
+                  child: _buildMoodCard(mood, isSelected),
+                ),
+              );
+            },
+          );
+        },
+      );
+    }
   }
 
   Widget _buildMoodCard(CurrentMood mood, bool isSelected) {
     return GestureDetector(
       onTap: () => _toggleMood(mood),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
         decoration: BoxDecoration(
           gradient: isSelected
               ? LinearGradient(
@@ -295,7 +437,7 @@ class _MoodSelectionWidgetState extends State<MoodSelectionWidget>
                   end: Alignment.bottomRight,
                   colors: [
                     const Color(0xFFE5A00D),
-                    const Color(0xFFFF8A00),
+                    Colors.orange.shade600,
                   ],
                 )
               : LinearGradient(
@@ -306,66 +448,83 @@ class _MoodSelectionWidgetState extends State<MoodSelectionWidget>
                     const Color(0xFF1F1F1F),
                   ],
                 ),
-          borderRadius: BorderRadius.circular(16.r),
+          borderRadius: BorderRadius.circular(20.r),
           border: Border.all(
             color: isSelected 
                 ? Colors.transparent 
-                : Colors.grey.withValues(alpha: 0.3),
-            width: 1.w,
+                : Colors.grey.withValues(alpha: 0.2),
+            width: 1.5.w,
           ),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: const Color(0xFFE5A00D).withValues(alpha: 0.3),
-                    blurRadius: 12.r,
-                    spreadRadius: 1.r,
+                    color: const Color(0xFFE5A00D).withValues(alpha: 0.4),
+                    blurRadius: 16.r,
+                    spreadRadius: 2.r,
+                    offset: Offset(0, 8.h),
                   ),
                 ]
               : [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.3),
-                    blurRadius: 6.r,
-                    offset: Offset(0, 3.h),
+                    color: Colors.black.withValues(alpha: 0.4),
+                    blurRadius: 8.r,
+                    offset: Offset(0, 4.h),
                   ),
                 ],
         ),
-        child: Padding(
-          padding: EdgeInsets.all(12.r),
-          child: Stack(
-            children: [
-              // Main content
-              Column(
+        child: Stack(
+          children: [
+            // Main content
+            Padding(
+              padding: EdgeInsets.all(16.r),
+              child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Emoji
-                  Text(
-                    mood.emoji,
-                    style: TextStyle(fontSize: 28.sp),
+                  // Emoji with background
+                  Container(
+                    width: 50.w,
+                    height: 50.h,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isSelected 
+                          ? Colors.white.withValues(alpha: 0.2)
+                          : const Color(0xFFE5A00D).withValues(alpha: 0.1),
+                    ),
+                    child: Center(
+                      child: Text(
+                        mood.emoji,
+                        style: TextStyle(fontSize: 24.sp),
+                      ),
+                    ),
                   ),
-                  SizedBox(height: 8.h),
+                  
+                  SizedBox(height: 12.h),
                   
                   // Mood name
                   Text(
                     mood.displayName,
                     style: TextStyle(
-                      color: isSelected ? Colors.black : Colors.white,
-                      fontSize: 14.sp,
+                      color: isSelected ? Colors.white : Colors.white,
+                      fontSize: 15.sp,
                       fontWeight: FontWeight.bold,
+                      height: 1.2,
                     ),
                     textAlign: TextAlign.center,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  SizedBox(height: 4.h),
+                  
+                  SizedBox(height: 6.h),
                   
                   // Description
                   Text(
                     _getMoodDescription(mood),
                     style: TextStyle(
                       color: isSelected 
-                          ? Colors.black.withValues(alpha: 0.7)
+                          ? Colors.white.withValues(alpha: 0.9)
                           : Colors.grey[400],
-                      fontSize: 10.sp,
+                      fontSize: 11.sp,
+                      height: 1.3,
                     ),
                     textAlign: TextAlign.center,
                     maxLines: 2,
@@ -373,45 +532,372 @@ class _MoodSelectionWidgetState extends State<MoodSelectionWidget>
                   ),
                 ],
               ),
-              
-              // Selection indicator for multi-select
-              if (isSelected && selectedMoods.length > 1)
-                Positioned(
-                  top: 4.r,
-                  right: 4.r,
-                  child: Container(
-                    width: 20.w,
-                    height: 20.h,
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.8),
-                      shape: BoxShape.circle,
+            ),
+            
+            // Selection indicator
+            if (isSelected)
+              Positioned(
+                top: 12.r,
+                right: 12.r,
+                child: Container(
+                  width: 24.w,
+                  height: 24.h,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.3),
+                        blurRadius: 4.r,
+                        offset: Offset(0, 2.h),
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    Icons.check,
+                    color: const Color(0xFFE5A00D),
+                    size: 16.sp,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ✅ New animated continue button with selected moods display
+  Widget _buildAnimatedContinueButton() {
+    return Positioned(
+      bottom: 0,
+      left: 0,
+      right: 0,
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0, 1),
+          end: Offset.zero,
+        ).animate(_buttonAnimation),
+        child: FadeTransition(
+          opacity: _buttonAnimation,
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.transparent,
+                  const Color(0xFF0F0F0F),
+                  const Color(0xFF0F0F0F),
+                ],
+                stops: [0.0, 0.3, 1.0],
+              ),
+            ),
+            padding: EdgeInsets.fromLTRB(24.w, 32.h, 24.w, 24.h), // ✅ Increased top padding
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // ✅ NEW: Compact selected moods header (always visible when moods selected)
+                if (selectedMoods.isNotEmpty) _buildCompactSelectedHeader(),
+                if (selectedMoods.isNotEmpty) SizedBox(height: 12.h),
+                
+                // Main button
+                SizedBox(
+                  width: double.infinity,
+                  height: 56.h,
+                  child: ElevatedButton(
+                    onPressed: selectedMoods.isNotEmpty 
+                        ? () => widget.onMoodsSelected(selectedMoods.toList())
+                        : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFE5A00D),
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: Colors.grey.withValues(alpha: 0.3),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(28.r),
+                      ),
+                      elevation: 8,
+                      shadowColor: const Color(0xFFE5A00D).withValues(alpha: 0.4),
                     ),
-                    child: Icon(
-                      Icons.check,
-                      color: Colors.white,
-                      size: 14.sp,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.movie_filter, color: Colors.white, size: 24.sp),
+                        SizedBox(width: 12.w),
+                        Text(
+                          "Start Swiping",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18.sp,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        if (selectedMoods.isNotEmpty) ...[
+                          SizedBox(width: 8.w),
+                          Container(
+                            padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(12.r),
+                            ),
+                            child: Text(
+                              '${selectedMoods.length}',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 14.sp,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
                 ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
+  // ✅ NEW: Compact header that shows selected moods without taking much space
+  Widget _buildCompactSelectedHeader() {
+    final moodsList = selectedMoods.toList();
+    final showCount = moodsList.length;
+    final displayMoods = moodsList.take(2).toList(); // Show max 2 moods
+    final hasMore = showCount > 2;
+
+    return GestureDetector(
+      onTap: _showExpandedSelection, // Tap to see full list
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 10.h),
+        decoration: BoxDecoration(
+          color: const Color(0xFF2A2A2A),
+          borderRadius: BorderRadius.circular(20.r),
+          border: Border.all(
+            color: const Color(0xFFE5A00D).withValues(alpha: 0.3),
+            width: 1.w,
+          ),
+        ),
+        child: Row(
+          children: [
+            // Selection count badge
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [const Color(0xFFE5A00D), Colors.orange.shade600],
+                ),
+                borderRadius: BorderRadius.circular(12.r),
+              ),
+              child: Text(
+                showCount.toString(),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 12.sp,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            
+            SizedBox(width: 12.w),
+            
+            // First two mood chips
+            Expanded(
+              child: Row(
+                children: [
+                  ...displayMoods.map((mood) => Padding(
+                    padding: EdgeInsets.only(right: 6.w),
+                    child: _buildCompactMoodChip(mood),
+                  )),
+                  
+                  // "+X more" indicator
+                  if (hasMore)
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12.r),
+                        border: Border.all(
+                          color: const Color(0xFFE5A00D).withValues(alpha: 0.3),
+                          width: 1.w,
+                        ),
+                      ),
+                      child: Text(
+                        '+${showCount - 2}',
+                        style: TextStyle(
+                          color: const Color(0xFFE5A00D),
+                          fontSize: 10.sp,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            
+            // Tap to expand indicator
+            Icon(
+              Icons.keyboard_arrow_up,
+              color: Colors.white.withValues(alpha: 0.6),
+              size: 16.sp,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ✅ NEW: Compact mood chip for the header
+  Widget _buildCompactMoodChip(CurrentMood mood) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [const Color(0xFFE5A00D), Colors.orange.shade600],
+        ),
+        borderRadius: BorderRadius.circular(12.r),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            mood.emoji,
+            style: TextStyle(fontSize: 12.sp),
+          ),
+          SizedBox(width: 4.w),
+          Text(
+            mood.displayName.split(' ').first, // Just first word to save space
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 10.sp,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ✅ NEW: Method to show expanded selection in a dialog
+  void _showExpandedSelection() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1F1F1F),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
+        title: Row(
+          children: [
+            Text(
+              "Selected Moods",
+              style: TextStyle(color: Colors.white, fontSize: 18.sp),
+            ),
+            Spacer(),
+            Text(
+              "(${selectedMoods.length})",
+              style: TextStyle(
+                color: const Color(0xFFE5A00D),
+                fontSize: 16.sp,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Wrap(
+            spacing: 8.w,
+            runSpacing: 8.h,
+            children: selectedMoods.map((mood) => _buildFullMoodChip(mood)).toList(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              setState(() {
+                selectedMoods.clear();
+                _headerController.forward();
+                _buttonController.reverse();
+              });
+              Navigator.of(context).pop();
+            },
+            child: Text(
+              "Clear All",
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(
+              "Done",
+              style: TextStyle(color: const Color(0xFFE5A00D)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ✅ NEW: Full mood chip with remove option
+  Widget _buildFullMoodChip(CurrentMood mood) {
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          selectedMoods.remove(mood);
+          if (selectedMoods.isEmpty) {
+            _headerController.forward();
+            _buttonController.reverse();
+          }
+        });
+        Navigator.of(context).pop(); // Close dialog
+      },
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [const Color(0xFFE5A00D), Colors.orange.shade600],
+          ),
+          borderRadius: BorderRadius.circular(16.r),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              mood.emoji,
+              style: TextStyle(fontSize: 16.sp),
+            ),
+            SizedBox(width: 8.w),
+            Text(
+              mood.displayName,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 12.sp,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            SizedBox(width: 6.w),
+            Icon(
+              Icons.close,
+              color: Colors.white,
+              size: 14.sp,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+
   String _getMoodDescription(CurrentMood mood) {
-    if (mood == CurrentMood.perfectForMe) {
-      return "Based on your taste";
-    } else if (mood == CurrentMood.perfectForUs) {
-      return "Based on group taste";
-    } else {
-      return mood.preferredGenres.take(2).join(" • ");
-    }
+    final description = mood.preferredVibes.isNotEmpty
+        ? mood.preferredVibes.take(2).join(" • ")
+        : mood.preferredGenres.take(2).join(" • ");
+    return description;
   }
 }
 
-// Quick mood selector for returning users
+// Enhanced Quick mood selector for returning users
 class QuickMoodSelector extends StatelessWidget {
   final Function(List<CurrentMood>) onMoodsSelected;
   final List<CurrentMood> recentMoods;
@@ -459,11 +945,7 @@ class QuickMoodSelector extends StatelessWidget {
   }
 
   List<CurrentMood> _getDefaultMoods() {
-    if (isGroupMode) {
-      return [CurrentMood.adventurous, CurrentMood.lighthearted, CurrentMood.romantic, CurrentMood.perfectForUs];
-    } else {
-      return [CurrentMood.adventurous, CurrentMood.lighthearted, CurrentMood.romantic, CurrentMood.perfectForMe];
-    }
+    return [CurrentMood.pureComedy, CurrentMood.epicAction, CurrentMood.romantic, CurrentMood.familyFun];
   }
 
   Widget _buildQuickMoodChip(CurrentMood mood) {

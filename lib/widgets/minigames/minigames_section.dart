@@ -82,7 +82,6 @@ class _MinigamesSectionState extends State<MinigamesSection>
         );
         break;
       default:
-        // TODO: Implement other game types
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('${challenge.title} coming soon!'),

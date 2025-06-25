@@ -10,6 +10,8 @@ import 'models/user_profile.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/debug_loader.dart';
 import 'utils/ios_readiness_detector.dart';
+import '../utils/movie_loader.dart'; // Add this import
+import 'movie.dart'; // Add this import
 
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
@@ -20,33 +22,7 @@ class AuthGate extends StatelessWidget {
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return Scaffold(
-            backgroundColor: const Color(0xFF121212),
-            body: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.movie_filter,
-                    size: 64,
-                    color: const Color(0xFFE5A00D),
-                  ),
-                  SizedBox(height: 24),
-                  CircularProgressIndicator(
-                    color: const Color(0xFFE5A00D),
-                  ),
-                  SizedBox(height: 16),
-                  Text(
-                    'Checking authentication...',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
+          return _buildLoadingScreen('Checking authentication...');
         }
 
         final user = snapshot.data;
@@ -64,112 +40,93 @@ class AuthGate extends StatelessWidget {
           return const LoginScreen();
         }
 
-        return FutureBuilder<UserProfile>(
-          future: _loadUserProfile(user.uid),
+        // ✅ NEW: Load profile AND movies in parallel
+        return FutureBuilder<Map<String, dynamic>>(
+          future: _loadAppData(user.uid),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return Scaffold(
-                backgroundColor: const Color(0xFF121212),
-                body: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.movie_filter,
-                        size: 64,
-                        color: const Color(0xFFE5A00D),
-                      ),
-                      SizedBox(height: 24),
-                      CircularProgressIndicator(
-                        color: const Color(0xFFE5A00D),
-                      ),
-                      SizedBox(height: 16),
-                      Text(
-                        'Loading your profile...',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
+              return _buildLoadingScreen('Loading Zura...');
             }
 
             if (snapshot.hasError) {
               if (kDebugMode) {
-                DebugLogger.log('❌ Error loading profile: ${snapshot.error}');
+                DebugLogger.log('❌ Error loading app data: ${snapshot.error}');
               }
-              return Scaffold(
-                backgroundColor: const Color(0xFF121212),
-                body: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.error_outline,
-                        size: 64,
-                        color: Colors.red,
-                      ),
-                      const SizedBox(height: 24),
-                      const Text(
-                        'Error loading profile',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        '${snapshot.error}',
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 14,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 24),
-                      ElevatedButton(
-                        onPressed: () {
-                          Navigator.of(context).pushReplacement(
-                            MaterialPageRoute(builder: (context) => const AuthGate()),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFE5A00D),
-                        ),
-                        child: const Text('Retry'),
-                      ),
-                      const SizedBox(height: 16),
-                      TextButton(
-                        onPressed: () {
-                          FirebaseAuth.instance.signOut();
-                        },
-                        child: const Text(
-                          'Sign Out',
-                          style: TextStyle(color: Colors.white70),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
+              return _buildErrorScreen(context, snapshot.error.toString());
             }
 
-            final profile = snapshot.data!;
+            final appData = snapshot.data!;
+            final profile = appData['profile'] as UserProfile;
+            final movies = appData['movies'] as List<Movie>;
+            
             if (kDebugMode) {
-              DebugLogger.log('➡️ Going to MainNavigation');
+              DebugLogger.log('➡️ Going to MainNavigation with ${movies.length} movies preloaded');
             }
-            return MainNavigation(profile: profile);
+            
+            return MainNavigation(
+              profile: profile,
+              preloadedMovies: movies, // Pass preloaded movies
+            );
           },
         );
       },
     );
   }
 
-  // ✅ SMART: iOS readiness confirmed in main(), minimal safety here
+  // ✅ NEW: Load everything in parallel
+  Future<Map<String, dynamic>> _loadAppData(String uid) async {
+    if (kDebugMode) {
+      DebugLogger.log("🚀 Starting parallel app data loading...");
+    }
+
+    try {
+      // Load profile and movies in parallel
+      final results = await Future.wait([
+        _loadUserProfile(uid),
+        _loadMovieDatabase(),
+      ]);
+
+      final profile = results[0] as UserProfile;
+      final movies = results[1] as List<Movie>;
+
+      if (kDebugMode) {
+        DebugLogger.log("✅ Parallel loading completed - Profile: ✓, Movies: ${movies.length}");
+      }
+
+      return {
+        'profile': profile,
+        'movies': movies,
+      };
+    } catch (e) {
+      if (kDebugMode) {
+        DebugLogger.log("❌ Error in parallel loading: $e");
+      }
+      rethrow;
+    }
+  }
+
+  // ✅ NEW: Load movies early
+  Future<List<Movie>> _loadMovieDatabase() async {
+    try {
+      if (kDebugMode) {
+        DebugLogger.log('🎬 AuthGate: Loading movie database...');
+      }
+      
+      final movies = await MovieDatabaseLoader.loadMovieDatabase();
+      
+      if (kDebugMode) {
+        DebugLogger.log('✅ AuthGate: Loaded ${movies.length} movies');
+      }
+      
+      return movies;
+    } catch (e) {
+      if (kDebugMode) {
+        DebugLogger.log('❌ AuthGate: Error loading movies: $e');
+      }
+      return []; // Return empty list on error, don't block the app
+    }
+  }
+
   Future<UserProfile> _loadUserProfile(String uid) async {
     try {
       if (kDebugMode) {
@@ -260,5 +217,94 @@ class AuthGate extends StatelessWidget {
       
       rethrow;
     }
+  }
+
+  Widget _buildLoadingScreen(String message) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF121212),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.movie_filter,
+              size: 64,
+              color: const Color(0xFFE5A00D),
+            ),
+            SizedBox(height: 24),
+            CircularProgressIndicator(
+              color: const Color(0xFFE5A00D),
+            ),
+            SizedBox(height: 16),
+            Text(
+              message,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorScreen(BuildContext context, String error) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF121212),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.error_outline,
+              size: 64,
+              color: Colors.red,
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'Error loading app',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              error,
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 14,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: () {
+                // Force rebuild
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(builder: (context) => const AuthGate()),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFE5A00D),
+              ),
+              child: const Text('Retry'),
+            ),
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: () {
+                FirebaseAuth.instance.signOut();
+              },
+              child: const Text(
+                'Sign Out',
+                style: TextStyle(color: Colors.white70),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

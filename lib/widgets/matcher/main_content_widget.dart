@@ -173,7 +173,15 @@ class MainContentWidget extends StatelessWidget {
 
   Widget _buildSwipeInterface(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.all(8.r),
+      // 🔧 FIXED: Add proper padding to avoid floating nav bar overlap
+      padding: EdgeInsets.only(
+        left: 8.r,
+        right: 8.r,
+        top: 8.r,
+        // ✅ CRITICAL: Account for floating nav bar
+        // Nav bar: height 70.h + bottom position 25.h + extra spacing 16.h = 111.h total
+        bottom: 111.h,
+      ),
       child: Column(
         children: [
           Expanded(
@@ -228,7 +236,7 @@ class MainContentWidget extends StatelessWidget {
                             
                             Container(
                               width: double.infinity,
-                              padding: EdgeInsets.symmetric(vertical: 6.h, horizontal: 12.w),
+                              padding: EdgeInsets.symmetric(vertical: 8.h, horizontal: 12.w), // Slightly more padding
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
@@ -243,17 +251,17 @@ class MainContentWidget extends StatelessWidget {
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
-                                  SizedBox(height: 6.h),
+                                  SizedBox(height: 8.h), // More spacing
                                   Container(
-                                    height: 32.h,
+                                    height: 36.h, // Slightly taller button
                                     child: ElevatedButton(
                                       onPressed: () => _showMovieDetailSheet(context, movie),
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: const Color(0xFFE5A00D),
                                         shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(16.r),
+                                          borderRadius: BorderRadius.circular(18.r), // More rounded
                                         ),
-                                        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 4.h),
+                                        padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 6.h),
                                       ),
                                       child: Text(
                                         "View more",
@@ -323,14 +331,19 @@ class MainContentWidget extends StatelessWidget {
             ),
           ),
 
-          Padding(
-            padding: EdgeInsets.only(top: 8.h),
+          // 🔧 FIXED: Improved instruction text spacing and positioning
+          Container(
+            padding: EdgeInsets.symmetric(vertical: 8.h, horizontal: 16.w),
             child: Text(
               "Swipe left to pass, right to like",
-              style: TextStyle(color: Colors.grey[400], fontSize: 13.sp),
+              style: TextStyle(
+                color: Colors.grey[400], 
+                fontSize: 13.sp,
+                fontWeight: FontWeight.w500,
+              ),
+              textAlign: TextAlign.center,
             ),
           ),
-          SizedBox(height: 6.h),
         ],
       ),
     );
@@ -351,7 +364,7 @@ class MainContentWidget extends StatelessWidget {
     final isLike = direction == CardSwiperDirection.right;
     
     // UNIFIED LEARNING: Light learning for all mood sessions
-    if (currentSessionContext != null && !currentSessionContext!.moods.isProfileBased) {
+    if (currentSessionContext != null) {
       // Simple tracking only (no learning)
       if (isLike) {
         onUpdateState({

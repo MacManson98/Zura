@@ -352,9 +352,117 @@ class _MatcherScreenState extends State<MatcherScreen>
 
   // Show mood picker modal
   void _showMoodPicker() {
-    setState(() {
-      _showMoodSelectionModal = true;
-    });
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withValues(alpha: 0.7),
+      enableDrag: true,
+      isDismissible: true,
+      useSafeArea: true,
+      builder: (BuildContext context) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.95, // Start at 95% of screen height
+          minChildSize: 0.5,     // Minimum 50% when dragged down
+          maxChildSize: 0.95,    // Maximum 95% of screen height
+          expand: false,
+          snap: true,
+          snapSizes: const [0.5, 0.75, 0.95], // Snap points for different sizes
+          builder: (context, scrollController) {
+            return Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    const Color(0xFF1A1A1A),
+                    const Color(0xFF0F0F0F),
+                  ],
+                ),
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(24.r),
+                  topRight: Radius.circular(24.r),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.3),
+                    blurRadius: 20.r,
+                    spreadRadius: 5.r,
+                    offset: Offset(0, -5.h),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  // Modal header with drag indicator and close button
+                  _buildModalHeader(context),
+                  
+                  // Main mood selection content
+                  Expanded(
+                    child: MoodSelectionWidget(
+                      onMoodsSelected: (moods) {
+                        Navigator.of(context).pop(); // Close modal first
+                        _onMoodSelected(moods); // Then call your existing method
+                      },
+                      isGroupMode: currentMode != MatchingMode.solo,
+                      groupSize: currentMode == MatchingMode.group 
+                          ? selectedGroup.length + 1 
+                          : currentMode == MatchingMode.friend 
+                              ? 2 
+                              : 1,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // Add this new method to build the modal header:
+  Widget _buildModalHeader(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.fromLTRB(24.w, 12.h, 24.w, 8.h), // Reduced padding
+      child: Column(
+        children: [
+          // Drag indicator
+          Container(
+            width: 40.w,
+            height: 4.h,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(2.r),
+            ),
+          ),
+          
+          SizedBox(height: 12.h), // Reduced spacing
+          
+          // Just close button, no title
+          Row(
+            children: [
+              Spacer(),
+              GestureDetector(
+                onTap: () => Navigator.of(context).pop(),
+                child: Container(
+                  padding: EdgeInsets.all(8.r),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.close,
+                    color: Colors.white.withValues(alpha: 0.8),
+                    size: 20.sp,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   // Reset to selection state
@@ -932,7 +1040,7 @@ class _MatcherScreenState extends State<MatcherScreen>
     _startSessionIfNeeded();
     SessionManager.recordActivity();
     // For mood sessions, this is just "not in mood tonight" - very light learning
-    if (currentSessionContext != null && !currentSessionContext!.moods.isProfileBased) {
+    if (currentSessionContext != null) {
       // Already handled in _onSwipe via MoodBasedLearningEngine.learnFromMoodInteraction
       DebugLogger.log("👎 Not in mood for: ${movie.title} (light learning applied)");
     }
@@ -1135,54 +1243,6 @@ class _MatcherScreenState extends State<MatcherScreen>
     DebugLogger.log("🔍 BUILD: SessionManager.hasActiveSession = ${SessionManager.hasActiveSession}");
     DebugLogger.log("🔍 BUILD: sessionPool.length = ${sessionPool.length}");
     DebugLogger.log("🔍 BUILD: _isReadyToSwipe = $_isReadyToSwipe");
-    
-    // Show mood selection modal if requested
-    if (_showMoodSelectionModal) {
-      return Scaffold(
-        backgroundColor: const Color(0xFF121212),
-        body: SafeArea(
-          child: Stack(
-            children: [
-              // Main mood selection widget
-              MoodSelectionWidget(
-                onMoodsSelected: _onMoodSelected,
-                isGroupMode: currentMode != MatchingMode.solo,
-                groupSize: currentMode == MatchingMode.group 
-                    ? selectedGroup.length + 1 
-                    : currentMode == MatchingMode.friend 
-                        ? 2 
-                        : 1,
-              ),
-              
-              // Subtle cancel button at top-left (less intrusive)
-              Positioned(
-                top: 24.h,
-                left: 24.w,
-                child: GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _showMoodSelectionModal = false;
-                    });
-                  },
-                  child: Container(
-                    padding: EdgeInsets.all(8.r),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.3),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.arrow_back_ios,
-                      color: Colors.white.withValues(alpha: 0.8),
-                      size: 20.sp,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
 
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
@@ -1984,7 +2044,7 @@ class _MatcherScreenState extends State<MatcherScreen>
               );
             } catch (e) {
               DebugLogger.log("⚠️ Could not find matching mood enum for: ${updatedSession.selectedMoodId}");
-              sessionMood = CurrentMood.emotional; // Fallback
+              sessionMood = CurrentMood.emotionalDrama; // Fallback
             }
             
             // Auto-apply the host's mood and generate session
@@ -2196,7 +2256,7 @@ class _MatcherScreenState extends State<MatcherScreen>
           );
         } catch (e) {
           DebugLogger.log("⚠️ Could not find matching mood enum for: ${currentSession!.selectedMoodId}");
-          sessionMood = CurrentMood.emotional; // Fallback to a regular mood
+          sessionMood = CurrentMood.emotionalDrama; // Fallback to a regular mood
         }
         
         // Auto-apply the host's mood to this user

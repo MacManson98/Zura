@@ -16,14 +16,15 @@ import '../utils/debug_loader.dart';
 import '../models/matching_models.dart';
 import 'services/group_invitation_service.dart';
 import 'widgets/notifications_bottom_sheet.dart';
-import '../utils/movie_loader.dart';
 
 class MainNavigation extends StatefulWidget {
   final UserProfile profile;
+  final List<Movie> preloadedMovies; // ✅ NEW: Accept preloaded movies
   
   const MainNavigation({
     super.key,
     required this.profile,
+    this.preloadedMovies = const [], // ✅ Default to empty list
   });
 
   static void Function(SwipeSession)? _globalSessionCallback;
@@ -49,12 +50,9 @@ class _MainNavigationState extends State<MainNavigation> {
   List<UserProfile> _friendIds = [];
   late Widget _matcherScreen;
   
-  // ✅ FAST: State management without file dependencies
+  // ✅ SIMPLIFIED: No more complex loading states
   List<Movie> _completeMovieDatabase = [];
-  bool _isLoadingMovies = false;
-  bool _hasAttemptedLoad = false;
   bool _isInitialized = false;
-  Timer? _loadTimer;
   
   // ✅ IN-MEMORY: Track cleanup without SharedPreferences
   static DateTime? _lastCleanupTime;
@@ -62,31 +60,33 @@ class _MainNavigationState extends State<MainNavigation> {
   @override
   void initState() {
     super.initState();
+    
+    // ✅ IMMEDIATE: Use preloaded movies
+    _completeMovieDatabase = widget.preloadedMovies;
+    
+    if (kDebugMode) {
+      print("✅ MainNavigation: Initialized with ${_completeMovieDatabase.length} preloaded movies");
+    }
+    
     _matcherScreen = _buildMatcherScreen();
     
-    // ✅ IMMEDIATE: No file system dependencies
+    // ✅ FAST: Quick initialization without file system dependencies
     _initializeUserSession();
   }
 
-  @override
-  void dispose() {
-    _loadTimer?.cancel();
-    super.dispose();
-  }
-
-  // ✅ FAST: Immediate initialization without file system
+  // ✅ STREAMLINED: Much simpler initialization
   Future<void> _initializeUserSession() async {
     if (_isInitialized) return;
     
     try {
       if (kDebugMode) {
-        print("🔄 MainNavigation: Starting fast initialization...");
+        print("🔄 MainNavigation: Starting streamlined initialization...");
       }
       
-      // Load friends (network only)
+      // Load friends (network only) - this is fast
       await _loadFriends();
       
-      // Mark as initialized immediately
+      // Mark as initialized immediately - no more loading screens!
       setState(() {
         _isInitialized = true;
         _matcherScreen = _buildMatcherScreen();
@@ -98,7 +98,7 @@ class _MainNavigationState extends State<MainNavigation> {
       });
       
       if (kDebugMode) {
-        print("✅ MainNavigation: Fast initialization completed");
+        print("✅ MainNavigation: Streamlined initialization completed");
       }
       
     } catch (e) {
@@ -150,39 +150,6 @@ class _MainNavigationState extends State<MainNavigation> {
     }
   }
 
-  // ✅ FAST: Load movies immediately
-  Future<void> _loadCompleteMovieDatabase() async {
-    if (_isLoadingMovies || _hasAttemptedLoad || !mounted || !_isInitialized) return;
-    
-    _hasAttemptedLoad = true;
-    setState(() => _isLoadingMovies = true);
-    
-    try {
-      if (kDebugMode) {
-        print('🎬 MainNavigation: Loading complete movie database...');
-      }
-      
-      _completeMovieDatabase = await MovieDatabaseLoader.loadMovieDatabase();
-      
-      if (kDebugMode) {
-        print('✅ MainNavigation: Loaded ${_completeMovieDatabase.length} movies');
-      }
-      
-    } catch (e) {
-      if (kDebugMode) {
-        print('❌ MainNavigation: Error loading movie database: $e');
-      }
-      _completeMovieDatabase = [];
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoadingMovies = false;
-          _matcherScreen = _buildMatcherScreen();
-        });
-      }
-    }
-  }
-
   Future<void> _loadFriends() async {
     try {
       final friends = await FriendshipService.getFriends(widget.profile.uid);
@@ -220,14 +187,6 @@ class _MainNavigationState extends State<MainNavigation> {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ IMMEDIATE: Start movie loading right away
-    if (_isInitialized && !_hasAttemptedLoad && !_isLoadingMovies) {
-      _loadTimer?.cancel();
-      _loadTimer = Timer(const Duration(milliseconds: 50), () {
-        if (mounted) _loadCompleteMovieDatabase();
-      });
-    }
-
     final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
     final initialTab = args?['initialTab'] as int?;    
     
@@ -239,41 +198,37 @@ class _MainNavigationState extends State<MainNavigation> {
       });
     }
 
-  final screens = [
-    HomeScreen(
-      profile: widget.profile,
-      movies: _completeMovieDatabase,
-      onNavigateToMatches: () {
-        // Navigate to matches if you have that functionality
-        setState(() => _selectedIndex = matcherTabIndex);
-      },
-      onNavigateToMatcher: _goToSoloMatcher, // Default to solo for backward compatibility
-      onNavigateToFriends: () {
-        setState(() => _selectedIndex = 2); // Friends tab
-      },
-      onNavigateToNotifications: () {
-        // Handle notifications if needed
-      },
-      onProfileUpdate: (updatedProfile) {
-        // Handle profile updates if needed
-      },
-      // NEW: Add the specific mode callbacks
-      onNavigateToSoloMatcher: _goToSoloMatcher,
-      onNavigateToFriendMatcher: _goToFriendMatcherTab,
-      onNavigateToGroupMatcher: _goToGroupMatcher,
-    ),
-    _matcherScreen,
-    FriendsScreen(
-      currentUser: widget.profile,
-      allMovies: _completeMovieDatabase,
-      onMatchWithFriend: _goToFriendMatcher,
-    ),
-    ProfileScreen(
-      currentUser: widget.profile,
-    ),
-  ];
-
-  
+    final screens = [
+      HomeScreen(
+        profile: widget.profile,
+        movies: _completeMovieDatabase,
+        onNavigateToMatches: () {
+          setState(() => _selectedIndex = matcherTabIndex);
+        },
+        onNavigateToMatcher: _goToSoloMatcher,
+        onNavigateToFriends: () {
+          setState(() => _selectedIndex = 2);
+        },
+        onNavigateToNotifications: () {
+          // Handle notifications if needed
+        },
+        onProfileUpdate: (updatedProfile) {
+          // Handle profile updates if needed
+        },
+        onNavigateToSoloMatcher: _goToSoloMatcher,
+        onNavigateToFriendMatcher: _goToFriendMatcherTab,
+        onNavigateToGroupMatcher: _goToGroupMatcher,
+      ),
+      _matcherScreen,
+      FriendsScreen(
+        currentUser: widget.profile,
+        allMovies: _completeMovieDatabase,
+        onMatchWithFriend: _goToFriendMatcher,
+      ),
+      ProfileScreen(
+        currentUser: widget.profile,
+      ),
+    ];
 
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
@@ -284,63 +239,9 @@ class _MainNavigationState extends State<MainNavigation> {
             children: screens,
           ),
           
-          // ✅ BRIEF: Very quick loading screen
-          if (!_isInitialized)
-            Container(
-              color: const Color(0xFF121212).withValues(alpha: 0.95),
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.movie_filter,
-                      size: 64,
-                      color: const Color(0xFFE5A00D),
-                    ),
-                    SizedBox(height: 24),
-                    CircularProgressIndicator(
-                      color: const Color(0xFFE5A00D),
-                      strokeWidth: 3,
-                    ),
-                    SizedBox(height: 24),
-                    Text(
-                      'Loading Zura...',
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+          // ✅ REMOVED: All loading overlays - everything loads in auth_gate now!
           
-          if (_isInitialized && _isLoadingMovies)
-            Container(
-              color: const Color(0xFF121212).withValues(alpha: 0.8),
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    CircularProgressIndicator(
-                      color: const Color(0xFFE5A00D),
-                      strokeWidth: 3,
-                    ),
-                    SizedBox(height: 24),
-                    Text(
-                      'Loading movies...',
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            
-          // Floating nav bar - moved outside the loading container
+          // Floating nav bar
           if (_isInitialized)
             Positioned(
               left: 0,
@@ -406,7 +307,7 @@ class _MainNavigationState extends State<MainNavigation> {
     );
   }
 
-  // ... notification methods remain the same but without SharedPreferences
+  // ✅ UNCHANGED: All notification methods remain the same
   Future<void> _handleSessionJoinFromNotification(Map<String, dynamic> invitation) async {
     try {
       DebugLogger.log("📥 Accepting session invitation: ${invitation['sessionId']}");
@@ -461,7 +362,8 @@ class _MainNavigationState extends State<MainNavigation> {
 
   Future<void> _handleFriendRequestAccept(Map<String, dynamic> request) async {
     try {
-      await FriendshipService.acceptFriendRequest(
+      await FriendshipService.acceptFriendRequestById(
+        requestDocumentId: request['id'],
         fromUserId: request['fromUserId'],
         toUserId: request['toUserId'],
       );
@@ -546,12 +448,10 @@ class _MainNavigationState extends State<MainNavigation> {
       }
       
       final friendRequests = await FriendshipService.getPendingFriendRequestsList(widget.profile.uid);
-      for (final request in friendRequests) {
-        await FriendshipService.declineFriendRequest(
-          fromUserId: request['fromUserId'],
-          toUserId: request['toUserId'],
-        );
-      }
+        for (final request in friendRequests) {
+          // Use the document ID from the request data, not the user IDs
+          await FriendshipService.declineFriendRequestById(request['id']);
+        }
       
       await GroupInvitationService().declineAllGroupInvitations(widget.profile.uid);
       
@@ -590,8 +490,8 @@ class _MainNavigationState extends State<MainNavigation> {
     }
     setState(() {
       _matcherMode = MatchingMode.solo;
-      _selectedFriend = null; // Clear any selected friend
-      _selectedIndex = matcherTabIndex; // Switch to matcher tab
+      _selectedFriend = null;
+      _selectedIndex = matcherTabIndex;
       _matcherScreen = _buildMatcherScreen();
     });
   }
@@ -614,21 +514,20 @@ class _MainNavigationState extends State<MainNavigation> {
     }
     setState(() {
       _matcherMode = MatchingMode.group;
-      _selectedFriend = null; // Clear any selected friend
-      _selectedIndex = matcherTabIndex; // Switch to matcher tab
+      _selectedFriend = null;
+      _selectedIndex = matcherTabIndex;
       _matcherScreen = _buildMatcherScreen();
     });
   }
 
   void _goToFriendMatcherTab() {
-  if (kDebugMode) {
-    print("🟢 Switching to Friend Matcher");
+    if (kDebugMode) {
+      print("🟢 Switching to Friend Matcher");
+    }
+    setState(() {
+      _matcherMode = MatchingMode.friend;
+      _matcherScreen = _buildMatcherScreen();
+      _selectedIndex = matcherTabIndex;
+    });
   }
-  setState(() {
-    _matcherMode = MatchingMode.friend;
-    _matcherScreen = _buildMatcherScreen();
-    _selectedIndex = matcherTabIndex;
-  });
-}
-
 }

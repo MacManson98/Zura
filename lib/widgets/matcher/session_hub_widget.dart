@@ -955,7 +955,6 @@ class _SessionHubWidgetState extends State<SessionHubWidget> {
   }
 
   void _resumeSession(CompletedSession session) {
-    // TODO: Navigate back to matcher with session resume
     DebugLogger.log("🔄 Resume session: ${session.id}");
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(

@@ -9,6 +9,7 @@ import '../services/friendship_service.dart';
 import 'movie_detail_screen.dart';
 import 'package:collection/collection.dart';
 import '../utils/debug_loader.dart';
+import 'dart:async';
 
 class NotificationsScreen extends StatefulWidget {
   final UserProfile currentUser;
@@ -32,6 +33,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
   List<Map<String, dynamic>> _regularNotifications = [];
   late AnimationController _animationController;
   late AnimationController _refreshController;
+  Set<String> _processingRequests = {};
   
   // Animation controllers for different sections
   List<AnimationController> _sectionControllers = [];
@@ -182,6 +184,8 @@ class _NotificationsScreenState extends State<NotificationsScreen>
     );
   }
 
+  // Replace your _buildNotificationsList method with this simpler version:
+
   Widget _buildNotificationsList() {
     return StreamBuilder<List<Map<String, dynamic>>>(
       stream: SessionService.watchPendingInvitations(),
@@ -189,8 +193,18 @@ class _NotificationsScreenState extends State<NotificationsScreen>
         return StreamBuilder<List<Map<String, dynamic>>>(
           stream: FriendshipService.getPendingFriendRequests(widget.currentUser.uid),
           builder: (context, friendSnapshot) {
+            DebugLogger.log("🏗️ StreamBuilder rebuilding - Session hasData: ${sessionSnapshot.hasData}, Friend hasData: ${friendSnapshot.hasData}");
+            
+            if (!sessionSnapshot.hasData || !friendSnapshot.hasData) {
+              return Center(
+                child: CircularProgressIndicator(color: const Color(0xFFE5A00D)),
+              );
+            }
+            
             final sessionInvites = sessionSnapshot.data ?? [];
             final friendRequests = friendSnapshot.data ?? [];
+            
+            DebugLogger.log("🏗️ Building UI with ${sessionInvites.length} session invites, ${friendRequests.length} friend requests");
             
             final hasHighPriority = sessionInvites.isNotEmpty || friendRequests.isNotEmpty;
             final hasAnyNotifications = hasHighPriority || _regularNotifications.isNotEmpty;
@@ -205,8 +219,8 @@ class _NotificationsScreenState extends State<NotificationsScreen>
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-
                     _buildClearAllButton(hasAnyNotifications),
+                    
                     // High Priority Section (Session Invites)
                     if (sessionInvites.isNotEmpty)
                       _buildAnimatedSection(
@@ -530,6 +544,9 @@ class _NotificationsScreenState extends State<NotificationsScreen>
   }
 
   Widget _buildFriendRequestCard(Map<String, dynamic> request, int index) {
+    final requestId = request['id'];
+    final isProcessing = _processingRequests.contains(requestId);
+    
     return Container(
       margin: EdgeInsets.only(bottom: 12.h),
       decoration: BoxDecoration(
@@ -584,9 +601,9 @@ class _NotificationsScreenState extends State<NotificationsScreen>
                     ),
                   ),
                   Text(
-                    "wants to be friends",
+                    isProcessing ? "Processing..." : "wants to be friends",
                     style: TextStyle(
-                      color: Colors.blue.shade300,
+                      color: isProcessing ? Colors.orange : Colors.blue.shade300,
                       fontSize: 14.sp,
                     ),
                   ),
@@ -594,32 +611,43 @@ class _NotificationsScreenState extends State<NotificationsScreen>
               ),
             ),
             
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8.r),
-                  ),
-                  child: IconButton(
-                    onPressed: () => _declineFriendRequest(request),
-                    icon: Icon(Icons.close, color: Colors.white70, size: 18.sp),
-                  ),
+            if (isProcessing) ...[
+              SizedBox(
+                width: 20.w,
+                height: 20.w,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.w,
+                  color: Colors.blue,
                 ),
-                SizedBox(width: 8.w),
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.blue,
-                    borderRadius: BorderRadius.circular(8.r),
+              ),
+            ] else ...[
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8.r),
+                    ),
+                    child: IconButton(
+                      onPressed: () => _declineFriendRequestById(request),
+                      icon: Icon(Icons.close, color: Colors.white70, size: 18.sp),
+                    ),
                   ),
-                  child: IconButton(
-                    onPressed: () => _acceptFriendRequest(request),
-                    icon: Icon(Icons.check, color: Colors.white, size: 18.sp),
+                  SizedBox(width: 8.w),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.blue,
+                      borderRadius: BorderRadius.circular(8.r),
+                    ),
+                    child: IconButton(
+                      onPressed: () => _acceptFriendRequest(request),
+                      icon: Icon(Icons.check, color: Colors.white, size: 18.sp),
+                    ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
+            ],
           ],
         ),
       ),
@@ -819,11 +847,30 @@ class _NotificationsScreenState extends State<NotificationsScreen>
   }
 
   Future<void> _acceptFriendRequest(Map<String, dynamic> request) async {
+    final requestId = request['id'];
+    
+    // Prevent double-tapping
+    if (_processingRequests.contains(requestId)) {
+      DebugLogger.log("⚠️ Already processing request: $requestId");
+      return;
+    }
+    
+    setState(() {
+      _processingRequests.add(requestId);
+    });
+    
     try {
-      await FriendshipService.acceptFriendRequest(
+      DebugLogger.log("🤝 UI: Starting to accept friend request from ${request['fromUserName']}");
+      DebugLogger.log("📋 Request data: id=${request['id']}, fromUserId=${request['fromUserId']}, toUserId=${request['toUserId']}");
+      
+      // Use the actual document ID from the request, don't reconstruct it!
+      await FriendshipService.acceptFriendRequestById(
+        requestDocumentId: request['id'], // Use the actual document ID
         fromUserId: request['fromUserId'],
         toUserId: request['toUserId'],
       );
+      
+      DebugLogger.log("✅ UI: Friend request accepted successfully");
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -835,25 +882,37 @@ class _NotificationsScreenState extends State<NotificationsScreen>
                 Text('${request['fromUserName']} is now your friend!'),
               ],
             ),
-            backgroundColor: Colors.blue,
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
           ),
         );
       }
     } catch (e) {
+      DebugLogger.log("❌ UI: Error accepting friend request: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to accept request: $e')),
+          SnackBar(
+            content: Text('Failed to accept request: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
         );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _processingRequests.remove(requestId);
+        });
       }
     }
   }
 
-  Future<void> _declineFriendRequest(Map<String, dynamic> request) async {
+  Future<void> _declineFriendRequestById(Map<String, dynamic> request) async {
     try {
-      await FriendshipService.declineFriendRequest(
-        fromUserId: request['fromUserId'],
-        toUserId: request['toUserId'],
-      );
+      DebugLogger.log("🚫 Declining friend request: ${request['id']}");
+      
+      // Use the actual document ID from the request
+      await FriendshipService.declineFriendRequestById(request['id']);
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -861,6 +920,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
         );
       }
     } catch (e) {
+      DebugLogger.log("❌ Error declining friend request: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to decline request: $e')),
@@ -1169,16 +1229,12 @@ class _NotificationsScreenState extends State<NotificationsScreen>
     }
   }
 
-  // Decline all friend requests
   Future<void> _declineAllFriendRequests() async {
     try {
       final requests = await FriendshipService.getPendingFriendRequestsList(widget.currentUser.uid);
       
       for (final request in requests) {
-        await FriendshipService.declineFriendRequest(
-          fromUserId: request['fromUserId'],
-          toUserId: request['toUserId'],
-        );
+        await FriendshipService.declineFriendRequestById(request['id']);
       }
       
       DebugLogger.log("✅ Declined ${requests.length} friend requests");

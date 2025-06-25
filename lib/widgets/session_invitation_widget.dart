@@ -29,7 +29,7 @@ class SessionInvitationWidget extends StatefulWidget {
 
 class _SessionInvitationWidgetState extends State<SessionInvitationWidget> {
   bool _isCreatingSession = false;
-
+  
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -426,7 +426,6 @@ class _SessionInvitationWidgetState extends State<SessionInvitationWidget> {
                   child: SingleChildScrollView(
                     child: Column(
                       children: CurrentMood.values
-                          .where((mood) => mood != CurrentMood.perfectForMe)
                           .map((mood) => Container(
                             margin: EdgeInsets.only(bottom: 8.h),
                             child: GlassmorphicContainer(

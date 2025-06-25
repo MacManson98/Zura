@@ -1223,13 +1223,6 @@ class _MultiMatchCarouselScreenState extends State<MultiMatchCarouselScreen>
   }
 
   void _performEndSession() {
-    // TODO: Implement session ending logic - update database, notify participants, etc.
-    // This might involve:
-    // 1. Updating the session status in your database
-    // 2. Notifying other participants
-    // 3. Saving the final selection
-    
-    // For now, show success message and navigate back
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(

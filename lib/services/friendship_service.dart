@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../models/user_profile.dart';
 import '../utils/debug_loader.dart';
+import 'dart:async';
 
 class FriendshipService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -13,8 +15,30 @@ class FriendshipService {
     required String toUserName,
   }) async {
     try {
-      // Create friend request document
-      await _firestore.collection('friend_requests').doc('${fromUserId}_$toUserId').set({
+      final currentAuthUser = FirebaseAuth.instance.currentUser;
+      DebugLogger.log("🔍 DEBUG - Auth user UID: ${currentAuthUser?.uid}");
+      DebugLogger.log("🔍 DEBUG - fromUserId parameter: $fromUserId");
+      DebugLogger.log("🔍 DEBUG - Are they equal? ${currentAuthUser?.uid == fromUserId}");
+      DebugLogger.log("🔍 DEBUG - Is user authenticated? ${currentAuthUser != null}");
+      
+      // Check if a friend request already exists (should be rare now)
+      final requestId = '${fromUserId}_$toUserId';
+      final existingRequest = await _firestore.collection('friend_requests').doc(requestId).get();
+      
+      if (existingRequest.exists) {
+        final status = existingRequest.data()!['status'];
+        DebugLogger.log("⚠️ Friend request already exists with status: $status");
+        
+        if (status == 'pending') {
+          throw Exception('Friend request already sent and is pending');
+        }
+        // If it exists but isn't pending, delete it and create a new one
+        await _firestore.collection('friend_requests').doc(requestId).delete();
+        DebugLogger.log("🗑️ Cleaned up old friend request");
+      }
+      
+      // Create new friend request document
+      await _firestore.collection('friend_requests').doc(requestId).set({
         'fromUserId': fromUserId,
         'toUserId': toUserId,
         'fromUserName': fromUserName,
@@ -51,70 +75,90 @@ class FriendshipService {
     }
   }
 
-  // Accept a friend request
-  static Future<void> acceptFriendRequest({
+  static Future<void> acceptFriendRequestById({
+    required String requestDocumentId,
     required String fromUserId,
     required String toUserId,
   }) async {
     try {
+      DebugLogger.log("🤝 Starting to accept friend request with document ID: $requestDocumentId");
+      DebugLogger.log("👥 From: $fromUserId -> To: $toUserId");
+      
       final batch = _firestore.batch();
 
-      // Update the friend request status
-      final requestRef = _firestore.collection('friend_requests').doc('${fromUserId}_$toUserId');
-      batch.update(requestRef, {
-        'status': 'accepted',
-        'acceptedAt': FieldValue.serverTimestamp(),
-      });
+      // DELETE the friend request document using the ACTUAL document ID
+      final requestRef = _firestore.collection('friend_requests').doc(requestDocumentId);
+      DebugLogger.log("🗑️ Adding delete operation for actual document: $requestDocumentId");
+      batch.delete(requestRef);
 
       // Add to both users' friends arrays
       final fromUserRef = _firestore.collection('users').doc(fromUserId);
+      DebugLogger.log("👥 Adding $toUserId to $fromUserId's friends");
       batch.update(fromUserRef, {
         'friendIds': FieldValue.arrayUnion([toUserId]),
       });
 
       final toUserRef = _firestore.collection('users').doc(toUserId);
+      DebugLogger.log("👥 Adding $fromUserId to $toUserId's friends");
       batch.update(toUserRef, {
         'friendIds': FieldValue.arrayUnion([fromUserId]),
       });
 
       // Commit the batch
+      DebugLogger.log("💾 Committing batch operation...");
       await batch.commit();
+      DebugLogger.log("✅ Batch committed successfully!");
+
+      // Verify the document was deleted
+      final deletedDoc = await requestRef.get();
+      DebugLogger.log("🔍 Verification - Document exists after delete: ${deletedDoc.exists}");
 
       DebugLogger.log("✅ Friend request accepted. Users are now friends!");
     } catch (e) {
-      DebugLogger.log("❌ Error accepting friend request: $e");
+      DebugLogger.log("❌ Error accepting friend request by ID: $e");
+      DebugLogger.log("❌ Document ID: $requestDocumentId");
+      DebugLogger.log("❌ Error type: ${e.runtimeType}");
       throw e;
     }
   }
 
-  // Decline a friend request
-  static Future<void> declineFriendRequest({
-    required String fromUserId,
-    required String toUserId,
-  }) async {
+  static Future<void> declineFriendRequestById(String requestDocumentId) async {
     try {
-      await _firestore.collection('friend_requests').doc('${fromUserId}_$toUserId').update({
-        'status': 'declined',
-        'declinedAt': FieldValue.serverTimestamp(),
-      });
+      DebugLogger.log("🚫 Declining friend request with document ID: $requestDocumentId");
+      
+      // DELETE the friend request document using the ACTUAL document ID
+      await _firestore.collection('friend_requests').doc(requestDocumentId).delete();
 
-      DebugLogger.log("✅ Friend request declined");
+      DebugLogger.log("✅ Friend request declined and removed");
     } catch (e) {
-      DebugLogger.log("❌ Error declining friend request: $e");
+      DebugLogger.log("❌ Error declining friend request by ID: $e");
       throw e;
     }
   }
 
   static Stream<List<Map<String, dynamic>>> getPendingFriendRequests(String userId) {
+    DebugLogger.log("🔄 Setting up friend requests stream for user: $userId");
+    
     return _firestore
         .collection('friend_requests')
         .where('toUserId', isEqualTo: userId)
         .where('status', isEqualTo: 'pending')
         .snapshots()
-        .map((snapshot) => snapshot.docs.map((doc) => {
+        .map((snapshot) {
+          DebugLogger.log("📥 Friend requests stream update: ${snapshot.docs.length} pending requests");
+          
+          final requests = snapshot.docs.map((doc) {
+            final data = doc.data();
+            DebugLogger.log("📋 Friend request: ${doc.id} from ${data['fromUserName']} to ${data['toUserName']}");
+            return {
               'id': doc.id,
-              ...doc.data(),
-            }).toList());
+              ...data,
+            };
+          }).toList();
+          
+          DebugLogger.log("✅ Returning ${requests.length} friend requests to UI");
+          return requests;
+        });
   }
 
   // Get user's friends list

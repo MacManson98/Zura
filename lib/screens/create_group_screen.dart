@@ -79,8 +79,6 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
         notificationsEnabled: _notificationsEnabled,
       );
 
-      // TODO: Add invitation sending logic here once GroupInvitationService is working
-
       if (mounted) {
         final inviteCount = _selectedFriends.length;
         ScaffoldMessenger.of(context).showSnackBar(
