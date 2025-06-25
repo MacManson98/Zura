@@ -370,171 +370,56 @@ class _SessionInvitationWidgetState extends State<SessionInvitationWidget> {
 
   Future<CurrentMood?> _showMoodSelectionDialog() async {
     CurrentMood? selectedMood;
-    
-    await showDialog<CurrentMood>(
+
+    await showModalBottomSheet(
       context: context,
-      barrierDismissible: false,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: GlassmorphicContainer(
-          width: double.infinity,
-          height: 500.h,
-          borderRadius: 24,
-          blur: 20,
-          alignment: Alignment.center,
-          border: 2,
-          linearGradient: LinearGradient(
-            colors: [
-              const Color(0xFF1F1F1F).withValues(alpha: 0.9),
-              const Color(0xFF121212).withValues(alpha: 0.9),
-            ],
-          ),
-          borderGradient: LinearGradient(
-            colors: [
-              Colors.white.withValues(alpha: 0.2),
-              Colors.white.withValues(alpha: 0.1),
-            ],
-          ),
-          child: Padding(
-            padding: EdgeInsets.all(24.r),
-            child: Column(
-              children: [
-                // Header
-                Row(
-                  children: [
-                    Icon(Icons.mood, color: const Color(0xFFE5A00D), size: 24.sp),
-                    SizedBox(width: 12.w),
-                    Text(
-                      "Choose Session Mood",
-                      style: TextStyle(color: Colors.white, fontSize: 18.sp, fontWeight: FontWeight.bold),
-                    ),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withValues(alpha: 0.7),
+      builder: (context) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.95,
+          minChildSize: 0.5,
+          maxChildSize: 0.95,
+          expand: false,
+          builder: (context, scrollController) {
+            return Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    const Color(0xFF1A1A1A),
+                    const Color(0xFF0F0F0F),
                   ],
                 ),
-                
-                SizedBox(height: 16.h),
-                
-                Text(
-                  "Pick the vibe for this session. Your friend will see your choice when they join.",
-                  style: TextStyle(color: Colors.white70, fontSize: 14.sp),
-                  textAlign: TextAlign.center,
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(24.r),
+                  topRight: Radius.circular(24.r),
                 ),
-                
-                SizedBox(height: 20.h),
-                
-                // Mood options
-                Expanded(
-                  child: SingleChildScrollView(
-                    child: Column(
-                      children: CurrentMood.values
-                          .map((mood) => Container(
-                            margin: EdgeInsets.only(bottom: 8.h),
-                            child: GlassmorphicContainer(
-                              width: double.infinity,
-                              height: 60.h,
-                              borderRadius: 12,
-                              blur: 10,
-                              alignment: Alignment.centerLeft,
-                              border: 1,
-                              linearGradient: LinearGradient(
-                                colors: [
-                                  Colors.white.withValues(alpha: 0.05),
-                                  Colors.white.withValues(alpha: 0.02),
-                                ],
-                              ),
-                              borderGradient: LinearGradient(
-                                colors: [
-                                  Colors.white.withValues(alpha: 0.1),
-                                  Colors.white.withValues(alpha: 0.05),
-                                ],
-                              ),
-                              child: Material(
-                                color: Colors.transparent,
-                                child: InkWell(
-                                  onTap: () {
-                                    selectedMood = mood;
-                                    Navigator.of(context).pop(mood);
-                                  },
-                                  borderRadius: BorderRadius.circular(12.r),
-                                  child: Padding(
-                                    padding: EdgeInsets.symmetric(horizontal: 16.w),
-                                    child: Row(
-                                      children: [
-                                        Container(
-                                          padding: EdgeInsets.all(8.r),
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
-                                            borderRadius: BorderRadius.circular(8.r),
-                                          ),
-                                          child: Text(mood.emoji, style: TextStyle(fontSize: 20.sp)),
-                                        ),
-                                        SizedBox(width: 12.w),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            mainAxisAlignment: MainAxisAlignment.center,
-                                            children: [
-                                              Text(
-                                                mood.displayName,
-                                                style: TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 16.sp,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
-                                              Text(
-                                                "Great for collaborative sessions",
-                                                style: TextStyle(
-                                                  color: Colors.white60,
-                                                  fontSize: 12.sp,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        Icon(
-                                          Icons.arrow_forward_ios,
-                                          color: Colors.white30,
-                                          size: 16.sp,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                      ).toList(),
-                    ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.3),
+                    blurRadius: 20.r,
+                    spreadRadius: 5.r,
+                    offset: Offset(0, -5.h),
                   ),
-                ),
-                
-                SizedBox(height: 16.h),
-                
-                // Cancel button
-                SizedBox(
-                  width: double.infinity,
-                  child: TextButton(
-                    onPressed: () => Navigator.of(context).pop(null),
-                    style: TextButton.styleFrom(
-                      padding: EdgeInsets.symmetric(vertical: 16.h),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12.r),
-                        side: BorderSide(color: Colors.white30),
-                      ),
-                    ),
-                    child: Text(
-                      "Cancel",
-                      style: TextStyle(color: Colors.white70, fontSize: 16.sp),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+                ],
+              ),
+              child: MoodSelectionWidget(
+                onMoodsSelected: (moods) {
+                  selectedMood = moods.isNotEmpty ? moods.first : null;
+                  Navigator.of(context).pop();
+                },
+                isGroupMode: false,
+                groupSize: 1,
+              ),
+            );
+          },
+        );
+      },
     );
-    
+
     return selectedMood;
   }
   // Part 4: Share options and join session dialog methods
