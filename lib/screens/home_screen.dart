@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:glassmorphism/glassmorphism.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 import '../models/user_profile.dart';
 import '../movie.dart';
@@ -12,7 +13,7 @@ import 'matches_screen.dart';
 import 'liked_movies_screen.dart';
 import '../utils/movie_loader.dart';
 import '../utils/tmdb_api.dart';
-import 'trending_movies_screen';
+import 'trending_movies_screen.dart';
 import '../models/matching_models.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -74,7 +75,9 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Future<void> _loadTrendingMovies() async {
+    if (mounted){
     setState(() => _isLoadingTrending = true);
+    }
     try {
       final trending = await _getTrendingMovies();
       setState(() {
@@ -146,7 +149,9 @@ class _HomeScreenState extends State<HomeScreen>
 
   Future<void> _loadCompleteMovieDatabase() async {
     _completeMovieDatabase = await MovieDatabaseLoader.loadMovieDatabase();
+    if (mounted){
     setState(() {});
+    }
   }
 
   Future<void> _generateRandomPick() async {
@@ -261,44 +266,42 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-// Update your fallback method to use MovieDatabaseLoader:
-List<Movie> _getFallbackTrendingMovies() {
-  try {
-    // Use complete movie database if available
-    final movies = _completeMovieDatabase.isNotEmpty ? _completeMovieDatabase : widget.movies;
-    
-    if (movies.isEmpty) {
-      DebugLogger.log("⚠️ No movies available for fallback trending");
+  List<Movie> _getFallbackTrendingMovies() {
+    try {
+      // Use complete movie database if available
+      final movies = _completeMovieDatabase.isNotEmpty ? _completeMovieDatabase : widget.movies;
+      
+      if (movies.isEmpty) {
+        DebugLogger.log("⚠️ No movies available for fallback trending");
+        return [];
+      }
+      
+      // Use MovieDatabaseLoader to get high-quality movies
+      final highQualityMovies = MovieDatabaseLoader.getHighQualityMovies(
+        movies,
+        minRating: 7.0,
+        minVotes: 500,
+        limit: 20,
+      );
+      
+      // Filter out already liked movies
+      final candidateMovies = highQualityMovies.where((movie) =>
+        !widget.profile.likedMovies.contains(movie)
+      ).toList();
+      
+      // Shuffle for variety
+      final now = DateTime.now();
+      candidateMovies.shuffle(Random(now.day + now.month));
+      
+      DebugLogger.log("🔄 Fallback trending: ${candidateMovies.length} high-quality movies");
+      return candidateMovies.take(8).toList();
+      
+    } catch (e) {
+      DebugLogger.log("❌ Error in fallback trending: $e");
       return [];
     }
-    
-    // Use MovieDatabaseLoader to get high-quality movies
-    final highQualityMovies = MovieDatabaseLoader.getHighQualityMovies(
-      movies,
-      minRating: 7.0,
-      minVotes: 500,
-      limit: 20,
-    );
-    
-    // Filter out already liked movies
-    final candidateMovies = highQualityMovies.where((movie) =>
-      !widget.profile.likedMovies.contains(movie)
-    ).toList();
-    
-    // Shuffle for variety
-    final now = DateTime.now();
-    candidateMovies.shuffle(Random(now.day + now.month));
-    
-    DebugLogger.log("🔄 Fallback trending: ${candidateMovies.length} high-quality movies");
-    return candidateMovies.take(8).toList();
-    
-  } catch (e) {
-    DebugLogger.log("❌ Error in fallback trending: $e");
-    return [];
   }
-}
 
-  // Update your _getTrendingStats method to be more realistic:
   Map<String, dynamic> _getTrendingStats(Movie movie, int rank) {
     final random = Random(movie.title.hashCode + rank);
     final baseViews = 800 - (rank * 50); // Higher rank = more views
@@ -313,7 +316,6 @@ List<Movie> _getFallbackTrendingMovies() {
     };
   }
 
-  // Add this method to handle navigation to trending screen:
   void _navigateToTrendingMovies() {
     Navigator.push(
       context,
@@ -386,21 +388,33 @@ List<Movie> _getFallbackTrendingMovies() {
     
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
-      body: Stack(
-        children: [
-          // Animated background elements
-          _buildFloatingBackground(),
-          
-          // Main content
-          SafeArea(
-            child: _fadeAnimation != null 
-              ? FadeTransition(
-                  opacity: _fadeAnimation!,
-                  child: _buildMainContent(recommendedMovies, topPicks, topGenres, topVibes),
-                )
-              : _buildMainContent(recommendedMovies, topPicks, topGenres, topVibes),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              const Color(0xFF121212),
+              const Color(0xFF0A0A0A),
+            ],
           ),
-        ],
+        ),
+        child: Stack(
+          children: [
+            // Animated background elements
+            _buildFloatingBackground(),
+            
+            // Main content
+            SafeArea(
+              child: _fadeAnimation != null 
+                ? FadeTransition(
+                    opacity: _fadeAnimation!,
+                    child: _buildMainContent(recommendedMovies, topPicks, topGenres, topVibes),
+                  )
+                : _buildMainContent(recommendedMovies, topPicks, topGenres, topVibes),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -426,9 +440,10 @@ List<Movie> _getFallbackTrendingMovies() {
                 _buildQuickStats(),
                 SizedBox(height: 24.h),
 
-                //Qucik Access Carousel
+                // Quick Access Carousel
                 _buildSwipingModeCarousel(),
-                SizedBox(height: 24.h,),
+                SizedBox(height: 24.h),
+                
                 // Enhanced Quick Actions
                 _buildEnhancedQuickActions(),
                 SizedBox(height: 24.h),
@@ -439,7 +454,7 @@ List<Movie> _getFallbackTrendingMovies() {
                   SizedBox(height: 24.h),
                 ],
                 
-                // Trending This Week (REPLACED Friend Activity)
+                // Trending This Week
                 _buildTrendingThisWeek(),
                 SizedBox(height: 24.h),
                 
@@ -533,8 +548,8 @@ List<Movie> _getFallbackTrendingMovies() {
   Widget _buildModernHeader() {
     return SliverAppBar(
       automaticallyImplyLeading: false,
-      backgroundColor: const Color(0xFF121212),
-      surfaceTintColor: const Color(0xFF121212),
+      backgroundColor: Colors.transparent,
+      surfaceTintColor: Colors.transparent,
       shadowColor: Colors.transparent,
       pinned: false,
       floating: true,
@@ -549,55 +564,37 @@ List<Movie> _getFallbackTrendingMovies() {
             children: [
               Row(
                 children: [
-                  // Profile Avatar with Online Status
-                  Stack(
-                    children: [
-                      Container(
-                        width: 50.w,
-                        height: 50.w,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(16.r),
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFFE5A00D), Color(0xFFFF8A00)],
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFFE5A00D).withValues(alpha: 0.3),
-                              blurRadius: 8,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
+                  // Profile Avatar with gradient and shadow
+                  Container(
+                    width: 56.w,
+                    height: 56.w,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16.r),
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFE5A00D), Color(0xFFFF8A00)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFE5A00D).withValues(alpha: 0.4),
+                          blurRadius: 12.r,
+                          offset: Offset(0, 4.h),
                         ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(16.r),
-                          child: Center(
-                            child: Text(
-                              widget.profile.name.isNotEmpty 
-                                ? widget.profile.name[0].toUpperCase() 
-                                : 'U',
-                              style: TextStyle(
-                                fontSize: 20.sp,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
+                      ],
+                    ),
+                    child: Center(
+                      child: Text(
+                        widget.profile.name.isNotEmpty 
+                          ? widget.profile.name[0].toUpperCase() 
+                          : 'U',
+                        style: TextStyle(
+                          fontSize: 24.sp,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
                         ),
                       ),
-                      Positioned(
-                        bottom: 2,
-                        right: 2,
-                        child: Container(
-                          width: 12.w,
-                          height: 12.w,
-                          decoration: BoxDecoration(
-                            color: Colors.green,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: const Color(0xFF121212), width: 2),
-                          ),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                   
                   SizedBox(width: 16.w),
@@ -613,6 +610,7 @@ List<Movie> _getFallbackTrendingMovies() {
                             fontSize: 22.sp,
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
+                            letterSpacing: 0.3,
                           ),
                         ),
                         SizedBox(height: 4.h),
@@ -620,7 +618,7 @@ List<Movie> _getFallbackTrendingMovies() {
                           'Ready to discover something amazing?',
                           style: TextStyle(
                             fontSize: 14.sp,
-                            color: Colors.white70,
+                            color: Colors.white.withValues(alpha: 0.7),
                           ),
                         ),
                       ],
@@ -639,11 +637,31 @@ List<Movie> _getFallbackTrendingMovies() {
     return Container(
       padding: EdgeInsets.all(20.w),
       decoration: BoxDecoration(
-        color: const Color(0xFF1F1F1F),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            const Color(0xFF2A2A2A),
+            const Color(0xFF1F1F1F),
+          ],
+        ),
         borderRadius: BorderRadius.circular(16.r),
         border: Border.all(
           color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
+          width: 1.w,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.3),
+            blurRadius: 8.r,
+            offset: Offset(0, 2.h),
+          ),
+          BoxShadow(
+            color: const Color(0xFFE5A00D).withValues(alpha: 0.1),
+            blurRadius: 16.r,
+            offset: Offset(0, 4.h),
+          ),
+        ],
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -663,9 +681,9 @@ List<Movie> _getFallbackTrendingMovies() {
           ),
           _buildStatDivider(),
           _buildStatItem(
-          _isLoadingTrending 
-              ? '...' 
-              : '${_trendingMovies.length}', // ✅ Use the state variable instead
+            _isLoadingTrending 
+                ? '...' 
+                : '${_trendingMovies.length}',
             'Trending Now',
             Colors.orange,
             Icons.whatshot,
@@ -675,42 +693,46 @@ List<Movie> _getFallbackTrendingMovies() {
     );
   }
 
-    void _navigateToMatches() {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => MatchesScreen(
-            currentUser: widget.profile,
-            onProfileUpdate: (updatedProfile) {
-              widget.onProfileUpdate?.call(updatedProfile);
-            },
-          ),
+  void _navigateToMatches() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => MatchesScreen(
+          currentUser: widget.profile,
+          onProfileUpdate: (updatedProfile) {
+            widget.onProfileUpdate?.call(updatedProfile);
+          },
         ),
-      );
-    }
+      ),
+    );
+  }
 
-    void _navigateToLikedMovies() {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => LikedMoviesScreen(
-            currentUser: widget.profile,
-            onProfileUpdate: (updatedProfile) {
-              widget.onProfileUpdate?.call(updatedProfile);
-            },
-          ),
+  void _navigateToLikedMovies() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => LikedMoviesScreen(
+          currentUser: widget.profile,
+          onProfileUpdate: (updatedProfile) {
+            widget.onProfileUpdate?.call(updatedProfile);
+          },
         ),
-      );
-    }
+      ),
+    );
+  }
 
   Widget _buildStatItem(String value, String label, Color color, IconData icon) {
     return Column(
       children: [
         Container(
-          padding: EdgeInsets.all(8.w),
+          padding: EdgeInsets.all(10.w),
           decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.1),
+            color: color.withValues(alpha: 0.2),
             borderRadius: BorderRadius.circular(12.r),
+            border: Border.all(
+              color: color.withValues(alpha: 0.4),
+              width: 1.w,
+            ),
           ),
           child: Icon(icon, color: color, size: 20.sp),
         ),
@@ -729,6 +751,7 @@ List<Movie> _getFallbackTrendingMovies() {
           style: TextStyle(
             fontSize: 11.sp,
             color: Colors.white60,
+            fontWeight: FontWeight.w500,
           ),
           textAlign: TextAlign.center,
         ),
@@ -740,33 +763,45 @@ List<Movie> _getFallbackTrendingMovies() {
     return Container(
       width: 1.w,
       height: 40.h,
-      color: Colors.white.withValues(alpha: 0.1),
+      color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
     );
   }
 
   Widget _buildSwipingModeCarousel() {
-    final PageController _pageController = PageController(viewportFraction: 0.85);
+    final PageController pageController = PageController(viewportFraction: 0.85);
 
     final List<Map<String, dynamic>> swipingModes = [
       {
         'title': 'Solo',
         'subtitle': 'Your taste',
         'icon': Icons.person,
-        'gradient': const LinearGradient(colors: [Color(0xFFE5A00D), Color(0xFFFF8A00)]),
+        'gradient': const LinearGradient(
+          colors: [Color(0xFFE5A00D), Color(0xFFFF8A00)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         'onTap': () => _navigateToMatcher(MatchingMode.solo),
       },
       {
         'title': 'Friend',
         'subtitle': 'Match together',
         'icon': Icons.people,
-        'gradient': LinearGradient(colors: [Colors.purple.shade600, Colors.purple.shade800]),
+        'gradient': LinearGradient(
+          colors: [Colors.purple.shade600, Colors.purple.shade800],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         'onTap': () => _navigateToMatcher(MatchingMode.friend),
       },
       {
         'title': 'Group',
         'subtitle': 'Party mode',
         'icon': Icons.groups,
-        'gradient': LinearGradient(colors: [Colors.indigo.shade600, Colors.indigo.shade800]),
+        'gradient': LinearGradient(
+          colors: [Colors.indigo.shade600, Colors.indigo.shade800],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         'onTap': () => _navigateToMatcher(MatchingMode.group),
       },
     ];
@@ -774,31 +809,32 @@ List<Movie> _getFallbackTrendingMovies() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-          Text(
-                      textAlign: TextAlign.center,
+        Text(
           'Choose how you watch',
           style: TextStyle(
             fontSize: 20.sp,
             fontWeight: FontWeight.bold,
             color: Colors.white,
+            letterSpacing: 0.3,
           ),
         ),
-        SizedBox(height: 12.h),
+        SizedBox(height: 16.h),
         SizedBox(
           height: 180.h,
           child: PageView.builder(
-            controller: _pageController,
+            controller: pageController,
             itemCount: swipingModes.length,
             itemBuilder: (context, index) {
               final item = swipingModes[index];
 
               return AnimatedBuilder(
-                animation: _pageController,
+                animation: pageController,
                 builder: (context, child) {
                   double value = 1.0;
-                    if (_pageController.position.haveDimensions) {
-                      value = ((1 - (value.abs() * 0.2)).clamp(0.8, 1.0)).toDouble();
-                    }
+                  if (pageController.position.haveDimensions) {
+                    value = (pageController.page! - index).abs();
+                    value = ((1 - (value.abs() * 0.2)).clamp(0.8, 1.0)).toDouble();
+                  }
                   return Transform.scale(
                     scale: value,
                     child: Padding(
@@ -809,19 +845,39 @@ List<Movie> _getFallbackTrendingMovies() {
                           padding: EdgeInsets.all(20.w),
                           decoration: BoxDecoration(
                             gradient: item['gradient'],
-                            borderRadius: BorderRadius.circular(24),
+                            borderRadius: BorderRadius.circular(20.r),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.1),
+                              width: 1.w,
+                            ),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.25),
-                                blurRadius: 16,
-                                offset: Offset(0, 6),
+                                color: Colors.black.withValues(alpha: 0.4),
+                                blurRadius: 16.r,
+                                offset: Offset(0, 6.h),
+                              ),
+                              BoxShadow(
+                                color: const Color(0xFFE5A00D).withValues(alpha: 0.1),
+                                blurRadius: 20.r,
+                                offset: Offset(0, 8.h),
                               ),
                             ],
                           ),
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(item['icon'], size: 42.sp, color: Colors.white),
+                              Container(
+                                padding: EdgeInsets.all(12.w),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(16.r),
+                                ),
+                                child: Icon(
+                                  item['icon'], 
+                                  size: 32.sp, 
+                                  color: Colors.white,
+                                ),
+                              ),
                               SizedBox(height: 16.h),
                               Text(
                                 item['title'],
@@ -829,6 +885,7 @@ List<Movie> _getFallbackTrendingMovies() {
                                   fontSize: 18.sp,
                                   fontWeight: FontWeight.bold,
                                   color: Colors.white,
+                                  letterSpacing: 0.5,
                                 ),
                               ),
                               SizedBox(height: 6.h),
@@ -836,7 +893,7 @@ List<Movie> _getFallbackTrendingMovies() {
                                 item['subtitle'],
                                 style: TextStyle(
                                   fontSize: 14.sp,
-                                  color: Colors.white70,
+                                  color: Colors.white.withValues(alpha: 0.8),
                                 ),
                               ),
                             ],
@@ -853,13 +910,14 @@ List<Movie> _getFallbackTrendingMovies() {
         SizedBox(height: 12.h),
         Center(
           child: SmoothPageIndicator(
-            controller: _pageController,
+            controller: pageController,
             count: swipingModes.length,
             effect: ExpandingDotsEffect(
-              dotHeight: 6.h,
-              dotWidth: 6.h,
-              activeDotColor: Colors.white,
-              dotColor: Colors.white24,
+              dotHeight: 8.h,
+              dotWidth: 8.h,
+              activeDotColor: const Color(0xFFE5A00D),
+              dotColor: Colors.white.withValues(alpha: 0.3),
+              spacing: 8.w,
             ),
           ),
         ),
@@ -867,47 +925,44 @@ List<Movie> _getFallbackTrendingMovies() {
     );
   }
 
-
-
   Widget _buildEnhancedQuickActions() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-            SizedBox(height: 20.h),
-            
-            // Quick access section header
-            Text(
-              'Quick Access',
-              style: TextStyle(
-                fontSize: 16.sp,
-                fontWeight: FontWeight.w600,
-                color: Colors.white70,
+        Text(
+          'Quick Access',
+          style: TextStyle(
+            fontSize: 18.sp,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+            letterSpacing: 0.3,
+          ),
+        ),
+        SizedBox(height: 16.h),
+        Row(
+          children: [
+            Expanded(
+              child: _buildSecondaryActionCard(
+                title: 'My Matches',
+                subtitle: '${widget.profile.matchHistory.length} found',
+                icon: Icons.favorite,
+                color: Colors.red,
+                onTap: _navigateToMatches,
               ),
             ),
-            
-            SizedBox(height: 12.h),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildSecondaryActionCard(
-                    title: 'My Matches',
-                    subtitle: '${widget.profile.matchHistory.length} found',
-                    icon: Icons.favorite,
-                    onTap: _navigateToMatches,
-                  ),
-                ),
-                SizedBox(width: 12.w),
-                Expanded(
-                  child: _buildSecondaryActionCard(
-                    title: 'My Likes',
-                    subtitle: '${widget.profile.likedMovieIds.length} movies',
-                    icon: Icons.thumb_up,
-                    onTap: _navigateToLikedMovies,
-                  ),
-                ),
-              ],
+            SizedBox(width: 12.w),
+            Expanded(
+              child: _buildSecondaryActionCard(
+                title: 'My Likes',
+                subtitle: '${widget.profile.likedMovieIds.length} movies',
+                icon: Icons.thumb_up,
+                color: const Color(0xFFE5A00D),
+                onTap: _navigateToLikedMovies,
+              ),
             ),
           ],
+        ),
+      ],
     );
   }
 
@@ -925,86 +980,11 @@ List<Movie> _getFallbackTrendingMovies() {
     }
   }
 
-  Widget _buildActionButton({
-    required VoidCallback onTap,
-    required IconData icon,
-    required String label,
-    required String subtitle,
-    required bool isPrimary,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: double.infinity,
-        padding: EdgeInsets.all(20.w),
-        decoration: BoxDecoration(
-          gradient: isPrimary 
-            ? const LinearGradient(
-                colors: [Color(0xFFE5A00D), Color(0xFFFF8A00)],
-              )
-            : null,
-          color: isPrimary ? null : const Color(0xFF1F1F1F),
-          borderRadius: BorderRadius.circular(16.r),
-          border: isPrimary ? null : Border.all(
-            color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
-            width: 1.w,
-          ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: EdgeInsets.all(12.w),
-              decoration: BoxDecoration(
-                color: isPrimary 
-                  ? Colors.white.withValues(alpha: 0.2)
-                  : const Color(0xFFE5A00D).withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(12.r),
-              ),
-              child: Icon(
-                icon,
-                color: isPrimary ? Colors.white : const Color(0xFFE5A00D),
-                size: 20.sp,
-              ),
-            ),
-            SizedBox(width: 16.w),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 16.sp,
-                      fontWeight: FontWeight.bold,
-                      color: isPrimary ? Colors.white : Colors.white,
-                    ),
-                  ),
-                  SizedBox(height: 4.h),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      fontSize: 12.sp,
-                      color: isPrimary ? Colors.white.withValues(alpha: 0.8) : Colors.white70,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Icon(
-              Icons.arrow_forward_ios,
-              color: isPrimary ? Colors.white : Colors.white54,
-              size: 16.sp,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildSecondaryActionCard({
     required String title,
     required String subtitle,
     required IconData icon,
+    required Color color,
     required VoidCallback onTap,
   }) {
     return GestureDetector(
@@ -1012,16 +992,45 @@ List<Movie> _getFallbackTrendingMovies() {
       child: Container(
         padding: EdgeInsets.all(16.w),
         decoration: BoxDecoration(
-          color: const Color(0xFF1F1F1F),
-          borderRadius: BorderRadius.circular(12.r),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              const Color(0xFF2A2A2A),
+              const Color(0xFF1F1F1F),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(16.r),
+          border: Border.all(
+            color: color.withValues(alpha: 0.2),
+            width: 1.w,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.3),
+              blurRadius: 6.r,
+              offset: Offset(0, 2.h),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(
-              icon,
-              color: const Color(0xFFE5A00D),
-              size: 24.sp,
+            Container(
+              padding: EdgeInsets.all(8.w),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(12.r),
+                border: Border.all(
+                  color: color.withValues(alpha: 0.4),
+                  width: 1.w,
+                ),
+              ),
+              child: Icon(
+                icon,
+                color: color,
+                size: 20.sp,
+              ),
             ),
             SizedBox(height: 12.h),
             Text(
@@ -1047,93 +1056,94 @@ List<Movie> _getFallbackTrendingMovies() {
   }
 
   Widget _buildFilmIdentitySection(List<String> topGenres, List<String> topVibes) {
-    return Container(
-      padding: EdgeInsets.all(20.w),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            const Color(0xFF1F1F1F),
-            const Color(0xFF2A2A2A),
+    return GlassmorphicContainer(
+      width: double.infinity,
+      height: 120.h,
+      borderRadius: 16,
+      blur: 15,
+      alignment: Alignment.center,
+      border: 1,
+      linearGradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          const Color(0xFFE5A00D).withValues(alpha: 0.2),
+          Colors.orange.withValues(alpha: 0.15),
+          Colors.orange.shade600.withValues(alpha: 0.1),
+        ],
+      ),
+      borderGradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          const Color(0xFFE5A00D).withValues(alpha: 0.6),
+          Colors.orange.withValues(alpha: 0.4),
+          Colors.white.withValues(alpha: 0.2),
+        ],
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(20.w),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: EdgeInsets.all(8.w),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE5A00D).withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(12.r),
+                  ),
+                  child: Icon(
+                    Icons.psychology,
+                    color: Colors.white,
+                    size: 20.sp,
+                  ),
+                ),
+                SizedBox(width: 12.w),
+                Expanded(
+                  child: Text(
+                    'You\'re ${_getArticle(_getFilmIdentityTitle())} ${_getFilmIdentityTitle()}!',
+                    style: TextStyle(
+                      fontSize: 18.sp,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 12.h),
+            Wrap(
+              spacing: 8.w,
+              runSpacing: 8.h,
+              children: [...topGenres, ...topVibes].take(3).map((tag) => Container(
+                padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(20.r),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.3),
+                    width: 1.w,
+                  ),
+                ),
+                child: Text(
+                  tag,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 12.sp,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              )).toList(),
+            ),
           ],
         ),
-        borderRadius: BorderRadius.circular(16.r),
-        border: Border.all(
-          color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: EdgeInsets.all(8.w),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(8.r),
-                ),
-                child: Icon(
-                  Icons.psychology,
-                  color: const Color(0xFFE5A00D),
-                  size: 20.sp,
-                ),
-              ),
-              SizedBox(width: 12.w),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'You\'re ${_getArticle(_getFilmIdentityTitle())} ${_getFilmIdentityTitle()}!',
-                      style: TextStyle(
-                        fontSize: 18.sp,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                    Text(
-                      'Based on your taste profile',
-                      style: TextStyle(
-                        fontSize: 12.sp,
-                        color: Colors.white60,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 16.h),
-          Wrap(
-            spacing: 8.w,
-            runSpacing: 8.h,
-            children: [...topGenres, ...topVibes].take(3).map((tag) => Container(
-              padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
-              decoration: BoxDecoration(
-                color: const Color(0xFFE5A00D).withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(20.r),
-                border: Border.all(
-                  color: const Color(0xFFE5A00D).withValues(alpha: 0.3),
-                ),
-              ),
-              child: Text(
-                tag,
-                style: TextStyle(
-                  color: const Color(0xFFE5A00D),
-                  fontSize: 12.sp,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            )).toList(),
-          ),
-        ],
       ),
     );
   }
 
-  // NEW: Trending This Week section (replaces friend activity)
   Widget _buildTrendingThisWeek() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1147,7 +1157,11 @@ List<Movie> _getFallbackTrendingMovies() {
                   padding: EdgeInsets.all(8.w),
                   decoration: BoxDecoration(
                     color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(8.r),
+                    borderRadius: BorderRadius.circular(12.r),
+                    border: Border.all(
+                      color: const Color(0xFFE5A00D).withValues(alpha: 0.4),
+                      width: 1.w,
+                    ),
                   ),
                   child: Icon(
                     Icons.trending_up,
@@ -1165,6 +1179,7 @@ List<Movie> _getFallbackTrendingMovies() {
                         fontSize: 20.sp,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
+                        letterSpacing: 0.3,
                       ),
                     ),
                     Text(
@@ -1185,10 +1200,10 @@ List<Movie> _getFallbackTrendingMovies() {
             Container(
               padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
               decoration: BoxDecoration(
-                color: const Color(0xFFE5A00D).withValues(alpha: 0.1),
+                color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(12.r),
                 border: Border.all(
-                  color: const Color(0xFFE5A00D).withValues(alpha: 0.3),
+                  color: const Color(0xFFE5A00D).withValues(alpha: 0.4),
                   width: 1.w,
                 ),
               ),
@@ -1218,67 +1233,97 @@ List<Movie> _getFallbackTrendingMovies() {
         
         // Loading state
         if (_isLoadingTrending)
-          Container(
+          GlassmorphicContainer(
+            width: double.infinity,
             height: 120.h,
-            child: Center(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  SizedBox(
-                    width: 20.w,
-                    height: 20.w,
-                    child: CircularProgressIndicator(
-                      color: const Color(0xFFE5A00D),
-                      strokeWidth: 2.w,
-                    ),
+            borderRadius: 16,
+            blur: 15,
+            alignment: Alignment.center,
+            border: 1,
+            linearGradient: LinearGradient(
+              colors: [
+                Colors.white.withValues(alpha: 0.1),
+                Colors.white.withValues(alpha: 0.05),
+              ],
+            ),
+            borderGradient: LinearGradient(
+              colors: [
+                const Color(0xFFE5A00D).withValues(alpha: 0.3),
+                Colors.white.withValues(alpha: 0.1),
+              ],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                SizedBox(
+                  width: 20.w,
+                  height: 20.w,
+                  child: CircularProgressIndicator(
+                    color: const Color(0xFFE5A00D),
+                    strokeWidth: 2.w,
                   ),
-                  SizedBox(width: 12.w),
-                  Text(
-                    'Loading trending from TMDB...',
-                    style: TextStyle(
-                      color: Colors.white60,
-                      fontSize: 14.sp,
-                    ),
+                ),
+                SizedBox(width: 12.w),
+                Text(
+                  'Loading trending from TMDB...',
+                  style: TextStyle(
+                    color: Colors.white60,
+                    fontSize: 14.sp,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           )
         // Empty state
         else if (_trendingMovies.isEmpty)
-          Container(
+          GlassmorphicContainer(
+            width: double.infinity,
             height: 120.h,
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.trending_down,
-                    color: Colors.white30,
-                    size: 32.sp,
+            borderRadius: 16,
+            blur: 15,
+            alignment: Alignment.center,
+            border: 1,
+            linearGradient: LinearGradient(
+              colors: [
+                Colors.white.withValues(alpha: 0.08),
+                Colors.white.withValues(alpha: 0.04),
+              ],
+            ),
+            borderGradient: LinearGradient(
+              colors: [
+                Colors.white.withValues(alpha: 0.2),
+                Colors.white.withValues(alpha: 0.1),
+              ],
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.trending_down,
+                  color: Colors.white30,
+                  size: 32.sp,
+                ),
+                SizedBox(height: 8.h),
+                Text(
+                  'No trending movies available',
+                  style: TextStyle(
+                    color: Colors.white60,
+                    fontSize: 14.sp,
                   ),
-                  SizedBox(height: 8.h),
-                  Text(
-                    'No trending movies available',
+                ),
+                SizedBox(height: 8.h),
+                GestureDetector(
+                  onTap: _loadTrendingMovies,
+                  child: Text(
+                    'Tap to retry',
                     style: TextStyle(
-                      color: Colors.white60,
-                      fontSize: 14.sp,
+                      color: const Color(0xFFE5A00D),
+                      fontSize: 12.sp,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                  SizedBox(height: 8.h),
-                  GestureDetector(
-                    onTap: _loadTrendingMovies,
-                    child: Text(
-                      'Tap to retry',
-                      style: TextStyle(
-                        color: const Color(0xFFE5A00D),
-                        fontSize: 12.sp,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           )
         // Trending movies list
@@ -1292,143 +1337,177 @@ List<Movie> _getFallbackTrendingMovies() {
             
             return Container(
               margin: EdgeInsets.only(bottom: 12.h),
-              padding: EdgeInsets.all(16.w),
               decoration: BoxDecoration(
-                color: const Color(0xFF1F1F1F),
-                borderRadius: BorderRadius.circular(12.r),
-                border: rank == 1 ? Border.all(
-                  color: const Color(0xFFE5A00D).withValues(alpha: 0.3),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    const Color(0xFF2A2A2A),
+                    const Color(0xFF1F1F1F),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(16.r),
+                border: Border.all(
+                  color: rank == 1 
+                    ? const Color(0xFFE5A00D).withValues(alpha: 0.4)
+                    : const Color(0xFFE5A00D).withValues(alpha: 0.2),
                   width: 1.w,
-                ) : null,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.3),
+                    blurRadius: 6.r,
+                    offset: Offset(0, 2.h),
+                  ),
+                ],
               ),
-              child: GestureDetector(
-                onTap: () {
-                  showMovieDetails(
-                    context: context,
-                    movie: movie,
-                    currentUser: widget.profile,
-                  );
-                },
-                child: Row(
-                  children: [
-                    // Rank badge
-                    Container(
-                      width: 32.w,
-                      height: 32.w,
-                      decoration: BoxDecoration(
-                        color: rank == 1 
-                          ? const Color(0xFFE5A00D) 
-                          : rank == 2 
-                            ? Colors.grey[600]
-                            : Colors.grey[700],
-                        borderRadius: BorderRadius.circular(8.r),
-                      ),
-                      child: Center(
-                        child: Text(
-                          '$rank',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14.sp,
-                          ),
-                        ),
-                      ),
-                    ),
-                    SizedBox(width: 12.w),
-                    
-                    // Movie poster
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8.r),
-                      child: Image.network(
-                        movie.posterUrl,
-                        width: 50.w,
-                        height: 75.h,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
-                          width: 50.w,
-                          height: 75.h,
-                          color: Colors.grey[800],
-                          child: Icon(Icons.movie, size: 20.sp, color: Colors.white30),
-                        ),
-                      ),
-                    ),
-                    SizedBox(width: 16.w),
-                    
-                    // Movie info
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            movie.title,
-                            style: TextStyle(
-                              fontSize: 16.sp,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () {
+                    showMovieDetails(
+                      context: context,
+                      movie: movie,
+                      currentUser: widget.profile,
+                    );
+                  },
+                  borderRadius: BorderRadius.circular(16.r),
+                  child: Padding(
+                    padding: EdgeInsets.all(16.w),
+                    child: Row(
+                      children: [
+                        // Rank badge
+                        Container(
+                          width: 32.w,
+                          height: 32.w,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: rank == 1 
+                                ? [const Color(0xFFE5A00D), Colors.orange.shade600]
+                                : [Colors.grey[600]!, Colors.grey[700]!],
                             ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          SizedBox(height: 4.h),
-                          Text(
-                            movie.genres.take(2).join(' • '),
-                            style: TextStyle(
-                              color: const Color(0xFFE5A00D),
-                              fontSize: 12.sp,
-                            ),
-                          ),
-                          SizedBox(height: 8.h),
-                          
-                          // Trending stats
-                          Row(
-                            children: [
-                              Icon(
-                                stats['trend'] == 'up' ? Icons.trending_up : Icons.whatshot,
-                                color: stats['trend'] == 'up' ? Colors.green : Colors.orange,
-                                size: 14.sp,
-                              ),
-                              SizedBox(width: 4.w),
-                              Text(
-                                '${stats['views']} views',
-                                style: TextStyle(
-                                  color: Colors.white60,
-                                  fontSize: 11.sp,
-                                ),
-                              ),
-                              SizedBox(width: 12.w),
-                              Icon(
-                                Icons.favorite,
-                                color: Colors.red,
-                                size: 12.sp,
-                              ),
-                              SizedBox(width: 4.w),
-                              Text(
-                                '${stats['likes']}',
-                                style: TextStyle(
-                                  color: Colors.white60,
-                                  fontSize: 11.sp,
-                                ),
+                            borderRadius: BorderRadius.circular(10.r),
+                            boxShadow: [
+                              BoxShadow(
+                                color: (rank == 1 ? const Color(0xFFE5A00D) : Colors.grey[600]!)
+                                    .withValues(alpha: 0.3),
+                                blurRadius: 4.r,
+                                offset: Offset(0, 2.h),
                               ),
                             ],
                           ),
-                        ],
-                      ),
+                          child: Center(
+                            child: Text(
+                              '$rank',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14.sp,
+                              ),
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: 12.w),
+                        
+                        // Movie poster
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8.r),
+                          child: Image.network(
+                            movie.posterUrl,
+                            width: 50.w,
+                            height: 75.h,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(
+                              width: 50.w,
+                              height: 75.h,
+                              color: Colors.grey[800],
+                              child: Icon(Icons.movie, size: 20.sp, color: Colors.white30),
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: 16.w),
+                        
+                        // Movie info
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                movie.title,
+                                style: TextStyle(
+                                  fontSize: 16.sp,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              SizedBox(height: 4.h),
+                              Text(
+                                movie.genres.take(2).join(' • '),
+                                style: TextStyle(
+                                  color: const Color(0xFFE5A00D),
+                                  fontSize: 12.sp,
+                                ),
+                              ),
+                              SizedBox(height: 8.h),
+                              
+                              // Trending stats
+                              Row(
+                                children: [
+                                  Icon(
+                                    stats['trend'] == 'up' ? Icons.trending_up : Icons.whatshot,
+                                    color: stats['trend'] == 'up' ? Colors.green : Colors.orange,
+                                    size: 14.sp,
+                                  ),
+                                  SizedBox(width: 4.w),
+                                  Text(
+                                    '${stats['views']} views',
+                                    style: TextStyle(
+                                      color: Colors.white60,
+                                      fontSize: 11.sp,
+                                    ),
+                                  ),
+                                  SizedBox(width: 12.w),
+                                  Icon(
+                                    Icons.favorite,
+                                    color: Colors.red,
+                                    size: 12.sp,
+                                  ),
+                                  SizedBox(width: 4.w),
+                                  Text(
+                                    '${stats['likes']}',
+                                    style: TextStyle(
+                                      color: Colors.white60,
+                                      fontSize: 11.sp,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        
+                        // Action button
+                        Container(
+                          padding: EdgeInsets.all(8.w),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(8.r),
+                            border: Border.all(
+                              color: const Color(0xFFE5A00D).withValues(alpha: 0.4),
+                              width: 1.w,
+                            ),
+                          ),
+                          child: Icon(
+                            Icons.play_arrow,
+                            color: const Color(0xFFE5A00D),
+                            size: 20.sp,
+                          ),
+                        ),
+                      ],
                     ),
-                    
-                    // Action button
-                    Container(
-                      padding: EdgeInsets.all(8.w),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFE5A00D).withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8.r),
-                      ),
-                      child: Icon(
-                        Icons.play_arrow,
-                        color: const Color(0xFFE5A00D),
-                        size: 20.sp,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
             );
@@ -1443,7 +1522,7 @@ List<Movie> _getFallbackTrendingMovies() {
               padding: EdgeInsets.symmetric(vertical: 12.h),
               decoration: BoxDecoration(
                 color: Colors.transparent,
-                borderRadius: BorderRadius.circular(8.r),
+                borderRadius: BorderRadius.circular(12.r),
                 border: Border.all(
                   color: const Color(0xFFE5A00D).withValues(alpha: 0.3),
                   width: 1.w,
@@ -1482,9 +1561,10 @@ List<Movie> _getFallbackTrendingMovies() {
         Text(
           'Feeling Adventurous?',
           style: TextStyle(
-            fontSize: 18.sp,
+            fontSize: 20.sp,
             fontWeight: FontWeight.bold,
             color: Colors.white,
+            letterSpacing: 0.3,
           ),
         ),
         SizedBox(height: 16.h),
@@ -1508,12 +1588,87 @@ List<Movie> _getFallbackTrendingMovies() {
   }
 
   Widget _buildRandomButton() {
-    return _buildActionButton(
-      onTap: _generateRandomPick,
-      icon: _isLoadingRandom ? Icons.hourglass_empty : Icons.casino,
-      label: _isLoadingRandom ? "Finding your film..." : "Random Film",
-      subtitle: "Let us surprise you with something great",
-      isPrimary: true,
+    return GlassmorphicContainer(
+      width: double.infinity,
+      height: 70.h,
+      borderRadius: 16,
+      blur: 15,
+      alignment: Alignment.center,
+      border: 1,
+      linearGradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          const Color(0xFFE5A00D).withValues(alpha: 0.3),
+          Colors.orange.withValues(alpha: 0.25),
+          Colors.orange.shade600.withValues(alpha: 0.2),
+        ],
+      ),
+      borderGradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          const Color(0xFFE5A00D).withValues(alpha: 0.6),
+          Colors.orange.withValues(alpha: 0.4),
+          Colors.white.withValues(alpha: 0.2),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _generateRandomPick,
+          borderRadius: BorderRadius.circular(16.r),
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20.w),
+            child: Row(
+              children: [
+                Container(
+                  padding: EdgeInsets.all(12.w),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(12.r),
+                  ),
+                  child: Icon(
+                    _isLoadingRandom ? Icons.hourglass_empty : Icons.casino,
+                    color: Colors.white,
+                    size: 20.sp,
+                  ),
+                ),
+                SizedBox(width: 16.w),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        _isLoadingRandom ? "Finding your film..." : "Random Film",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16.sp,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                      Text(
+                        "Let us surprise you with something great",
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.9),
+                          fontSize: 12.sp,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_forward_ios,
+                  color: Colors.white.withValues(alpha: 0.8),
+                  size: 16.sp,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -1529,17 +1684,31 @@ List<Movie> _getFallbackTrendingMovies() {
       child: Container(
         padding: EdgeInsets.all(16.w),
         decoration: BoxDecoration(
-          color: const Color(0xFF1F1F1F),
-          borderRadius: BorderRadius.circular(12.r),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              const Color(0xFF2A2A2A),
+              const Color(0xFF1F1F1F),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(16.r),
           border: Border.all(
             color: const Color(0xFFE5A00D).withValues(alpha: 0.3),
             width: 1.w,
           ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.3),
+              blurRadius: 6.r,
+              offset: Offset(0, 2.h),
+            ),
+          ],
         ),
         child: Row(
           children: [
             ClipRRect(
-              borderRadius: BorderRadius.circular(8.r),
+              borderRadius: BorderRadius.circular(12.r),
               child: Image.network(
                 _randomPick!.posterUrl,
                 width: 60.w,
@@ -1580,8 +1749,12 @@ List<Movie> _getFallbackTrendingMovies() {
                   Container(
                     padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFE5A00D).withValues(alpha: 0.1),
+                      color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(12.r),
+                      border: Border.all(
+                        color: const Color(0xFFE5A00D).withValues(alpha: 0.4),
+                        width: 1.w,
+                      ),
                     ),
                     child: Text(
                       'Tap to view details',
@@ -1598,8 +1771,12 @@ List<Movie> _getFallbackTrendingMovies() {
             Container(
               padding: EdgeInsets.all(8.w),
               decoration: BoxDecoration(
-                color: const Color(0xFFE5A00D).withValues(alpha: 0.1),
+                color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(8.r),
+                border: Border.all(
+                  color: const Color(0xFFE5A00D).withValues(alpha: 0.4),
+                  width: 1.w,
+                ),
               ),
               child: Icon(
                 Icons.play_arrow,
@@ -1625,6 +1802,7 @@ List<Movie> _getFallbackTrendingMovies() {
                 fontSize: 20.sp,
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
+                letterSpacing: 0.3,
               ),
             ),
             const Spacer(),
@@ -1633,6 +1811,10 @@ List<Movie> _getFallbackTrendingMovies() {
               decoration: BoxDecoration(
                 color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(12.r),
+                border: Border.all(
+                  color: const Color(0xFFE5A00D).withValues(alpha: 0.4),
+                  width: 1.w,
+                ),
               ),
               child: Text(
                 '${movies.length} picks',
@@ -1647,7 +1829,6 @@ List<Movie> _getFallbackTrendingMovies() {
         ),
         SizedBox(height: 16.h),
         
-        // Enhanced movie grid with better cards
         SizedBox(
           height: 240.h,
           child: ListView.builder(
@@ -1665,80 +1846,112 @@ List<Movie> _getFallbackTrendingMovies() {
                 child: Container(
                   width: 140.w,
                   margin: EdgeInsets.only(right: 16.w),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12.r),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.3),
-                        blurRadius: 8.r,
-                        offset: Offset(0, 4.h),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(12.r),
-                          child: Stack(
-                            children: [
-                              Image.network(
-                                movie.posterUrl,
-                                width: double.infinity,
-                                height: double.infinity,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => Container(
-                                  color: Colors.grey[800],
-                                  child: Icon(Icons.movie, size: 40.sp, color: Colors.white30),
-                                ),
+                  child: TweenAnimationBuilder<double>(
+                    duration: Duration(milliseconds: 300 + (index * 100)),
+                    tween: Tween(begin: 0.0, end: 1.0),
+                    builder: (context, value, child) {
+                      return Transform.translate(
+                        offset: Offset(0, 16.h * (1 - value)),
+                        child: Opacity(
+                          opacity: value,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16.r),
+                              border: Border.all(
+                                color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
+                                width: 1.w,
                               ),
-                              // Gradient overlay for better text readability
-                              Positioned(
-                                bottom: 0,
-                                left: 0,
-                                right: 0,
-                                child: Container(
-                                  height: 60.h,
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      begin: Alignment.topCenter,
-                                      end: Alignment.bottomCenter,
-                                      colors: [
-                                        Colors.transparent,
-                                        Colors.black.withValues(alpha: 0.8),
-                                      ],
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.4),
+                                  blurRadius: 8.r,
+                                  offset: Offset(0, 4.h),
+                                ),
+                              ],
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(16.r),
+                              child: Stack(
+                                children: [
+                                  Image.network(
+                                    movie.posterUrl,
+                                    width: double.infinity,
+                                    height: double.infinity,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => Container(
+                                      color: const Color(0xFF2A2A2A),
+                                      child: Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            Icons.broken_image,
+                                            color: Colors.white30,
+                                            size: 32.sp,
+                                          ),
+                                          SizedBox(height: 8.h),
+                                          Text(
+                                            movie.title,
+                                            style: TextStyle(
+                                              color: Colors.white70,
+                                              fontSize: 10.sp,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                            textAlign: TextAlign.center,
+                                            maxLines: 3,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ),
-                                ),
-                              ),
-                              // Movie title overlay
-                              Positioned(
-                                bottom: 8.h,
-                                left: 8.w,
-                                right: 8.w,
-                                child: Text(
-                                  movie.title,
-                                  style: TextStyle(
-                                    fontSize: 13.sp,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                    shadows: [
-                                      Shadow(
-                                        color: Colors.black.withValues(alpha: 0.5),
-                                        blurRadius: 4,
+                                  // Gradient overlay for better text readability
+                                  Positioned(
+                                    bottom: 0,
+                                    left: 0,
+                                    right: 0,
+                                    child: Container(
+                                      height: 80.h,
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          begin: Alignment.topCenter,
+                                          end: Alignment.bottomCenter,
+                                          colors: [
+                                            Colors.transparent,
+                                            Colors.black.withValues(alpha: 0.8),
+                                          ],
+                                        ),
                                       ),
-                                    ],
+                                    ),
                                   ),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
+                                  // Movie title overlay
+                                  Positioned(
+                                    bottom: 12.h,
+                                    left: 12.w,
+                                    right: 12.w,
+                                    child: Text(
+                                      movie.title,
+                                      style: TextStyle(
+                                        fontSize: 13.sp,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                        shadows: [
+                                          Shadow(
+                                            color: Colors.black.withValues(alpha: 0.5),
+                                            blurRadius: 4,
+                                          ),
+                                        ],
+                                      ),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ],
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                      );
+                    },
                   ),
                 ),
               );
@@ -1761,10 +1974,28 @@ List<Movie> _getFallbackTrendingMovies() {
       ..sort((a, b) => b.value.compareTo(a.value));
 
     return Container(
-      padding: EdgeInsets.all(16.w),
+      padding: EdgeInsets.all(20.w),
       decoration: BoxDecoration(
-        color: const Color(0xFF1F1F1F),
-        borderRadius: BorderRadius.circular(12.r),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            const Color(0xFF2A2A2A),
+            const Color(0xFF1F1F1F),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16.r),
+        border: Border.all(
+          color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
+          width: 1.w,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.3),
+            blurRadius: 8.r,
+            offset: Offset(0, 2.h),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1775,6 +2006,7 @@ List<Movie> _getFallbackTrendingMovies() {
               fontSize: 18.sp,
               fontWeight: FontWeight.bold,
               color: Colors.white,
+              letterSpacing: 0.3,
             ),
           ),
           SizedBox(height: 16.h),
@@ -1808,6 +2040,7 @@ List<Movie> _getFallbackTrendingMovies() {
           style: TextStyle(
             fontSize: 12.sp,
             color: Colors.white70,
+            fontWeight: FontWeight.w500,
           ),
           textAlign: TextAlign.center,
         ),
@@ -1822,9 +2055,10 @@ List<Movie> _getFallbackTrendingMovies() {
         Text(
           'Recommended for You',
           style: TextStyle(
-            fontSize: 18.sp,
+            fontSize: 20.sp,
             fontWeight: FontWeight.bold,
             color: Colors.white,
+            letterSpacing: 0.3,
           ),
         ),
         SizedBox(height: 16.h),
@@ -1850,15 +2084,31 @@ List<Movie> _getFallbackTrendingMovies() {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(8.r),
-                          child: Image.network(
-                            movie.posterUrl,
-                            width: double.infinity,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(
-                              color: Colors.grey[800],
-                              child: Icon(Icons.movie, size: 40.sp, color: Colors.white30),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12.r),
+                            border: Border.all(
+                              color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
+                              width: 1.w,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.3),
+                                blurRadius: 6.r,
+                                offset: Offset(0, 2.h),
+                              ),
+                            ],
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12.r),
+                            child: Image.network(
+                              movie.posterUrl,
+                              width: double.infinity,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                color: const Color(0xFF2A2A2A),
+                                child: Icon(Icons.movie, size: 40.sp, color: Colors.white30),
+                              ),
                             ),
                           ),
                         ),

@@ -209,11 +209,19 @@ class _SessionHubWidgetState extends State<SessionHubWidget> {
 
   Widget _buildSessionHistoryView() {
     return SingleChildScrollView(
-      padding: EdgeInsets.all(16.r),
+      // 🔥 FIXED: Replace the existing padding with proper navigation spacing
+      padding: EdgeInsets.only(
+        left: 16.w,
+        right: 16.w,
+        top: 16.h,
+        // ✅ CRITICAL: Add enough bottom padding for your floating nav bar
+        bottom: MediaQuery.of(context).viewPadding.bottom + 95.h + 16.h,
+        // Breakdown: device safe area + (70.h nav height + 25.h position) + 16.h visual spacing
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ✅ ADD: SessionControlsWidget at the top of scrollable content
+          // ✅ SessionControlsWidget at the top of scrollable content
           SessionControlsWidget(
             currentMode: widget.currentMode,
             hasStartedSession: widget.hasStartedSession,
@@ -232,7 +240,7 @@ class _SessionHubWidgetState extends State<SessionHubWidget> {
           
           SizedBox(height: 24.h),
           
-          // ✅ THEN: Show loading state or session history
+          // ✅ Show loading state or session history
           if (_isLoadingHistory)
             _buildLoadingState()
           else

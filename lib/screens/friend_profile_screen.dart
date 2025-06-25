@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:glassmorphism/glassmorphism.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user_profile.dart';
 import '../movie.dart';
+import '../services/friendship_service.dart';
 import '../widgets/compatibility_chart.dart';
 import '../services/recommendation_service.dart';
 import '../utils/movie_loader.dart';
@@ -354,61 +356,94 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Custom App Bar
-            _buildCustomAppBar(),
-            
-            // Content
-            Expanded(
-              child: _isLoading
-                  ? Center(
-                      child: CircularProgressIndicator(
-                        color: const Color(0xFFE5A00D),
-                        strokeWidth: 3.w,
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              const Color(0xFF121212),
+              const Color(0xFF121212),
+              const Color(0xFF0F0F0F),
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              // Custom App Bar
+              _buildCustomAppBar(),
+              
+              // Content
+              Expanded(
+                child: _isLoading
+                    ? Center(
+                        child: GlassmorphicContainer(
+                          width: 80.w,
+                          height: 80.h,
+                          borderRadius: 16,
+                          blur: 15,
+                          alignment: Alignment.center,
+                          border: 1,
+                          linearGradient: LinearGradient(
+                            colors: [
+                              Colors.white.withValues(alpha: 0.1),
+                              Colors.white.withValues(alpha: 0.05),
+                            ],
+                          ),
+                          borderGradient: LinearGradient(
+                            colors: [
+                              const Color(0xFFE5A00D).withValues(alpha: 0.3),
+                              Colors.white.withValues(alpha: 0.1),
+                            ],
+                          ),
+                          child: CircularProgressIndicator(
+                            color: const Color(0xFFE5A00D),
+                            strokeWidth: 2.w,
+                          ),
+                        ),
+                      )
+                    : SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        padding: EdgeInsets.all(16.w),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Friend profile card with compatibility
+                            _buildProfileCard(),
+                            
+                            SizedBox(height: 20.h),
+                            
+                            // Match button
+                            _buildMatchButton(),
+                            
+                            SizedBox(height: 24.h),
+                            
+                            // Matches section
+                            _buildMatchesSection(),
+                            
+                            SizedBox(height: 24.h),
+                            
+                            // Compatibility breakdown
+                            _buildCompatibilitySection(),
+                            
+                            SizedBox(height: 24.h),
+                            
+                            // Movie recommendations section
+                            _buildRecommendationsSection(),
+                            
+                            SizedBox(height: 24.h),
+                            
+                            // Shared liked movies section
+                            _buildSharedLikesSection(),
+                            
+                            SizedBox(height: 80.h), // Bottom padding
+                          ],
+                        ),
                       ),
-                    )
-                  : SingleChildScrollView(
-                      physics: const BouncingScrollPhysics(),
-                      padding: EdgeInsets.all(16.w),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Friend profile card with compatibility
-                          _buildProfileCard(),
-                          
-                          SizedBox(height: 24.h),
-                          
-                          // Match button
-                          _buildMatchButton(),
-                          
-                          SizedBox(height: 32.h),
-                          
-                          // Matches section
-                          _buildMatchesSection(),
-                          
-                          SizedBox(height: 32.h),
-                          
-                          // Compatibility breakdown
-                          _buildCompatibilitySection(),
-                          
-                          SizedBox(height: 32.h),
-                          
-                          // Movie recommendations section
-                          _buildRecommendationsSection(),
-                          
-                          SizedBox(height: 32.h),
-                          
-                          // Shared liked movies section
-                          _buildSharedLikesSection(),
-                          
-                          SizedBox(height: 80.h), // Bottom padding
-                        ],
-                      ),
-                    ),
-            ),
-          ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -423,7 +458,7 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
             Icon(
               Icons.movie_creation_outlined,
               color: Colors.green,
-              size: 24.sp,
+              size: 20.sp,
             ),
             SizedBox(width: 8.w),
             Expanded(
@@ -431,7 +466,7 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
                 "Your Matches Together",
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: 20.sp,
+                  fontSize: 18.sp,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -443,7 +478,7 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
                   color: Colors.green.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(12.r),
                   border: Border.all(
-                    color: Colors.green,
+                    color: Colors.green.withValues(alpha: 0.5),
                     width: 1.w,
                   ),
                 ),
@@ -459,7 +494,7 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
           ],
         ),
         
-        SizedBox(height: 16.h),
+        SizedBox(height: 12.h),
         
         _matchedMovies.isEmpty
             ? _buildEmptyState(
@@ -475,7 +510,7 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
 
   Widget _buildMatchesCarousel(List<Movie> movies) {
     return SizedBox(
-      height: 220.h, // Slightly taller for date overlay
+      height: 200.h,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         padding: EdgeInsets.symmetric(horizontal: 8.w),
@@ -582,7 +617,7 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
                   left: 0,
                   right: 0,
                   child: Container(
-                    height: 60.h,
+                    height: 50.h,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
@@ -650,7 +685,20 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
       decoration: BoxDecoration(
-        color: const Color(0xFF1F1F1F),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            const Color(0xFF2A2A2A),
+            const Color(0xFF1F1F1F),
+          ],
+        ),
+        border: Border(
+          bottom: BorderSide(
+            color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
+            width: 1.w,
+          ),
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.3),
@@ -683,15 +731,22 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
                 end: Alignment.bottomRight,
                 colors: [
                   const Color(0xFFE5A00D),
-                  const Color(0xFFFF8A00),
+                  Colors.orange.shade600,
                 ],
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFE5A00D).withValues(alpha: 0.3),
+                  blurRadius: 6.r,
+                  spreadRadius: 1.r,
+                ),
+              ],
             ),
             child: Center(
               child: Text(
                 widget.friend.name.isNotEmpty ? widget.friend.name[0].toUpperCase() : "?",
                 style: TextStyle(
-                  fontSize: 20.sp,
+                  fontSize: 18.sp,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
                 ),
@@ -705,7 +760,7 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
             child: Text(
               widget.friend.name,
               style: TextStyle(
-                fontSize: 20.sp,
+                fontSize: 18.sp,
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
               ),
@@ -771,15 +826,31 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
     }
     
     return Container(
-      padding: EdgeInsets.all(20.w),
+      padding: EdgeInsets.all(18.w),
       decoration: BoxDecoration(
-        color: const Color(0xFF1F1F1F),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            const Color(0xFF2A2A2A),
+            const Color(0xFF1F1F1F),
+          ],
+        ),
         borderRadius: BorderRadius.circular(16.r),
+        border: Border.all(
+          color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
+          width: 1.w,
+        ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFE5A00D).withValues(alpha: 0.1),
+            color: Colors.black.withValues(alpha: 0.3),
             blurRadius: 8.r,
             offset: Offset(0, 2.h),
+          ),
+          BoxShadow(
+            color: const Color(0xFFE5A00D).withValues(alpha: 0.1),
+            blurRadius: 16.r,
+            offset: Offset(0, 4.h),
           ),
         ],
       ),
@@ -789,8 +860,8 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
             children: [
               // Friend avatar (larger)
               Container(
-                width: 80.w,
-                height: 80.w,
+                width: 70.w,
+                height: 70.w,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: LinearGradient(
@@ -798,12 +869,12 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
                     end: Alignment.bottomRight,
                     colors: [
                       const Color(0xFFE5A00D),
-                      const Color(0xFFFF8A00),
+                      Colors.orange.shade600,
                     ],
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFFE5A00D).withValues(alpha: 0.3),
+                      color: const Color(0xFFE5A00D).withValues(alpha: 0.4),
                       blurRadius: 12.r,
                       spreadRadius: 2.r,
                     ),
@@ -813,7 +884,7 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
                   child: Text(
                     widget.friend.name.isNotEmpty ? widget.friend.name[0].toUpperCase() : "?",
                     style: TextStyle(
-                      fontSize: 32.sp,
+                      fontSize: 28.sp,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
                     ),
@@ -821,7 +892,7 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
                 ),
               ),
               
-              SizedBox(width: 20.w),
+              SizedBox(width: 18.w),
               
               // Compatibility info
               Expanded(
@@ -831,13 +902,13 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
                     Text(
                       "Movie Compatibility",
                       style: TextStyle(
-                        fontSize: 16.sp,
+                        fontSize: 14.sp,
                         color: Colors.white70,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
                     
-                    SizedBox(height: 8.h),
+                    SizedBox(height: 6.h),
                     
                     Row(
                       children: [
@@ -845,32 +916,32 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
                         Text(
                           "$compatibilityScore%",
                           style: TextStyle(
-                            fontSize: 36.sp,
+                            fontSize: 32.sp,
                             fontWeight: FontWeight.bold,
                             color: compatibilityColor,
                           ),
                         ),
                         
-                        SizedBox(width: 12.w),
+                        SizedBox(width: 10.w),
                         
                         // Compatibility level
                         Container(
                           padding: EdgeInsets.symmetric(
-                            horizontal: 12.w,
-                            vertical: 6.h,
+                            horizontal: 10.w,
+                            vertical: 4.h,
                           ),
                           decoration: BoxDecoration(
                             color: compatibilityColor.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(12.r),
+                            borderRadius: BorderRadius.circular(10.r),
                             border: Border.all(
-                              color: compatibilityColor,
+                              color: compatibilityColor.withValues(alpha: 0.5),
                               width: 1.w,
                             ),
                           ),
                           child: Text(
                             compatibilityLevel,
                             style: TextStyle(
-                              fontSize: 12.sp,
+                              fontSize: 11.sp,
                               fontWeight: FontWeight.bold,
                               color: compatibilityColor,
                             ),
@@ -884,7 +955,7 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
             ],
           ),
           
-          SizedBox(height: 24.h),
+          SizedBox(height: 20.h),
           
           // Shared likes stats
           Row(
@@ -911,7 +982,7 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
         Text(
           value.toString(),
           style: TextStyle(
-            fontSize: 28.sp,
+            fontSize: 24.sp,
             fontWeight: FontWeight.bold,
             color: const Color(0xFFE5A00D),
           ),
@@ -920,7 +991,7 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
         Text(
           label,
           style: TextStyle(
-            fontSize: 12.sp,
+            fontSize: 11.sp,
             color: Colors.white70,
             fontWeight: FontWeight.w500,
           ),
@@ -933,38 +1004,57 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
   Widget _buildMatchButton() {
     return Container(
       width: double.infinity,
-      child: ElevatedButton.icon(
-        onPressed: () {
-          final sessionId = DateTime.now().millisecondsSinceEpoch.toString();
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => MatcherScreen(
-                sessionId: sessionId,
-                allMovies: widget.allMovies,
-                currentUser: widget.currentUser,
-                friendIds: [widget.friend],
-              ),
-            ),
-          );
-        },
-        icon: Icon(Icons.movie_filter, color: Colors.white, size: 20.sp),
-        label: Text(
-          "Start Movie Matching",
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 16.sp,
-            fontWeight: FontWeight.bold,
-          ),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [const Color(0xFFE5A00D), Colors.orange.shade600],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFFE5A00D),
-          padding: EdgeInsets.symmetric(vertical: 16.h),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12.r),
+        borderRadius: BorderRadius.circular(14.r),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFE5A00D).withValues(alpha: 0.4),
+            blurRadius: 12.r,
+            offset: Offset(0, 4.h),
           ),
-          elevation: 4,
-          shadowColor: const Color(0xFFE5A00D).withValues(alpha: 0.3),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            final sessionId = DateTime.now().millisecondsSinceEpoch.toString();
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => MatcherScreen(
+                  sessionId: sessionId,
+                  allMovies: widget.allMovies,
+                  currentUser: widget.currentUser,
+                  friendIds: [widget.friend],
+                ),
+              ),
+            );
+          },
+          borderRadius: BorderRadius.circular(14.r),
+          child: Container(
+            padding: EdgeInsets.symmetric(vertical: 14.h),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.movie_filter, color: Colors.white, size: 20.sp),
+                SizedBox(width: 10.w),
+                Text(
+                  "Start Movie Matching",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16.sp,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -978,20 +1068,27 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
           "Compatibility Breakdown",
           style: TextStyle(
             color: Colors.white,
-            fontSize: 20.sp,
+            fontSize: 18.sp,
             fontWeight: FontWeight.bold,
           ),
         ),
         
-        SizedBox(height: 16.h),
+        SizedBox(height: 12.h),
         
         Container(
           padding: EdgeInsets.all(16.w),
           decoration: BoxDecoration(
-            color: const Color(0xFF1F1F1F),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                const Color(0xFF2A2A2A),
+                const Color(0xFF1F1F1F),
+              ],
+            ),
             borderRadius: BorderRadius.circular(12.r),
             border: Border.all(
-              color: const Color(0xFFE5A00D).withValues(alpha: 0.3),
+              color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
               width: 1.w,
             ),
           ),
@@ -1014,7 +1111,7 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
             Icon(
               Icons.recommend,
               color: const Color(0xFFE5A00D),
-              size: 24.sp,
+              size: 20.sp,
             ),
             SizedBox(width: 8.w),
             Expanded(
@@ -1022,7 +1119,7 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
                 "Movies You Might Both Enjoy",
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: 20.sp,
+                  fontSize: 18.sp,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -1034,7 +1131,7 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
                   color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(12.r),
                   border: Border.all(
-                    color: const Color(0xFFE5A00D),
+                    color: const Color(0xFFE5A00D).withValues(alpha: 0.5),
                     width: 1.w,
                   ),
                 ),
@@ -1050,7 +1147,7 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
           ],
         ),
         
-        SizedBox(height: 16.h),
+        SizedBox(height: 12.h),
         
         _recommendedMovies.isEmpty
             ? _buildEmptyState(
@@ -1071,7 +1168,7 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
             Icon(
               Icons.favorite,
               color: Colors.red,
-              size: 24.sp,
+              size: 20.sp,
             ),
             SizedBox(width: 8.w),
             Expanded(
@@ -1079,7 +1176,7 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
                 "Movies You Both Liked",
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: 20.sp,
+                  fontSize: 18.sp,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -1091,7 +1188,7 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
                   color: Colors.red.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(12.r),
                   border: Border.all(
-                    color: Colors.red,
+                    color: Colors.red.withValues(alpha: 0.5),
                     width: 1.w,
                   ),
                 ),
@@ -1107,7 +1204,7 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
           ],
         ),
         
-        SizedBox(height: 16.h),
+        SizedBox(height: 12.h),
         
         // Show different states based on what we have
         _buildSharedLikesContent(),
@@ -1137,30 +1234,39 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
   }
 
   Widget _buildEmptyState(String message, IconData icon) {
-    return Container(
+    return GlassmorphicContainer(
       width: double.infinity,
-      padding: EdgeInsets.all(32.w),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1F1F1F),
-        borderRadius: BorderRadius.circular(12.r),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.1),
-          width: 1.w,
-        ),
+      height: 120.h,
+      borderRadius: 16,
+      blur: 15,
+      alignment: Alignment.center,
+      border: 1,
+      linearGradient: LinearGradient(
+        colors: [
+          Colors.white.withValues(alpha: 0.08),
+          Colors.white.withValues(alpha: 0.04),
+        ],
+      ),
+      borderGradient: LinearGradient(
+        colors: [
+          Colors.white.withValues(alpha: 0.2),
+          Colors.white.withValues(alpha: 0.1),
+        ],
       ),
       child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
             icon,
             color: Colors.white30,
-            size: 48.sp,
+            size: 40.sp,
           ),
-          SizedBox(height: 16.h),
+          SizedBox(height: 12.h),
           Text(
             message,
             style: TextStyle(
               color: Colors.white70,
-              fontSize: 14.sp,
+              fontSize: 13.sp,
             ),
             textAlign: TextAlign.center,
           ),
@@ -1170,30 +1276,39 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
   }
 
   Widget _buildEmptyStateWithCount(String message, IconData icon) {
-    return Container(
+    return GlassmorphicContainer(
       width: double.infinity,
-      padding: EdgeInsets.all(32.w),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1F1F1F),
-        borderRadius: BorderRadius.circular(12.r),
-        border: Border.all(
-          color: const Color(0xFFE5A00D).withValues(alpha: 0.3),
-          width: 1.w,
-        ),
+      height: 120.h,
+      borderRadius: 16,
+      blur: 15,
+      alignment: Alignment.center,
+      border: 1,
+      linearGradient: LinearGradient(
+        colors: [
+          const Color(0xFFE5A00D).withValues(alpha: 0.15),
+          const Color(0xFFE5A00D).withValues(alpha: 0.08),
+        ],
+      ),
+      borderGradient: LinearGradient(
+        colors: [
+          const Color(0xFFE5A00D).withValues(alpha: 0.4),
+          Colors.white.withValues(alpha: 0.1),
+        ],
       ),
       child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
             icon,
             color: const Color(0xFFE5A00D),
-            size: 48.sp,
+            size: 40.sp,
           ),
-          SizedBox(height: 16.h),
+          SizedBox(height: 12.h),
           Text(
             message,
             style: TextStyle(
               color: Colors.white,
-              fontSize: 14.sp,
+              fontSize: 13.sp,
               fontWeight: FontWeight.w500,
             ),
             textAlign: TextAlign.center,
@@ -1205,7 +1320,7 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
   
   Widget _buildMoviesCarousel(List<Movie> movies) {
     return SizedBox(
-      height: 200.h, // Fixed height for the carousel
+      height: 180.h, // Slightly smaller height
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         padding: EdgeInsets.symmetric(horizontal: 8.w),
@@ -1282,7 +1397,7 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
                   left: 0,
                   right: 0,
                   child: Container(
-                    height: 60.h,
+                    height: 50.h,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
@@ -1376,8 +1491,19 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
         maxChildSize: 0.9,
         builder: (context, scrollController) => Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF1F1F1F),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                const Color(0xFF2A2A2A),
+                const Color(0xFF1F1F1F),
+              ],
+            ),
             borderRadius: BorderRadius.vertical(top: Radius.circular(20.r)),
+            border: Border.all(
+              color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
+              width: 1.w,
+            ),
           ),
           child: Column(
             children: [
@@ -1403,7 +1529,7 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
                       Text(
                         movie.title,
                         style: TextStyle(
-                          fontSize: 24.sp,
+                          fontSize: 22.sp,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
                         ),
@@ -1435,7 +1561,7 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
                             decoration: BoxDecoration(
                               color: Colors.purple.withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(12.r),
-                              border: Border.all(color: Colors.purple, width: 1.w),
+                              border: Border.all(color: Colors.purple.withValues(alpha: 0.5), width: 1.w),
                             ),
                             child: Text(
                               tag,
@@ -1462,8 +1588,14 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1F1F1F),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
+        backgroundColor: const Color(0xFF2A2A2A),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16.r),
+          side: BorderSide(
+            color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
+            width: 1.w,
+          ),
+        ),
         title: Text(
           "Remove Friend",
           style: TextStyle(
@@ -1490,24 +1622,72 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
               ),
             ),
           ),
-          ElevatedButton(
-            onPressed: () {
-              // Handle remove friend
-              Navigator.pop(context); // Close dialog
-              Navigator.pop(context); // Go back to friends list
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8.r),
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.red, Colors.red.shade600],
               ),
+              borderRadius: BorderRadius.circular(8.r),
             ),
-            child: Text(
-              "Remove",
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 14.sp,
-                fontWeight: FontWeight.bold,
+            child: ElevatedButton(
+              onPressed: () async {
+                // Close the dialog immediately
+                Navigator.of(context).pop();
+                
+                try {
+                  // Actually remove the friend
+                  await FriendshipService.removeFriend(
+                    userId: widget.currentUser.uid,
+                    friendId: widget.friend.uid,
+                  );
+                  
+                  // Show success message and go back
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('${widget.friend.name} removed from friends'),
+                        backgroundColor: Colors.green,
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12.r),
+                        ),
+                      ),
+                    );
+                    
+                    // Go back to friends list
+                    Navigator.of(context).pop();
+                  }
+                  
+                } catch (e) {
+                  // Show error message
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Error removing friend: $e'),
+                        backgroundColor: Colors.red,
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12.r),
+                        ),
+                      ),
+                    );
+                  }
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                shadowColor: Colors.transparent,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8.r),
+                ),
+              ),
+              child: Text(
+                "Remove",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 14.sp,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ),

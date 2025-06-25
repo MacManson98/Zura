@@ -5,7 +5,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../utils/mood_based_learning_engine.dart';
 
 class MoodSelectionWidget extends StatefulWidget {
-  final Function(List<CurrentMood>) onMoodsSelected; // Changed to List<CurrentMood>
+  final Function(List<CurrentMood>) onMoodsSelected;
   final bool isGroupMode;
   final int groupSize;
 
@@ -22,7 +22,7 @@ class MoodSelectionWidget extends StatefulWidget {
 
 class _MoodSelectionWidgetState extends State<MoodSelectionWidget>
     with TickerProviderStateMixin {
-  Set<CurrentMood> selectedMoods = {}; // Changed to Set for multi-select
+  Set<CurrentMood> selectedMoods = {};
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
 
@@ -105,6 +105,11 @@ class _MoodSelectionWidgetState extends State<MoodSelectionWidget>
 
   @override
   Widget build(BuildContext context) {
+    // Get the bottom padding to account for navigation bar
+    final bottomPadding = MediaQuery.of(context).viewPadding.bottom;
+    // Your nav bar: 70.h height + 25.h from bottom position = 95.h total
+    final totalNavBarSpace = 70.h + 25.h;
+    
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -150,10 +155,16 @@ class _MoodSelectionWidgetState extends State<MoodSelectionWidget>
               ),
             ),
 
-            // Mood Grid
+            // Mood Grid - FIXED: Add bottom padding when button is visible
             Expanded(
               child: GridView.builder(
-                padding: EdgeInsets.symmetric(horizontal: 16.w),
+                padding: EdgeInsets.only(
+                  left: 16.w,
+                  right: 16.w,
+                  bottom: selectedMoods.isNotEmpty 
+                      ? (140.h + totalNavBarSpace) // Space for button + your floating nav bar
+                      : 16.h,
+                ),
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 2,
                   mainAxisSpacing: 12.h,
@@ -178,11 +189,29 @@ class _MoodSelectionWidgetState extends State<MoodSelectionWidget>
               ),
             ),
 
-            // Continue Button
+            // FIXED: Continue Button that accounts for navigation bar
             if (selectedMoods.isNotEmpty) ...[
-              Padding(
-                padding: EdgeInsets.all(24.r),
+              Container(
+                // CRITICAL FIX: Add proper bottom padding for your floating navigation bar
+                padding: EdgeInsets.only(
+                  left: 24.w,
+                  right: 24.w,
+                  top: 16.h,
+                  bottom: bottomPadding + totalNavBarSpace + 8.h,
+                ),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.transparent,
+                      const Color(0xFF0F0F0F).withOpacity(0.8),
+                      const Color(0xFF0F0F0F),
+                    ],
+                  ),
+                ),
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     // Selected moods preview
                     Container(
@@ -384,7 +413,7 @@ class _MoodSelectionWidgetState extends State<MoodSelectionWidget>
 
 // Quick mood selector for returning users
 class QuickMoodSelector extends StatelessWidget {
-  final Function(List<CurrentMood>) onMoodsSelected; // Changed to List<CurrentMood>
+  final Function(List<CurrentMood>) onMoodsSelected;
   final List<CurrentMood> recentMoods;
   final bool isGroupMode;
 
@@ -439,7 +468,7 @@ class QuickMoodSelector extends StatelessWidget {
 
   Widget _buildQuickMoodChip(CurrentMood mood) {
     return GestureDetector(
-      onTap: () => onMoodsSelected([mood]), // Pass as single-item list
+      onTap: () => onMoodsSelected([mood]),
       child: Container(
         padding: EdgeInsets.symmetric(vertical: 8.h, horizontal: 4.w),
         decoration: BoxDecoration(

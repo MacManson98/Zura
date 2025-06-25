@@ -345,7 +345,7 @@ class _MainNavigationState extends State<MainNavigation> {
             Positioned(
               left: 0,
               right: 0,
-              bottom: 0,
+              bottom: 25,
               child: StreamBuilder<List<Map<String, dynamic>>>(
                 stream: SessionService.watchPendingInvitations(),
                 builder: (context, sessionSnapshot) {

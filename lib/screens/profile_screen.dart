@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:glassmorphism/glassmorphism.dart';
 import '../models/user_profile.dart';
 import '../utils/user_profile_storage.dart';
 import '../widgets/profile_reset_dialog.dart';
@@ -16,7 +17,7 @@ class ProfileScreen extends StatefulWidget {
   final UserProfile currentUser;
   final VoidCallback? onNavigateToMatches;
 
-    const ProfileScreen({
+  const ProfileScreen({
     super.key, 
     required this.currentUser,
     this.onNavigateToMatches,
@@ -28,7 +29,6 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   late UserProfile _profile;
-
 
   @override
   void initState() {
@@ -43,7 +43,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _updateProfile(UserProfile updatedProfile) async {
-    
     try {
       await UserProfileStorage.saveProfile(updatedProfile);
       setState(() {
@@ -55,7 +54,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           content: const Text('Profile updated successfully'),
           backgroundColor: Colors.green,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.r)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
         ),
       );
     } catch (e) {
@@ -64,10 +63,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           content: Text('Error updating profile: $e'),
           backgroundColor: Colors.red,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.r)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
         ),
       );
-    } finally {
     }
   }
 
@@ -75,326 +73,59 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          child: Column(
-            children: [
-              // Header Section
-              _buildHeaderSection(),
-              
-              // Content
-              Padding(
-                padding: EdgeInsets.all(16.w),
-                child: Column(
-                  children: [
-                    // Stats Cards
-                    _buildStatsSection(),
-                    
-                    SizedBox(height: 24.h),
-                    
-                    // Movie Preferences
-                    _buildPreferencesSection(),
-                    
-                    SizedBox(height: 24.h),
-                    
-                    // Account Settings
-                    _buildAccountSection(),
-                    
-                    SizedBox(height: 24.h),
-                    
-                    // App Settings
-                    _buildAppSection(),
-                    
-                    SizedBox(height: 80.h), // Bottom padding for nav
-                  ],
-                ),
-              ),
-               if (kDebugMode) // Only shows in debug mode
-                  Container(
-                    margin: EdgeInsets.all(16.r),
-                    padding: EdgeInsets.all(16.r),
-                    decoration: BoxDecoration(
-                      color: Colors.red.withValues(alpha: 0.1),
-                      border: Border.all(color: Colors.red, width: 2),
-                      borderRadius: BorderRadius.circular(12.r),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          "🧹 DEBUG: Session Cleanup",
-                          style: TextStyle(
-                            color: Colors.red,
-                            fontSize: 16.sp,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        SizedBox(height: 12.h),
-                        
-                        Row(
-                          children: [
-                            Expanded(
-                              child: ElevatedButton(
-                                onPressed: () async {
-                                  try {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Testing cleanup... check console')),
-                                    );
-                                    
-                                    DebugLogger.log("🔍 === MANUAL CLEANUP TEST STARTED ===");
-                                    
-                                    // Check current sessions
-                                    final beforeSnapshot = await FirebaseFirestore.instance
-                                        .collection('swipeSessions')
-                                        .get();
-                                    
-                                    DebugLogger.log("📊 Found ${beforeSnapshot.docs.length} total sessions");
-                                    
-                                    // Show session details
-                                    for (int i = 0; i < beforeSnapshot.docs.length && i < 5; i++) {
-                                      final doc = beforeSnapshot.docs[i];
-                                      final data = doc.data();
-                                      DebugLogger.log("Session ${i+1}: ${doc.id}");
-                                      DebugLogger.log("  Created: ${data['createdAt']}");
-                                      DebugLogger.log("  Status: ${data['status']}");
-                                      
-                                      if (data['createdAt'] != null) {
-                                        try {
-                                          final created = DateTime.parse(data['createdAt']);
-                                          final age = DateTime.now().difference(created);
-                                          DebugLogger.log("  Age: ${age.inHours}h ${age.inMinutes % 60}m");
-                                          DebugLogger.log("  Would delete (24h rule): ${age.inHours > 24}");
-                                        } catch (e) {
-                                          DebugLogger.log("  Error parsing date: $e");
-                                        }
-                                      }
-                                    }
-                                    
-                                    // Run cleanup
-                                    DebugLogger.log("🧹 Running SessionService.performMaintenanceCleanup()...");
-                                    await SessionService.performMaintenanceCleanup();
-                                    
-                                    // Check results
-                                    final afterSnapshot = await FirebaseFirestore.instance
-                                        .collection('swipeSessions')
-                                        .get();
-                                    
-                                    final deleted = beforeSnapshot.docs.length - afterSnapshot.docs.length;
-                                    DebugLogger.log("✅ CLEANUP COMPLETE!");
-                                    DebugLogger.log("📊 Before: ${beforeSnapshot.docs.length} sessions");
-                                    DebugLogger.log("📊 After: ${afterSnapshot.docs.length} sessions");
-                                    DebugLogger.log("🗑️ Deleted: $deleted sessions");
-                                    DebugLogger.log("🔍 === CLEANUP TEST FINISHED ===");
-                                    
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text('Deleted $deleted sessions. Check console for details.'),
-                                        backgroundColor: deleted > 0 ? Colors.green : Colors.orange,
-                                      ),
-                                    );
-                                    
-                                  } catch (e) {
-                                    DebugLogger.log("❌ Cleanup test failed: $e");
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-                                    );
-                                  }
-                                },
-                                style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
-                                child: Text("Test Cleanup", style: TextStyle(color: Colors.white, fontSize: 12.sp)),
-                              ),
-                            ),
-                            
-                            SizedBox(width: 8.w),
-                            
-                            Expanded(
-                              child: ElevatedButton(
-                                onPressed: () async {
-                                  try {
-                                    DebugLogger.log("🔥 === FORCE DELETE TEST STARTED ===");
-                                    
-                                    final now = DateTime.now();
-                                    final cutoff = now.subtract(const Duration(hours: 1)); // 1 hour instead of 24
-                                    
-                                    final oldSessions = await FirebaseFirestore.instance
-                                        .collection('swipeSessions')
-                                        .where('createdAt', isLessThan: cutoff.toIso8601String())
-                                        .get();
-                                    
-                                    DebugLogger.log("📊 Found ${oldSessions.docs.length} sessions older than 1 hour");
-                                    
-                                    if (oldSessions.docs.isNotEmpty) {
-                                      final batch = FirebaseFirestore.instance.batch();
-                                      
-                                      for (final doc in oldSessions.docs) {
-                                        DebugLogger.log("🗑️ Deleting: ${doc.id}");
-                                        batch.delete(doc.reference);
-                                      }
-                                      
-                                      await batch.commit();
-                                      DebugLogger.log("✅ Force deleted ${oldSessions.docs.length} sessions!");
-                                      
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(
-                                          content: Text('Force deleted ${oldSessions.docs.length} sessions!'),
-                                          backgroundColor: Colors.green,
-                                        ),
-                                      );
-                                    } else {
-                                      DebugLogger.log("ℹ️ No sessions older than 1 hour found");
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(
-                                          content: Text('No sessions old enough (1h+)'),
-                                          backgroundColor: Colors.orange,
-                                        ),
-                                      );
-                                    }
-                                    
-                                    DebugLogger.log("🔥 === FORCE DELETE TEST FINISHED ===");
-                                    
-                                  } catch (e) {
-                                    DebugLogger.log("❌ Force delete failed: $e");
-                                  }
-                                },
-                                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                                child: Text("Force Delete", style: TextStyle(color: Colors.white, fontSize: 12.sp)),
-                              ),
-                            ),
-                          ],
-                        ),
-                        
-                        SizedBox(height: 8.h),
-                        
-                        // Nuclear option
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            onPressed: () async {
-                              try {
-                                DebugLogger.log("💥 === DELETING ALL SESSIONS ===");
-                                
-                                final allSessions = await FirebaseFirestore.instance
-                                    .collection('swipeSessions')
-                                    .get();
-                                
-                                DebugLogger.log("📊 Found ${allSessions.docs.length} total sessions to delete");
-                                
-                                if (allSessions.docs.isNotEmpty) {
-                                  final batch = FirebaseFirestore.instance.batch();
-                                  
-                                  for (final doc in allSessions.docs) {
-                                    batch.delete(doc.reference);
-                                  }
-                                  
-                                  await batch.commit();
-                                  DebugLogger.log("💥 DELETED ALL ${allSessions.docs.length} SESSIONS!");
-                                  
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text('DELETED ALL ${allSessions.docs.length} sessions!'),
-                                      backgroundColor: Colors.red,
-                                    ),
-                                  );
-                                }
-                                
-                              } catch (e) {
-                                DebugLogger.log("❌ Delete all failed: $e");
-                              }
-                            },
-                            style: ElevatedButton.styleFrom(backgroundColor: Colors.purple),
-                            child: Text("🚨 DELETE ALL SESSIONS", style: TextStyle(color: Colors.white, fontSize: 12.sp)),
-                          ),
-                        ),
-
-                        SizedBox(height: 8.h),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            onPressed: () async {
-                              try {
-                                DebugLogger.log("🧪 === TESTING INVITATION FLOW ===");
-                                
-                                final currentUserId = FirebaseAuth.instance.currentUser?.uid;
-                                if (currentUserId == null) {
-                                  DebugLogger.log("❌ No current user");
-                                  return;
-                                }
-                                
-                                final invitationsSnapshot = await FirebaseFirestore.instance
-                                    .collection('users')
-                                    .doc(currentUserId)
-                                    .collection('pending_invitations')
-                                    .get();
-                                
-                                DebugLogger.log("📨 Found ${invitationsSnapshot.docs.length} pending invitations");
-                                
-                                if (invitationsSnapshot.docs.isEmpty) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('No pending invitations to test'),
-                                      backgroundColor: Colors.orange,
-                                    ),
-                                  );
-                                  return;
-                                }
-                                
-                                final firstInvite = invitationsSnapshot.docs.first;
-                                final inviteData = firstInvite.data();
-                                
-                                DebugLogger.log("🎯 Testing invitation: ${firstInvite.id}");
-                                DebugLogger.log("   From: ${inviteData['fromUserName']}");
-                                DebugLogger.log("   Session: ${inviteData['sessionId']}");
-                                
-                                final session = await SessionService.acceptInvitation(
-                                  inviteData['sessionId'],
-                                  widget.currentUser.name,
-                                );
-                                
-                                if (session != null) {
-                                  DebugLogger.log("✅ Successfully accepted invitation!");
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('✅ Invitation test successful!'),
-                                      backgroundColor: Colors.green,
-                                    ),
-                                  );
-                                } else {
-                                  DebugLogger.log("❌ Failed to accept invitation");
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('❌ Invitation test failed'),
-                                      backgroundColor: Colors.red,
-                                    ),
-                                  );
-                                }
-                                
-                              } catch (e) {
-                                DebugLogger.log("❌ Invitation test failed: $e");
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('❌ Test failed: $e'),
-                                    backgroundColor: Colors.red,
-                                  ),
-                                );
-                              }
-                            },
-                            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                            child: Text("🧪 Test Accept Invitation", style: TextStyle(color: Colors.white, fontSize: 12.sp)),
-                          ),
-                        ),
-
-                        SizedBox(height: 8.h),
-                        
-                        SizedBox(height: 8.h),
-                        Text(
-                          "⚠️ Debug only - check console for logs",
-                          style: TextStyle(color: Colors.grey, fontSize: 10.sp),
-                        ),
-                      ],
-                    ),
-                  ),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              const Color(0xFF121212),
+              const Color(0xFF0A0A0A),
             ],
+          ),
+        ),
+        child: SafeArea(
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            child: Column(
+              children: [
+                // Header Section
+                _buildHeaderSection(),
+                
+                // Content
+                Padding(
+                  padding: EdgeInsets.all(16.w),
+                  child: Column(
+                    children: [
+                      // Stats Cards
+                      _buildStatsSection(),
+                      
+                      SizedBox(height: 24.h),
+                      
+                      // Movie Preferences
+                      _buildPreferencesSection(),
+                      
+                      SizedBox(height: 24.h),
+                      
+                      // Account Settings
+                      _buildAccountSection(),
+                      
+                      SizedBox(height: 24.h),
+                      
+                      // App Settings
+                      _buildAppSection(),
+                      
+                      SizedBox(height: 24.h),
+                      
+                      // Debug section
+                      if (kDebugMode) _buildDebugSection(),
+                      
+                      SizedBox(height: 80.h), // Bottom padding for nav
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -407,17 +138,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
       padding: EdgeInsets.all(24.w),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
           colors: [
+            const Color(0xFF2A2A2A),
             const Color(0xFF1F1F1F),
-            const Color(0xFF121212),
           ],
         ),
+        border: Border(
+          bottom: BorderSide(
+            color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
+            width: 1.w,
+          ),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.3),
+            blurRadius: 8.r,
+            offset: Offset(0, 2.h),
+          ),
+        ],
       ),
       child: Column(
         children: [
-          // Profile Avatar
+          // Profile Avatar with enhanced styling
           Container(
             width: 100.w,
             height: 100.w,
@@ -433,9 +177,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFFE5A00D).withValues(alpha: 0.3),
+                  color: const Color(0xFFE5A00D).withValues(alpha: 0.4),
                   blurRadius: 20.r,
-                  spreadRadius: 2.r,
+                  spreadRadius: 4.r,
+                ),
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.3),
+                  blurRadius: 10.r,
+                  offset: Offset(0, 4.h),
                 ),
               ],
             ),
@@ -463,15 +212,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   fontSize: 24.sp,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
+                  letterSpacing: 0.3,
                 ),
               ),
               SizedBox(width: 8.w),
-              IconButton(
-                onPressed: _showEditNameDialog,
-                icon: Icon(
-                  Icons.edit,
-                  color: const Color(0xFFE5A00D),
-                  size: 20.sp,
+              Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(8.r),
+                  border: Border.all(
+                    color: const Color(0xFFE5A00D).withValues(alpha: 0.4),
+                    width: 1.w,
+                  ),
+                ),
+                child: IconButton(
+                  onPressed: _showEditNameDialog,
+                  icon: Icon(
+                    Icons.edit,
+                    color: const Color(0xFFE5A00D),
+                    size: 20.sp,
+                  ),
                 ),
               ),
             ],
@@ -479,12 +239,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
           
           SizedBox(height: 8.h),
           
-          // Member Since
-          Text(
-            'Member since January 2025',
-            style: TextStyle(
-              fontSize: 14.sp,
-              color: Colors.white54,
+          // Member Since with styling
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 4.h),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12.r),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.2),
+                width: 1.w,
+              ),
+            ),
+            child: Text(
+              'Member since January 2025',
+              style: TextStyle(
+                fontSize: 12.sp,
+                color: Colors.white70,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ],
@@ -509,9 +281,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Text(
           'Your Movie Stats',
           style: TextStyle(
-            fontSize: 18.sp,
+            fontSize: 20.sp,
             fontWeight: FontWeight.bold,
             color: Colors.white,
+            letterSpacing: 0.3,
           ),
         ),
         
@@ -525,7 +298,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 _profile.likedMovieIds.length.toString(),
                 Icons.favorite,
                 Colors.red,
-                _navigateToLikedMovies, // Updated to use new navigation
+                _navigateToLikedMovies,
               ),
             ),
             SizedBox(width: 12.w),
@@ -573,67 +346,107 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildInteractiveStatCard(String title, String value, IconData icon, Color color, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        padding: EdgeInsets.all(16.w),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1F1F1F),
-          borderRadius: BorderRadius.circular(12.r),
-          border: Border.all(
-            color: color.withValues(alpha: 0.3),
-            width: 1.w,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: color.withValues(alpha: 0.1),
-              blurRadius: 8.r,
-              offset: Offset(0, 2.h),
-            ),
-          ],
-        ),
-        child: Column(
-          children: [
-            Icon(
-              icon,
-              color: color,
-              size: 28.sp,
-            ),
-            SizedBox(height: 8.h),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 20.sp,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-            SizedBox(height: 4.h),
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 12.sp,
-                color: Colors.white70,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            SizedBox(height: 4.h),
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 2.h),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(10.r),
-              ),
-              child: Text(
-                'TAP TO VIEW',
-                style: TextStyle(
-                  color: color,
-                  fontSize: 10.sp,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 0.5,
+      child: TweenAnimationBuilder<double>(
+        duration: const Duration(milliseconds: 300),
+        tween: Tween(begin: 0.0, end: 1.0),
+        builder: (context, animationValue, child) {
+          return Transform.translate(
+            offset: Offset(0, 10.h * (1 - animationValue)),
+            child: Opacity(
+              opacity: animationValue,
+              child: Container(
+                padding: EdgeInsets.all(16.w),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      const Color(0xFF2A2A2A),
+                      const Color(0xFF1F1F1F),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(16.r),
+                  border: Border.all(
+                    color: color.withValues(alpha: 0.3),
+                    width: 1.w,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.3),
+                      blurRadius: 6.r,
+                      offset: Offset(0, 2.h),
+                    ),
+                    BoxShadow(
+                      color: color.withValues(alpha: 0.1),
+                      blurRadius: 12.r,
+                      offset: Offset(0, 4.h),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(12.w),
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(12.r),
+                        border: Border.all(
+                          color: color.withValues(alpha: 0.4),
+                          width: 1.w,
+                        ),
+                      ),
+                      child: Icon(
+                        icon,
+                        color: color,
+                        size: 24.sp,
+                      ),
+                    ),
+                    SizedBox(height: 12.h),
+                    Text(
+                      value,
+                      style: TextStyle(
+                        fontSize: 20.sp,
+                        fontWeight: FontWeight.bold,
+                        color: color,
+                      ),
+                    ),
+                    SizedBox(height: 4.h),
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 12.sp,
+                        color: Colors.white70,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    SizedBox(height: 8.h),
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 3.h),
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(10.r),
+                        border: Border.all(
+                          color: color.withValues(alpha: 0.4),
+                          width: 1.w,
+                        ),
+                      ),
+                      child: Text(
+                        'TAP TO VIEW',
+                        style: TextStyle(
+                          color: color,
+                          fontSize: 9.sp,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -645,9 +458,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Text(
           'Quick Actions',
           style: TextStyle(
-            fontSize: 18.sp,
+            fontSize: 20.sp,
             fontWeight: FontWeight.bold,
             color: Colors.white,
+            letterSpacing: 0.3,
           ),
         ),
         
@@ -657,13 +471,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           title: 'Reset Preferences',
           subtitle: 'Clear your genres and vibes to start fresh',
           icon: Icons.refresh,
+          color: Colors.orange,
           onTap: _showResetPreferencesDialog,
         ),
       ],
     );
   }
-
-
 
   Widget _buildAccountSection() {
     return Column(
@@ -672,20 +485,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Text(
           'Account',
           style: TextStyle(
-            fontSize: 18.sp,
+            fontSize: 20.sp,
             fontWeight: FontWeight.bold,
             color: Colors.white,
+            letterSpacing: 0.3,
           ),
         ),
         
         SizedBox(height: 16.h),
 
         _buildCreateTestUsersButton(),
+        SizedBox(height: 8.h),
         
         _buildSettingsTile(
           title: 'Profile Information',
           subtitle: 'Edit your name and details',
           icon: Icons.person,
+          color: const Color(0xFFE5A00D),
           onTap: _showEditNameDialog,
         ),
         
@@ -693,12 +509,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           title: 'Reset Profile',
           subtitle: 'Reset your profile for testing',
           icon: Icons.restore,
+          color: Colors.purple,
           onTap: _showResetProfileDialog,
         ),
       ],
     );
   }
-  
 
   Widget _buildAppSection() {
     return Column(
@@ -707,9 +523,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Text(
           'App',
           style: TextStyle(
-            fontSize: 18.sp,
+            fontSize: 20.sp,
             fontWeight: FontWeight.bold,
             color: Colors.white,
+            letterSpacing: 0.3,
           ),
         ),
         
@@ -719,9 +536,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
           title: 'Help & Support',
           subtitle: 'Get help using the app',
           icon: Icons.help_outline,
+          color: Colors.blue,
           onTap: () {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Help & Support coming soon')),
+              SnackBar(
+                content: const Text('Help & Support coming soon'),
+                backgroundColor: Colors.blue,
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+              ),
             );
           },
         ),
@@ -730,27 +553,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
           title: 'About',
           subtitle: 'App version and information',
           icon: Icons.info_outline,
+          color: Colors.teal,
           onTap: _showAboutDialog,
         ),
         
-        // Testing Panel Section
-        SizedBox(height: 24.h),
-        
-        Text(
-          'Testing',
-          style: TextStyle(
-            fontSize: 18.sp,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
-
-        SizedBox(height: 24.h),
+        SizedBox(height: 16.h),
         
         _buildSettingsTile(
           title: 'Sign Out',
           subtitle: 'Sign out of your account',
           icon: Icons.logout,
+          color: Colors.red,
           onTap: _showLogoutConfirmation,
           isDestructive: true,
         ),
@@ -758,10 +571,389 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Widget _buildDebugSection() {
+    return GlassmorphicContainer(
+      width: double.infinity,
+      height: 250.h,
+      borderRadius: 16,
+      blur: 15,
+      alignment: Alignment.center,
+      border: 1,
+      linearGradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          Colors.red.withValues(alpha: 0.2),
+          Colors.red.withValues(alpha: 0.1),
+        ],
+      ),
+      borderGradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          Colors.red.withValues(alpha: 0.6),
+          Colors.red.withValues(alpha: 0.3),
+        ],
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(16.w),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.bug_report,
+                  color: Colors.red,
+                  size: 20.sp,
+                ),
+                SizedBox(width: 8.w),
+                Text(
+                  "🧹 DEBUG: Session Cleanup",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16.sp,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 12.h),
+            
+            Row(
+              children: [
+                Expanded(
+                  child: _buildDebugButton(
+                    'Test Cleanup',
+                    Colors.blue,
+                    () async {
+                      try {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: const Text('Testing cleanup... check console'),
+                            backgroundColor: Colors.blue,
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+                          ),
+                        );
+                        
+                        DebugLogger.log("🔍 === MANUAL CLEANUP TEST STARTED ===");
+                        
+                        // Check current sessions
+                        final beforeSnapshot = await FirebaseFirestore.instance
+                            .collection('swipeSessions')
+                            .get();
+                        
+                        DebugLogger.log("📊 Found ${beforeSnapshot.docs.length} total sessions");
+                        
+                        // Show session details
+                        for (int i = 0; i < beforeSnapshot.docs.length && i < 5; i++) {
+                          final doc = beforeSnapshot.docs[i];
+                          final data = doc.data();
+                          DebugLogger.log("Session ${i+1}: ${doc.id}");
+                          DebugLogger.log("  Created: ${data['createdAt']}");
+                          DebugLogger.log("  Status: ${data['status']}");
+                          
+                          if (data['createdAt'] != null) {
+                            try {
+                              final created = DateTime.parse(data['createdAt']);
+                              final age = DateTime.now().difference(created);
+                              DebugLogger.log("  Age: ${age.inHours}h ${age.inMinutes % 60}m");
+                              DebugLogger.log("  Would delete (24h rule): ${age.inHours > 24}");
+                            } catch (e) {
+                              DebugLogger.log("  Error parsing date: $e");
+                            }
+                          }
+                        }
+                        
+                        // Run cleanup
+                        DebugLogger.log("🧹 Running SessionService.performMaintenanceCleanup()...");
+                        await SessionService.performMaintenanceCleanup();
+                        
+                        // Check results
+                        final afterSnapshot = await FirebaseFirestore.instance
+                            .collection('swipeSessions')
+                            .get();
+                        
+                        final deleted = beforeSnapshot.docs.length - afterSnapshot.docs.length;
+                        DebugLogger.log("✅ CLEANUP COMPLETE!");
+                        DebugLogger.log("📊 Before: ${beforeSnapshot.docs.length} sessions");
+                        DebugLogger.log("📊 After: ${afterSnapshot.docs.length} sessions");
+                        DebugLogger.log("🗑️ Deleted: $deleted sessions");
+                        DebugLogger.log("🔍 === CLEANUP TEST FINISHED ===");
+                        
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Deleted $deleted sessions. Check console for details.'),
+                            backgroundColor: deleted > 0 ? Colors.green : Colors.orange,
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+                          ),
+                        );
+                        
+                      } catch (e) {
+                        DebugLogger.log("❌ Cleanup test failed: $e");
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Error: $e'),
+                            backgroundColor: Colors.red,
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                ),
+                
+                SizedBox(width: 8.w),
+                
+                Expanded(
+                  child: _buildDebugButton(
+                    'Force Delete',
+                    Colors.red,
+                    () async {
+                      try {
+                        DebugLogger.log("🔥 === FORCE DELETE TEST STARTED ===");
+                        
+                        final now = DateTime.now();
+                        final cutoff = now.subtract(const Duration(hours: 1)); // 1 hour instead of 24
+                        
+                        final oldSessions = await FirebaseFirestore.instance
+                            .collection('swipeSessions')
+                            .where('createdAt', isLessThan: cutoff.toIso8601String())
+                            .get();
+                        
+                        DebugLogger.log("📊 Found ${oldSessions.docs.length} sessions older than 1 hour");
+                        
+                        if (oldSessions.docs.isNotEmpty) {
+                          final batch = FirebaseFirestore.instance.batch();
+                          
+                          for (final doc in oldSessions.docs) {
+                            DebugLogger.log("🗑️ Deleting: ${doc.id}");
+                            batch.delete(doc.reference);
+                          }
+                          
+                          await batch.commit();
+                          DebugLogger.log("✅ Force deleted ${oldSessions.docs.length} sessions!");
+                          
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Force deleted ${oldSessions.docs.length} sessions!'),
+                              backgroundColor: Colors.green,
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+                            ),
+                          );
+                        } else {
+                          DebugLogger.log("ℹ️ No sessions older than 1 hour found");
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: const Text('No sessions old enough (1h+)'),
+                              backgroundColor: Colors.orange,
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+                            ),
+                          );
+                        }
+                        
+                        DebugLogger.log("🔥 === FORCE DELETE TEST FINISHED ===");
+                        
+                      } catch (e) {
+                        DebugLogger.log("❌ Force delete failed: $e");
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
+            
+            SizedBox(height: 8.h),
+            
+            // Nuclear option
+            SizedBox(
+              width: double.infinity,
+              child: _buildDebugButton(
+                '🚨 DELETE ALL SESSIONS',
+                Colors.purple,
+                () async {
+                  try {
+                    DebugLogger.log("💥 === DELETING ALL SESSIONS ===");
+                    
+                    final allSessions = await FirebaseFirestore.instance
+                        .collection('swipeSessions')
+                        .get();
+                    
+                    DebugLogger.log("📊 Found ${allSessions.docs.length} total sessions to delete");
+                    
+                    if (allSessions.docs.isNotEmpty) {
+                      final batch = FirebaseFirestore.instance.batch();
+                      
+                      for (final doc in allSessions.docs) {
+                        batch.delete(doc.reference);
+                      }
+                      
+                      await batch.commit();
+                      DebugLogger.log("💥 DELETED ALL ${allSessions.docs.length} SESSIONS!");
+                      
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('DELETED ALL ${allSessions.docs.length} sessions!'),
+                          backgroundColor: Colors.red,
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+                        ),
+                      );
+                    }
+                    
+                  } catch (e) {
+                    DebugLogger.log("❌ Delete all failed: $e");
+                  }
+                },
+              ),
+            ),
+
+            SizedBox(height: 8.h),
+            SizedBox(
+              width: double.infinity,
+              child: _buildDebugButton(
+                '🧪 Test Accept Invitation',
+                Colors.green,
+                () async {
+                  try {
+                    DebugLogger.log("🧪 === TESTING INVITATION FLOW ===");
+                    
+                    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+                    if (currentUserId == null) {
+                      DebugLogger.log("❌ No current user");
+                      return;
+                    }
+                    
+                    final invitationsSnapshot = await FirebaseFirestore.instance
+                        .collection('users')
+                        .doc(currentUserId)
+                        .collection('pending_invitations')
+                        .get();
+                    
+                    DebugLogger.log("📨 Found ${invitationsSnapshot.docs.length} pending invitations");
+                    
+                    if (invitationsSnapshot.docs.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: const Text('No pending invitations to test'),
+                          backgroundColor: Colors.orange,
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+                        ),
+                      );
+                      return;
+                    }
+                    
+                    final firstInvite = invitationsSnapshot.docs.first;
+                    final inviteData = firstInvite.data();
+                    
+                    DebugLogger.log("🎯 Testing invitation: ${firstInvite.id}");
+                    DebugLogger.log("   From: ${inviteData['fromUserName']}");
+                    DebugLogger.log("   Session: ${inviteData['sessionId']}");
+                    
+                    final session = await SessionService.acceptInvitation(
+                      inviteData['sessionId'],
+                      widget.currentUser.name,
+                    );
+                    
+                    if (session != null) {
+                      DebugLogger.log("✅ Successfully accepted invitation!");
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: const Text('✅ Invitation test successful!'),
+                          backgroundColor: Colors.green,
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+                        ),
+                      );
+                    } else {
+                      DebugLogger.log("❌ Failed to accept invitation");
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: const Text('❌ Invitation test failed'),
+                          backgroundColor: Colors.red,
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+                        ),
+                      );
+                    }
+                    
+                  } catch (e) {
+                    DebugLogger.log("❌ Invitation test failed: $e");
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('❌ Test failed: $e'),
+                        backgroundColor: Colors.red,
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+                      ),
+                    );
+                  }
+                },
+              ),
+            ),
+
+            SizedBox(height: 8.h),
+            Text(
+              "⚠️ Debug only - check console for logs",
+              style: TextStyle(
+                color: Colors.white60,
+                fontSize: 10.sp,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDebugButton(String text, Color color, VoidCallback onPressed) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [color, color.withValues(alpha: 0.8)],
+        ),
+        borderRadius: BorderRadius.circular(8.r),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.3),
+            blurRadius: 4.r,
+            offset: Offset(0, 2.h),
+          ),
+        ],
+      ),
+      child: ElevatedButton(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8.r),
+          ),
+        ),
+        child: Text(
+          text,
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 11.sp,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildSettingsTile({
     required String title,
     required String subtitle,
     required IconData icon,
+    required Color color,
     required VoidCallback onTap,
     bool isDestructive = false,
   }) {
@@ -771,27 +963,47 @@ class _ProfileScreenState extends State<ProfileScreen> {
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(12.r),
+          borderRadius: BorderRadius.circular(16.r),
           child: Container(
             padding: EdgeInsets.all(16.w),
             decoration: BoxDecoration(
-              color: const Color(0xFF1F1F1F),
-              borderRadius: BorderRadius.circular(12.r),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  const Color(0xFF2A2A2A),
+                  const Color(0xFF1F1F1F),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(16.r),
+              border: Border.all(
+                color: color.withValues(alpha: 0.3),
+                width: 1.w,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.3),
+                  blurRadius: 6.r,
+                  offset: Offset(0, 2.h),
+                ),
+              ],
             ),
             child: Row(
               children: [
                 Container(
-                  width: 40.w,
-                  height: 40.w,
+                  width: 44.w,
+                  height: 44.w,
                   decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: isDestructive 
-                        ? Colors.red.withValues(alpha: 0.2)
-                        : const Color(0xFFE5A00D).withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(12.r),
+                    color: color.withValues(alpha: 0.2),
+                    border: Border.all(
+                      color: color.withValues(alpha: 0.4),
+                      width: 1.w,
+                    ),
                   ),
                   child: Icon(
                     icon,
-                    color: isDestructive ? Colors.red : const Color(0xFFE5A00D),
+                    color: color,
                     size: 20.sp,
                   ),
                 ),
@@ -808,6 +1020,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           fontSize: 16.sp,
                           fontWeight: FontWeight.w600,
                           color: isDestructive ? Colors.red : Colors.white,
+                          letterSpacing: 0.2,
                         ),
                       ),
                       SizedBox(height: 2.h),
@@ -815,7 +1028,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         subtitle,
                         style: TextStyle(
                           fontSize: 12.sp,
-                          color: Colors.white54,
+                          color: Colors.white60,
                         ),
                       ),
                     ],
@@ -829,6 +1042,111 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCreateTestUsersButton() {
+    return GlassmorphicContainer(
+      width: double.infinity,
+      height: 50.h,
+      borderRadius: 16,
+      blur: 15,
+      alignment: Alignment.center,
+      border: 1,
+      linearGradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          Colors.green.withValues(alpha: 0.2),
+          Colors.green.withValues(alpha: 0.1),
+        ],
+      ),
+      borderGradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          Colors.green.withValues(alpha: 0.6),
+          Colors.green.withValues(alpha: 0.3),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () async {
+            final testUsers = [
+              {
+                'uid': 'alice_demo_123',
+                'name': 'Alice Johnson',
+                'preferredGenres': ['Action', 'Comedy'],
+                'preferredVibes': ['Feel-good', 'Exciting'],
+                'likedMovieIds': ['movie1', 'movie2'],
+                'friendIds': [],
+                'hasCompletedOnboarding': true,
+                'genreScores': {'Action': 8.0, 'Comedy': 7.5},
+                'vibeScores': {'Feel-good': 9.0},
+              },
+              {
+                'uid': 'bob_demo_456',
+                'name': 'Bob Smith',
+                'preferredGenres': ['Drama', 'Thriller'],
+                'preferredVibes': ['Dark', 'Mysterious'],
+                'likedMovieIds': ['movie3', 'movie4'],
+                'friendIds': [],
+                'hasCompletedOnboarding': true,
+                'genreScores': {'Drama': 9.0, 'Thriller': 8.5},
+                'vibeScores': {'Dark': 8.0},
+              },
+              {
+                'uid': 'carol_demo_789',
+                'name': 'Carol Williams',
+                'preferredGenres': ['Romance', 'Comedy'],
+                'preferredVibes': ['Heartwarming', 'Feel-good'],
+                'likedMovieIds': ['movie5', 'movie6'],
+                'friendIds': [],
+                'hasCompletedOnboarding': true,
+                'genreScores': {'Romance': 9.5, 'Comedy': 8.0},
+                'vibeScores': {'Heartwarming': 9.0},
+              },
+            ];
+
+            for (final userData in testUsers) {
+              await FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(userData['uid'] as String)
+                  .set(userData);
+            }
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text('Test users created! You can now search for Alice, Bob, or Carol'),
+                backgroundColor: Colors.green,
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+              ),
+            );
+          },
+          borderRadius: BorderRadius.circular(16.r),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.group_add,
+                color: Colors.white,
+                size: 20.sp,
+              ),
+              SizedBox(width: 8.w),
+              Text(
+                'Create Test Users',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 14.sp,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -879,8 +1197,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
         maxChildSize: 0.9,
         builder: (context, scrollController) => Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF1F1F1F),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                const Color(0xFF2A2A2A),
+                const Color(0xFF1F1F1F),
+              ],
+            ),
             borderRadius: BorderRadius.vertical(top: Radius.circular(20.r)),
+            border: Border.all(
+              color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
+              width: 1.w,
+            ),
           ),
           child: Column(
             children: [
@@ -906,6 +1235,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         fontSize: 20.sp,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
+                        letterSpacing: 0.3,
                       ),
                     ),
                     const Spacer(),
@@ -941,7 +1271,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           padding: EdgeInsets.all(16.w),
                           decoration: BoxDecoration(
                             color: const Color(0xFF2A2A2A),
-                            borderRadius: BorderRadius.circular(8.r),
+                            borderRadius: BorderRadius.circular(12.r),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.1),
+                              width: 1.w,
+                            ),
                           ),
                           child: Text(
                             'No genres selected yet. Complete onboarding to set your preferences.',
@@ -957,7 +1291,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             decoration: BoxDecoration(
                               color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(20.r),
-                              border: Border.all(color: const Color(0xFFE5A00D), width: 1.w),
+                              border: Border.all(
+                                color: const Color(0xFFE5A00D).withValues(alpha: 0.5),
+                                width: 1.w,
+                              ),
                             ),
                             child: Text(
                               genre,
@@ -988,7 +1325,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           padding: EdgeInsets.all(16.w),
                           decoration: BoxDecoration(
                             color: const Color(0xFF2A2A2A),
-                            borderRadius: BorderRadius.circular(8.r),
+                            borderRadius: BorderRadius.circular(12.r),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.1),
+                              width: 1.w,
+                            ),
                           ),
                           child: Text(
                             'No vibes selected yet. Complete onboarding to set your preferences.',
@@ -1004,7 +1345,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             decoration: BoxDecoration(
                               color: Colors.purple.withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(20.r),
-                              border: Border.all(color: Colors.purple, width: 1.w),
+                              border: Border.all(
+                                color: Colors.purple.withValues(alpha: 0.5),
+                                width: 1.w,
+                              ),
                             ),
                             child: Text(
                               vibe,
@@ -1019,24 +1363,44 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       
                       SizedBox(height: 32.h),
                       
-                      // Action button
-                      SizedBox(
+                      // Action button with glassmorphic style
+                      GlassmorphicContainer(
                         width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: _showResetPreferencesDialog,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.orange,
-                            padding: EdgeInsets.symmetric(vertical: 16.h),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12.r),
-                            ),
-                          ),
-                          child: Text(
-                            'Reset Preferences',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16.sp,
-                              fontWeight: FontWeight.bold,
+                        height: 50.h,
+                        borderRadius: 16,
+                        blur: 15,
+                        alignment: Alignment.center,
+                        border: 1,
+                        linearGradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Colors.orange.withValues(alpha: 0.3),
+                            Colors.orange.withValues(alpha: 0.2),
+                          ],
+                        ),
+                        borderGradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Colors.orange.withValues(alpha: 0.6),
+                            Colors.orange.withValues(alpha: 0.3),
+                          ],
+                        ),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: _showResetPreferencesDialog,
+                            borderRadius: BorderRadius.circular(16.r),
+                            child: Center(
+                              child: Text(
+                                'Reset Preferences',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16.sp,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                             ),
                           ),
                         ),
@@ -1057,7 +1421,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void _showGenreAnalytics(Map<String, int> genreCount) {
     if (genreCount.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Like some movies first to see your genre breakdown!')),
+        SnackBar(
+          content: const Text('Like some movies first to see your genre breakdown!'),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+        ),
       );
       return;
     }
@@ -1075,8 +1444,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
         maxChildSize: 0.9,
         builder: (context, scrollController) => Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF1F1F1F),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                const Color(0xFF2A2A2A),
+                const Color(0xFF1F1F1F),
+              ],
+            ),
             borderRadius: BorderRadius.vertical(top: Radius.circular(20.r)),
+            border: Border.all(
+              color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
+              width: 1.w,
+            ),
           ),
           child: Column(
             children: [
@@ -1104,6 +1484,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         fontSize: 20.sp,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
+                        letterSpacing: 0.3,
                       ),
                     ),
                     const Spacer(),
@@ -1132,6 +1513,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     
                     return Container(
                       margin: EdgeInsets.only(bottom: 16.h),
+                      padding: EdgeInsets.all(16.w),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2A2A2A),
+                        borderRadius: BorderRadius.circular(12.r),
+                        border: Border.all(
+                          color: color.withValues(alpha: 0.3),
+                          width: 1.w,
+                        ),
+                      ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -1160,7 +1550,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           Container(
                             height: 8.h,
                             decoration: BoxDecoration(
-                              color: Colors.white10,
+                              color: Colors.white.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(4.r),
                             ),
                             child: FractionallySizedBox(
@@ -1191,11 +1581,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1F1F1F),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
+        backgroundColor: const Color(0xFF2A2A2A),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16.r),
+          side: BorderSide(
+            color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
+            width: 1.w,
+          ),
+        ),
         title: Text(
           'Reset Preferences',
-          style: TextStyle(color: Colors.white, fontSize: 18.sp),
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 18.sp,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         content: Text(
           'This will clear all your genre and vibe preferences. You can set them again by going through onboarding or the matcher screen.',
@@ -1206,36 +1606,56 @@ class _ProfileScreenState extends State<ProfileScreen> {
             onPressed: () => Navigator.pop(context),
             child: Text('Cancel', style: TextStyle(color: Colors.white54, fontSize: 14.sp)),
           ),
-          ElevatedButton(
-            onPressed: () async {
-              final updatedProfile = _profile.copyWith(
-                preferredGenres: <String>{},
-                preferredVibes: <String>{},
-              );
-              await _updateProfile(updatedProfile);
-              Navigator.pop(context);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.r)),
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.orange, Colors.orange.shade600],
+              ),
+              borderRadius: BorderRadius.circular(8.r),
             ),
-            child: Text('Reset', style: TextStyle(color: Colors.white, fontSize: 14.sp)),
+            child: ElevatedButton(
+              onPressed: () async {
+                final updatedProfile = _profile.copyWith(
+                  preferredGenres: <String>{},
+                  preferredVibes: <String>{},
+                );
+                await _updateProfile(updatedProfile);
+                Navigator.pop(context);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                shadowColor: Colors.transparent,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.r)),
+              ),
+              child: Text('Reset', style: TextStyle(color: Colors.white, fontSize: 14.sp)),
+            ),
           ),
         ],
       ),
     );
   }
+
   void _showEditNameDialog() {
     final nameController = TextEditingController(text: _profile.name);
     
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1F1F1F),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
+        backgroundColor: const Color(0xFF2A2A2A),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16.r),
+          side: BorderSide(
+            color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
+            width: 1.w,
+          ),
+        ),
         title: Text(
           'Edit Name',
-          style: TextStyle(color: Colors.white, fontSize: 18.sp),
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 18.sp,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         content: TextField(
           controller: nameController,
@@ -1244,13 +1664,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
             hintText: 'Enter your name',
             hintStyle: TextStyle(color: Colors.white30, fontSize: 16.sp),
             filled: true,
-            fillColor: const Color(0xFF2A2A2A),
+            fillColor: const Color(0xFF1F1F1F),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8.r),
+              borderRadius: BorderRadius.circular(12.r),
               borderSide: BorderSide.none,
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8.r),
+              borderRadius: BorderRadius.circular(12.r),
               borderSide: BorderSide(color: const Color(0xFFE5A00D), width: 2.w),
             ),
           ),
@@ -1260,77 +1680,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
             onPressed: () => Navigator.pop(context),
             child: Text('Cancel', style: TextStyle(color: Colors.white54, fontSize: 14.sp)),
           ),
-          ElevatedButton(
-            onPressed: () async {
-              final updatedProfile = _profile.copyWith(name: nameController.text.trim());
-              await _updateProfile(updatedProfile);
-              Navigator.pop(context);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFE5A00D),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.r)),
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [const Color(0xFFE5A00D), Colors.orange.shade600],
+              ),
+              borderRadius: BorderRadius.circular(8.r),
             ),
-            child: Text('Save', style: TextStyle(color: Colors.white, fontSize: 14.sp)),
+            child: ElevatedButton(
+              onPressed: () async {
+                final updatedProfile = _profile.copyWith(name: nameController.text.trim());
+                await _updateProfile(updatedProfile);
+                Navigator.pop(context);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                shadowColor: Colors.transparent,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.r)),
+              ),
+              child: Text('Save', style: TextStyle(color: Colors.white, fontSize: 14.sp)),
+            ),
           ),
         ],
       ),
     );
   }
-
-  Widget _buildCreateTestUsersButton() {
-  return ElevatedButton(
-    onPressed: () async {
-      final testUsers = [
-        {
-          'uid': 'alice_demo_123',
-          'name': 'Alice Johnson',
-          'preferredGenres': ['Action', 'Comedy'],
-          'preferredVibes': ['Feel-good', 'Exciting'],
-          'likedMovieIds': ['movie1', 'movie2'],
-          'friendIds': [],
-          'hasCompletedOnboarding': true,
-          'genreScores': {'Action': 8.0, 'Comedy': 7.5},
-          'vibeScores': {'Feel-good': 9.0},
-        },
-        {
-          'uid': 'bob_demo_456',
-          'name': 'Bob Smith',
-          'preferredGenres': ['Drama', 'Thriller'],
-          'preferredVibes': ['Dark', 'Mysterious'],
-          'likedMovieIds': ['movie3', 'movie4'],
-          'friendIds': [],
-          'hasCompletedOnboarding': true,
-          'genreScores': {'Drama': 9.0, 'Thriller': 8.5},
-          'vibeScores': {'Dark': 8.0},
-        },
-        {
-          'uid': 'carol_demo_789',
-          'name': 'Carol Williams',
-          'preferredGenres': ['Romance', 'Comedy'],
-          'preferredVibes': ['Heartwarming', 'Feel-good'],
-          'likedMovieIds': ['movie5', 'movie6'],
-          'friendIds': [],
-          'hasCompletedOnboarding': true,
-          'genreScores': {'Romance': 9.5, 'Comedy': 8.0},
-          'vibeScores': {'Heartwarming': 9.0},
-        },
-      ];
-
-      for (final userData in testUsers) {
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(userData['uid'] as String)
-            .set(userData);
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Test users created! You can now search for Alice, Bob, or Carol')),
-      );
-    },
-    child: const Text('Create Test Users'),
-  );
-}
-  // Dialog Methods
 
   void _showResetProfileDialog() {
     showDialog(
@@ -1346,11 +1720,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1F1F1F),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
+        backgroundColor: const Color(0xFF2A2A2A),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16.r),
+          side: BorderSide(
+            color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
+            width: 1.w,
+          ),
+        ),
         title: Text(
           'About QueueTogether',
-          style: TextStyle(color: Colors.white, fontSize: 18.sp),
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 18.sp,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1368,25 +1752,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ],
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Close', style: TextStyle(color: const Color(0xFFE5A00D), fontSize: 14.sp)),
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [const Color(0xFFE5A00D), Colors.orange.shade600],
+              ),
+              borderRadius: BorderRadius.circular(8.r),
+            ),
+            child: TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                'Close',
+                style: TextStyle(color: Colors.white, fontSize: 14.sp, fontWeight: FontWeight.bold),
+              ),
+            ),
           ),
         ],
       ),
     );
   }
 
-  // Keep your existing logout functionality
   void _showLogoutConfirmation() {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1F1F1F),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
+        backgroundColor: const Color(0xFF2A2A2A),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16.r),
+          side: BorderSide(
+            color: Colors.red.withValues(alpha: 0.3),
+            width: 1.w,
+          ),
+        ),
         title: Text(
           "Sign Out",
-          style: TextStyle(color: Colors.white, fontSize: 18.sp),
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 18.sp,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         content: Text(
           "Are you sure you want to sign out? You'll need to log back in to access your profile.",
@@ -1400,27 +1804,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
               style: TextStyle(color: Colors.white70, fontSize: 14.sp),
             ),
           ),
-          ElevatedButton(
-            onPressed: () async {
-              await FirebaseAuth.instance.signOut();
-
-              if (mounted) {
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const LoginScreen(),
-                  ),
-                  (route) => false,
-                );
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.r)),
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.red, Colors.red.shade600],
+              ),
+              borderRadius: BorderRadius.circular(8.r),
             ),
-            child: Text(
-              "Sign Out",
-              style: TextStyle(color: Colors.white, fontSize: 14.sp),
+            child: ElevatedButton(
+              onPressed: () async {
+                await FirebaseAuth.instance.signOut();
+
+                if (mounted) {
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const LoginScreen(),
+                    ),
+                    (route) => false,
+                  );
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                shadowColor: Colors.transparent,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.r)),
+              ),
+              child: Text(
+                "Sign Out",
+                style: TextStyle(color: Colors.white, fontSize: 14.sp, fontWeight: FontWeight.bold),
+              ),
             ),
           ),
         ],
