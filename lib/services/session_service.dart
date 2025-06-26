@@ -272,7 +272,7 @@ class SessionService {
       return snapshot.docs.map((doc) {
         final data = doc.data();
         return {
-          'id': doc.id,
+          'inviteId': doc.id,
           ...data,
         };
       }).toList();
@@ -352,32 +352,41 @@ class SessionService {
       final currentUserId = FirebaseAuth.instance.currentUser?.uid;
       if (currentUserId == null) throw Exception("User not authenticated");
 
-      // Remove invitation from user's pending invitations
+      // ❌ Step 1: Remove invitation
       await _usersCollection
           .doc(currentUserId)
           .collection('pending_invitations')
           .doc(invitationId)
           .delete();
 
-      // Update session to track declined invitations
       if (sessionId != null) {
-        try {
-          final sessionDoc = await _sessionsCollection.doc(sessionId).get();
-          if (sessionDoc.exists) {
-            await _sessionsCollection.doc(sessionId).update({
-              'declinedBy': FieldValue.arrayUnion([currentUserId]),
-              'updatedAt': FieldValue.serverTimestamp(),
-            });
-            
-            // Check if session should be cleaned up after this decline
-            await checkAndCleanupSession(sessionId);
+        final sessionDoc = await _sessionsCollection.doc(sessionId).get();
+
+        if (sessionDoc.exists) {
+          final hostId = sessionDoc.data()?['hostId'];
+
+          // ❌ Step 2: Delete session
+          await _sessionsCollection.doc(sessionId).delete();
+
+          // 📨 Step 3: Notify host (optional Firestore notification)
+          if (hostId != null && hostId != currentUserId) {
+            await _usersCollection
+                .doc(hostId)
+                .collection('notifications')
+                .add({
+                  'type': 'session_declined',
+                  'fromUserId': currentUserId,
+                  'sessionId': sessionId,
+                  'message': 'Your session invite was declined.',
+                  'timestamp': FieldValue.serverTimestamp(),
+                });
           }
-        } catch (e) {
-          DebugLogger.log("Note: Could not update session with decline info: $e");
+
+          DebugLogger.log("❌ Session cancelled and host notified");
         }
       }
 
-      DebugLogger.log("✅ Invitation declined and removed");
+      DebugLogger.log("✅ Invite declined and cleaned up");
     } catch (e) {
       DebugLogger.log("❌ Error declining invitation: $e");
       throw e;
@@ -475,6 +484,7 @@ class SessionService {
       throw e;
     }
   }
+  
 
   // Start the actual swiping session
   static Future<void> startSession(

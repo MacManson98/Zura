@@ -8,16 +8,26 @@ class MoodSelectionWidget extends StatefulWidget {
   final Function(List<CurrentMood>) onMoodsSelected;
   final bool isGroupMode;
   final int groupSize;
+  final MoodSelectionContext context; // NEW: Add context enum
 
   const MoodSelectionWidget({
     super.key,
     required this.onMoodsSelected,
     this.isGroupMode = false,
     this.groupSize = 1,
+    this.context = MoodSelectionContext.solo, // NEW: Default to solo
   });
 
   @override
   State<MoodSelectionWidget> createState() => _MoodSelectionWidgetState();
+}
+
+// NEW: Add enum for different contexts
+enum MoodSelectionContext {
+  solo,           // "Start Swiping"
+  friendInvite,   // "Send Invite"
+  groupInvite,    // "Send Invites"
+  collaborative,  // "Start Swiping" (when already in session)
 }
 
 class MoodCategory {
@@ -154,6 +164,33 @@ class _MoodSelectionWidgetState extends State<MoodSelectionWidget>
     }
   }
 
+  // NEW: Get button text based on context
+  String get _buttonText {
+    switch (widget.context) {
+      case MoodSelectionContext.solo:
+      case MoodSelectionContext.collaborative:
+        return "Start Swiping";
+      case MoodSelectionContext.friendInvite:
+        return "Send Invite";
+      case MoodSelectionContext.groupInvite:
+        return "Send Invites";
+    }
+  }
+
+  // NEW: Get subtitle text based on context
+  String get _subtitleText {
+    switch (widget.context) {
+      case MoodSelectionContext.solo:
+        return "Browse categories and mix moods for perfect recommendations";
+      case MoodSelectionContext.friendInvite:
+        return "Choose the vibe for your friend session";
+      case MoodSelectionContext.groupInvite:
+        return "Choose the vibe for your group session";
+      case MoodSelectionContext.collaborative:
+        return "Browse categories and mix moods for perfect recommendations";
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
   return Container(
@@ -202,7 +239,9 @@ class _MoodSelectionWidgetState extends State<MoodSelectionWidget>
           Text(
             widget.isGroupMode 
                 ? "What's the group vibe?" 
-                : "What's your mood?",
+                : widget.context == MoodSelectionContext.friendInvite
+                    ? "What's your vibe?"
+                    : "What's your mood?",
             style: TextStyle(
               color: Colors.white,
               fontSize: 26.sp, // Slightly smaller for modal
@@ -223,9 +262,7 @@ class _MoodSelectionWidgetState extends State<MoodSelectionWidget>
               ),
             ),
             child: Text(
-              widget.isGroupMode
-                  ? "Choose vibes for your group of ${widget.groupSize}"
-                  : "Browse categories and mix moods for perfect recommendations",
+              _subtitleText, // NEW: Use dynamic subtitle
               style: TextStyle(
                 color: const Color(0xFFE5A00D),
                 fontSize: 13.sp, // Slightly smaller for modal
@@ -621,10 +658,16 @@ class _MoodSelectionWidgetState extends State<MoodSelectionWidget>
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.movie_filter, color: Colors.white, size: 24.sp),
+                        Icon(
+                          widget.context == MoodSelectionContext.friendInvite || widget.context == MoodSelectionContext.groupInvite
+                              ? Icons.send
+                              : Icons.movie_filter, 
+                          color: Colors.white, 
+                          size: 24.sp
+                        ),
                         SizedBox(width: 12.w),
                         Text(
-                          "Start Swiping",
+                          _buttonText, // NEW: Use dynamic button text
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 18.sp,

@@ -6,7 +6,9 @@ class NotificationBottomSheet extends StatefulWidget {
   final List<Map<String, dynamic>> friendRequests;
   final List<Map<String, dynamic>> regularNotifications;
   final Function(Map<String, dynamic>) onSessionAccept;
+  final Function(Map<String, dynamic>) onSessionDecline;
   final Function(Map<String, dynamic>) onFriendAccept;
+  final Function(Map<String, dynamic>) onFriendDecline;
   final VoidCallback onClearAll;
 
   const NotificationBottomSheet({
@@ -15,7 +17,9 @@ class NotificationBottomSheet extends StatefulWidget {
     required this.friendRequests,
     required this.regularNotifications,
     required this.onSessionAccept,
+    required this.onSessionDecline,
     required this.onFriendAccept,
+    required this.onFriendDecline,
     required this.onClearAll,
   });
 
@@ -415,22 +419,19 @@ class _NotificationBottomSheetState extends State<NotificationBottomSheet>
             children: [
               Expanded(
                 child: OutlinedButton(
-                  onPressed: () {
-                    // Handle decline
-                  },
+                  onPressed: () => widget.onSessionDecline(invitation),
                   style: OutlinedButton.styleFrom(
-                    side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+                    foregroundColor: Colors.white70,
+                    side: BorderSide(color: Colors.white24),
                     minimumSize: Size(0, 36.h),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.r)),
                   ),
                   child: Text(
                     "Decline",
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.8),
-                      fontSize: 12.sp,
-                    ),
+                    style: TextStyle(fontSize: 12.sp, fontWeight: FontWeight.w600),
                   ),
                 ),
+
               ),
               SizedBox(width: 8.w),
               Expanded(
@@ -516,12 +517,10 @@ class _NotificationBottomSheetState extends State<NotificationBottomSheet>
             mainAxisSize: MainAxisSize.min,
             children: [
               IconButton(
-                onPressed: () {
-                  // Handle decline
-                },
-                icon: Icon(Icons.close, color: Colors.white70, size: 18.sp),
+                onPressed: () => widget.onFriendDecline(request),
+                icon: Icon(Icons.check, color: Colors.white, size: 18.sp),
                 style: IconButton.styleFrom(
-                  backgroundColor: Colors.white.withValues(alpha: 0.1),
+                  backgroundColor: Colors.blue,
                   minimumSize: Size(32.w, 32.h),
                 ),
               ),

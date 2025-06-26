@@ -1,6 +1,3 @@
-// File: lib/widgets/session_invitation_widget.dart
-// Part 1: Imports and main SessionInvitationWidget class
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -370,56 +367,171 @@ class _SessionInvitationWidgetState extends State<SessionInvitationWidget> {
 
   Future<CurrentMood?> _showMoodSelectionDialog() async {
     CurrentMood? selectedMood;
-
-    await showModalBottomSheet(
+    
+    await showDialog<CurrentMood>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      barrierColor: Colors.black.withValues(alpha: 0.7),
-      builder: (context) {
-        return DraggableScrollableSheet(
-          initialChildSize: 0.95,
-          minChildSize: 0.5,
-          maxChildSize: 0.95,
-          expand: false,
-          builder: (context, scrollController) {
-            return Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    const Color(0xFF1A1A1A),
-                    const Color(0xFF0F0F0F),
+      barrierDismissible: false,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: GlassmorphicContainer(
+          width: double.infinity,
+          height: 500.h,
+          borderRadius: 24,
+          blur: 20,
+          alignment: Alignment.center,
+          border: 2,
+          linearGradient: LinearGradient(
+            colors: [
+              const Color(0xFF1F1F1F).withValues(alpha: 0.9),
+              const Color(0xFF121212).withValues(alpha: 0.9),
+            ],
+          ),
+          borderGradient: LinearGradient(
+            colors: [
+              Colors.white.withValues(alpha: 0.2),
+              Colors.white.withValues(alpha: 0.1),
+            ],
+          ),
+          child: Padding(
+            padding: EdgeInsets.all(24.r),
+            child: Column(
+              children: [
+                // Header
+                Row(
+                  children: [
+                    Icon(Icons.mood, color: const Color(0xFFE5A00D), size: 24.sp),
+                    SizedBox(width: 12.w),
+                    Text(
+                      "Choose Session Mood",
+                      style: TextStyle(color: Colors.white, fontSize: 18.sp, fontWeight: FontWeight.bold),
+                    ),
                   ],
                 ),
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(24.r),
-                  topRight: Radius.circular(24.r),
+                
+                SizedBox(height: 16.h),
+                
+                Text(
+                  "Pick the vibe for this session. Your friend will see your choice when they join.",
+                  style: TextStyle(color: Colors.white70, fontSize: 14.sp),
+                  textAlign: TextAlign.center,
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.3),
-                    blurRadius: 20.r,
-                    spreadRadius: 5.r,
-                    offset: Offset(0, -5.h),
+                
+                SizedBox(height: 20.h),
+                
+                // Mood options
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: CurrentMood.values
+                          .map((mood) => Container(
+                            margin: EdgeInsets.only(bottom: 8.h),
+                            child: GlassmorphicContainer(
+                              width: double.infinity,
+                              height: 60.h,
+                              borderRadius: 12,
+                              blur: 10,
+                              alignment: Alignment.centerLeft,
+                              border: 1,
+                              linearGradient: LinearGradient(
+                                colors: [
+                                  Colors.white.withValues(alpha: 0.05),
+                                  Colors.white.withValues(alpha: 0.02),
+                                ],
+                              ),
+                              borderGradient: LinearGradient(
+                                colors: [
+                                  Colors.white.withValues(alpha: 0.1),
+                                  Colors.white.withValues(alpha: 0.05),
+                                ],
+                              ),
+                              child: Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  onTap: () {
+                                    selectedMood = mood;
+                                    Navigator.of(context).pop(mood);
+                                  },
+                                  borderRadius: BorderRadius.circular(12.r),
+                                  child: Padding(
+                                    padding: EdgeInsets.symmetric(horizontal: 16.w),
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          padding: EdgeInsets.all(8.r),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
+                                            borderRadius: BorderRadius.circular(8.r),
+                                          ),
+                                          child: Text(mood.emoji, style: TextStyle(fontSize: 20.sp)),
+                                        ),
+                                        SizedBox(width: 12.w),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            children: [
+                                              Text(
+                                                mood.displayName,
+                                                style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 16.sp,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                              Text(
+                                                "Great for collaborative sessions",
+                                                style: TextStyle(
+                                                  color: Colors.white60,
+                                                  fontSize: 12.sp,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        Icon(
+                                          Icons.arrow_forward_ios,
+                                          color: Colors.white30,
+                                          size: 16.sp,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ).toList(),
+                    ),
                   ),
-                ],
-              ),
-              child: MoodSelectionWidget(
-                onMoodsSelected: (moods) {
-                  selectedMood = moods.isNotEmpty ? moods.first : null;
-                  Navigator.of(context).pop();
-                },
-                isGroupMode: false,
-                groupSize: 1,
-              ),
-            );
-          },
-        );
-      },
+                ),
+                
+                SizedBox(height: 16.h),
+                
+                // Cancel button
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton(
+                    onPressed: () => Navigator.of(context).pop(null),
+                    style: TextButton.styleFrom(
+                      padding: EdgeInsets.symmetric(vertical: 16.h),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12.r),
+                        side: BorderSide(color: Colors.white30),
+                      ),
+                    ),
+                    child: Text(
+                      "Cancel",
+                      style: TextStyle(color: Colors.white70, fontSize: 16.sp),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
-
+    
     return selectedMood;
   }
   // Part 4: Share options and join session dialog methods
@@ -851,59 +963,13 @@ class FriendInviteDialog extends StatefulWidget {
 class _FriendInviteDialogState extends State<FriendInviteDialog> {
   String? selectedFriendId; // Changed to single selection
   bool isCreatingSession = false;
-  bool _showMoodSelection = false;
   CurrentMood? _selectedMood;
 
   // Part 6: FriendInviteDialog build method
 
   @override
   Widget build(BuildContext context) {
-    if (_showMoodSelection) {
-      return Container(
-        height: MediaQuery.of(context).size.height * 0.9,
-        decoration: BoxDecoration(
-          color: const Color(0xFF121212),
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20.r)),
-        ),
-        child: SafeArea(
-          child: Stack(
-            children: [
-              MoodSelectionWidget(
-                onMoodsSelected: _onMoodsSelected,
-                isGroupMode: false, // Changed to false since it's 1-on-1
-                groupSize: 2, // Always 2 for friend mode
-              ),
-              Positioned(
-                top: 16.h,
-                left: 16.w,
-                child: GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _showMoodSelection = false;
-                    });
-                  },
-                  child: Container(
-                    padding: EdgeInsets.all(12.w),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.6),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.2),
-                      ),
-                    ),
-                    child: Icon(
-                      Icons.arrow_back_ios,
-                      color: Colors.white,
-                      size: 18.sp,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
+    // No need for _showMoodSelection check here - handled by modal bottom sheet
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -1272,9 +1338,7 @@ class _FriendInviteDialogState extends State<FriendInviteDialog> {
                         onPressed: isCreatingSession || selectedFriendId == null
                             ? null
                             : () {
-                                setState(() {
-                                  _showMoodSelection = true;
-                                });
+                                _showMoodSelectionModal();
                               },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFFE5A00D),
@@ -1320,16 +1384,123 @@ class _FriendInviteDialogState extends State<FriendInviteDialog> {
     );
   }
 
-  void _onMoodsSelected(List<CurrentMood> moods) {
-    setState(() {
-      _selectedMood = moods.isNotEmpty ? moods.first : null;
-      _showMoodSelection = false;
-    });
-    
-    if (_selectedMood != null) {
-      _sendInvitation();
-    }
+  // NEW: Show mood selection as modal bottom sheet
+  void _showMoodSelectionModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withValues(alpha: 0.7),
+      enableDrag: true,
+      isDismissible: true,
+      useSafeArea: true,
+      builder: (BuildContext context) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.95,
+          minChildSize: 0.5,
+          maxChildSize: 0.95,
+          expand: false,
+          snap: true,
+          snapSizes: const [0.5, 0.75, 0.95],
+          builder: (context, scrollController) {
+            return Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    const Color(0xFF1A1A1A),
+                    const Color(0xFF0F0F0F),
+                  ],
+                ),
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(24.r),
+                  topRight: Radius.circular(24.r),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.3),
+                    blurRadius: 20.r,
+                    spreadRadius: 5.r,
+                    offset: Offset(0, -5.h),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  // Modal header with drag indicator and close button
+                  Container(
+                    padding: EdgeInsets.fromLTRB(24.w, 12.h, 24.w, 8.h),
+                    child: Column(
+                      children: [
+                        // Drag indicator
+                        Container(
+                          width: 40.w,
+                          height: 4.h,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.3),
+                            borderRadius: BorderRadius.circular(2.r),
+                          ),
+                        ),
+                        
+                        SizedBox(height: 12.h),
+                        
+                        // Just close button, no title
+                        Row(
+                          children: [
+                            Spacer(),
+                            GestureDetector(
+                              onTap: () => Navigator.of(context).pop(),
+                              child: Container(
+                                padding: EdgeInsets.all(8.r),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.1),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  Icons.close,
+                                  color: Colors.white.withValues(alpha: 0.8),
+                                  size: 20.sp,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  
+                  // Main mood selection content
+                  Expanded(
+                    child: MoodSelectionWidget(
+                      onMoodsSelected: (moods) {
+                        Navigator.of(context).pop(); // Close modal first
+                        _onMoodsSelected(moods); // Then call your method
+                      },
+                      isGroupMode: false,
+                      groupSize: 2,
+                      context: MoodSelectionContext.friendInvite,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
+
+  void _onMoodsSelected(List<CurrentMood> moods) {
+  setState(() {
+    _selectedMood = moods.isNotEmpty ? moods.first : null;
+  });
+
+  if (_selectedMood != null) {
+    _sendInvitation();
+  }
+}
+
 
   Future<void> _sendInvitation() async {
     if (_selectedMood == null || selectedFriendId == null) return;
@@ -1358,7 +1529,7 @@ class _FriendInviteDialogState extends State<FriendInviteDialog> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              '${_selectedMood!.displayName} session invitation sent to ${friend.name}!',
+              'Invitation sent to ${friend.name}! Waiting for them to join...',
             ),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 3),

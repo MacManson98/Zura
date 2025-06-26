@@ -1,4 +1,5 @@
 // File: lib/main_navigation.dart
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:async';
@@ -16,6 +17,7 @@ import '../utils/debug_loader.dart';
 import '../models/matching_models.dart';
 import 'services/group_invitation_service.dart';
 import 'widgets/notifications_bottom_sheet.dart';
+
 
 class MainNavigation extends StatefulWidget {
   final UserProfile profile;
@@ -283,8 +285,20 @@ class _MainNavigationState extends State<MainNavigation> {
                                     Navigator.pop(context);
                                     _handleSessionJoinFromNotification(invitation);
                                   },
+                                  onSessionDecline: (invitation) async {
+                                    await _handleSessionDeclineFromNotification(invitation);
+                                    final inviteId = invitation['inviteId'];
+                                    setState(() {
+                                      sessionInvites.removeWhere((inv) => inv['inviteId'] == inviteId);
+                                    });
+                                  },
+
+
                                   onFriendAccept: (request) {
                                     _handleFriendRequestAccept(request);
+                                  },
+                                  onFriendDecline: (request) {
+                                    _handleFriendRequestDecline(request); // 👈 AND THIS
                                   },
                                   onClearAll: () {
                                     Navigator.pop(context);
@@ -292,6 +306,7 @@ class _MainNavigationState extends State<MainNavigation> {
                                   },
                                 ),
                               );
+
                             },
                           );
                         },
@@ -360,6 +375,56 @@ class _MainNavigationState extends State<MainNavigation> {
     }
   }
 
+  Future<void> _handleSessionDeclineFromNotification(Map<String, dynamic> invitation) async {
+    try {
+      final inviteId = invitation['inviteId'] as String?;
+      final sessionId = invitation['sessionId'] as String?;
+
+      if (inviteId == null || sessionId == null) {
+        throw Exception("Missing inviteId or sessionId: inviteId=$inviteId, sessionId=$sessionId");
+      }
+
+      DebugLogger.log("❌ Declining session invitation: $inviteId for session $sessionId");
+
+      await SessionService.declineInvitation(inviteId, sessionId);
+
+      await FirebaseFirestore.instance
+          .collection('session_invitations')
+          .doc(inviteId)
+          .delete();
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.cancel, color: Colors.white),
+              SizedBox(width: 8),
+              Text('Declined session invitation.'),
+            ],
+          ),
+          backgroundColor: Colors.grey[800],
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+      );
+    } catch (e) {
+      DebugLogger.log("❌ Error declining session invitation: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to decline session: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+
+
   Future<void> _handleFriendRequestAccept(Map<String, dynamic> request) async {
     try {
       await FriendshipService.acceptFriendRequestById(
@@ -391,6 +456,41 @@ class _MainNavigationState extends State<MainNavigation> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to accept request: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleFriendRequestDecline(Map<String, dynamic> request) async {
+    try {
+      await FriendshipService.declineFriendRequestById(request['id']);
+
+      await _loadFriends(); // Optional: refreshes UI if needed
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.person_off, color: Colors.white),
+                SizedBox(width: 8),
+                Text('Declined friend request from ${request['fromUserName']}'),
+              ],
+            ),
+            backgroundColor: Colors.grey[800],
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to decline request: $e'),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
           ),
