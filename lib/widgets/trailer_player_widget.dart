@@ -6,6 +6,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/trailer_service.dart';
 import '../movie.dart';
+import '../utils/themed_notifications.dart';
 
 class TrailerPlayerWidget extends StatefulWidget {
   final Movie movie;
@@ -158,13 +159,7 @@ class _TrailerPlayerWidgetState extends State<TrailerPlayerWidget> {
 
   void _showErrorSnackbar(String message) {
     try {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 2),
-        ),
-      );
+      ThemedNotifications.showError(context, message);
     } catch (e) {
       // Context might be invalid if disposed
     }

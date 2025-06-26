@@ -5,6 +5,7 @@ import '../../models/user_profile.dart';
 import '../../models/matching_models.dart';
 import '../../models/session_models.dart';
 import '../../utils/completed_session.dart';
+import '../../utils/themed_notifications.dart';
 import '../../utils/unified_session_manager.dart';
 import '../../utils/debug_loader.dart';
 import '../../utils/session_manager.dart';
@@ -956,13 +957,7 @@ class _SessionHubWidgetState extends State<SessionHubWidget> {
 
   void _resumeSession(CompletedSession session) {
     DebugLogger.log("🔄 Resume session: ${session.id}");
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Resume session feature - connect to matcher'),
-        backgroundColor: Colors.blue,
-        duration: Duration(seconds: 2),
-      ),
-    );
+    ThemedNotifications.showInfo(context, 'Resume session feature - connect to matcher', icon: "▶️");
   }
 
   void _openSessionDetail(CompletedSession session) {
@@ -983,13 +978,7 @@ class _SessionHubWidgetState extends State<SessionHubWidget> {
               
               // Show success message
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Ready to start a new session!'),
-                    backgroundColor: Colors.green,
-                    duration: const Duration(seconds: 2),
-                  ),
-                );
+                ThemedNotifications.showSuccess(context, 'Ready to start a new session!', icon: "🚀");
               }
             },
           ),
@@ -1000,13 +989,7 @@ class _SessionHubWidgetState extends State<SessionHubWidget> {
       
       // Fallback: show error message
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Unable to open session details. Please try again.'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
-        );
+        ThemedNotifications.showError(context, 'Unable to open session details. Please try again.');
       }
     }
   }
@@ -1241,25 +1224,17 @@ class _SessionHubWidgetState extends State<SessionHubWidget> {
 
       // Show success message
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(isActive ? 'Active session deleted' : 'Session deleted'),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 2),
-          ),
+        ThemedNotifications.showSuccess(
+          context, 
+          isActive ? 'Active session deleted' : 'Session deleted',
+          icon: "🗑️"
         );
       }
 
     } catch (e) {
       DebugLogger.log("❌ Error deleting session: $e");
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to delete session: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
-        );
+        ThemedNotifications.showError(context, 'Failed to delete session: $e');
       }
     }
   }

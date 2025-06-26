@@ -1,5 +1,5 @@
 // File: lib/widgets/group_selection_widget.dart
-// Enhanced group selection widget with improved styling
+// Enhanced group selection widget with modal mood selection
 
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -7,18 +7,20 @@ import 'package:glassmorphism/glassmorphism.dart';
 import '../models/user_profile.dart';
 import '../models/friend_group.dart';
 import '../models/session_models.dart';
+import '../services/group_invitation_service.dart';
 import '../services/group_service.dart';
 import '../services/session_service.dart';
 import '../screens/create_group_screen.dart';
 import '../utils/mood_based_learning_engine.dart';
 import '../utils/debug_loader.dart';
+import '../utils/themed_notifications.dart';
 import 'mood_selection_widget.dart';
 
 class GroupSelectionWidget extends StatefulWidget {
   final UserProfile currentUser;
   final List<UserProfile> friendIds;
-  final Function(List<UserProfile>) onGroupSelected; // For local group sessions
-  final Function(SwipeSession session) onSessionCreated; // For collaborative sessions
+  final Function(List<UserProfile>) onGroupSelected;
+  final Function(SwipeSession session) onSessionCreated;
 
   const GroupSelectionWidget({
     super.key,
@@ -35,7 +37,6 @@ class GroupSelectionWidget extends StatefulWidget {
 class _GroupSelectionWidgetState extends State<GroupSelectionWidget> {
   List<FriendGroup> _userGroups = [];
   bool _isLoadingGroups = true;
-  bool _showMoodSelection = false;
   FriendGroup? _selectedGroup;
 
   @override
@@ -65,10 +66,6 @@ class _GroupSelectionWidgetState extends State<GroupSelectionWidget> {
 
   @override
   Widget build(BuildContext context) {
-    if (_showMoodSelection) {
-      return _buildMoodSelectionScreen();
-    }
-
     return Dialog(
       backgroundColor: Colors.transparent,
       child: GlassmorphicContainer(
@@ -427,7 +424,7 @@ class _GroupSelectionWidgetState extends State<GroupSelectionWidget> {
                   padding: EdgeInsets.all(16.w),
                   child: Row(
                     children: [
-                      // Group avatar with enhanced styling
+                      // Group avatar
                       Container(
                         width: 48.w,
                         height: 48.h,
@@ -585,54 +582,6 @@ class _GroupSelectionWidgetState extends State<GroupSelectionWidget> {
     );
   }
 
-  Widget _buildMoodSelectionScreen() {
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.9,
-      decoration: BoxDecoration(
-        color: const Color(0xFF121212),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20.r)),
-      ),
-      child: SafeArea(
-        child: Stack(
-          children: [
-            MoodSelectionWidget(
-              onMoodsSelected: _onMoodsSelected,
-              isGroupMode: true,
-              groupSize: _selectedGroup?.memberCount ?? 2,
-            ),
-            Positioned(
-              top: 16.h,
-              left: 16.w,
-              child: GestureDetector(
-                onTap: () {
-                  setState(() {
-                    _showMoodSelection = false;
-                    _selectedGroup = null;
-                  });
-                },
-                child: Container(
-                  padding: EdgeInsets.all(12.w),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.6),
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.2),
-                    ),
-                  ),
-                  child: Icon(
-                    Icons.arrow_back_ios,
-                    color: Colors.white,
-                    size: 18.sp,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   void _createNewGroup() async {
     Navigator.pop(context); // Close group selection
     
@@ -666,18 +615,80 @@ class _GroupSelectionWidgetState extends State<GroupSelectionWidget> {
   }
 
   void _selectGroup(FriendGroup group) {
-    setState(() {
-      _selectedGroup = group;
-      _showMoodSelection = true;
-    });
+    print('🔍 DEBUG: _selectGroup called with group: ${group.name}');
+    _showMoodSelectionModal(group);
+  }
+
+  void _showMoodSelectionModal(FriendGroup group) {
+    print('🔍 DEBUG: _showMoodSelectionModal called for group: ${group.name}');
+    
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.90,
+        decoration: BoxDecoration(
+          color: const Color(0xFF121212),
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(20.r),
+            topRight: Radius.circular(20.r),
+          ),
+        ),
+        child: Stack(
+          children: [
+            MoodSelectionWidget(
+              onMoodsSelected: (moods) {
+                Navigator.pop(context); // Close the modal
+                _onMoodsSelectedForGroup(group, moods);
+              },
+              isGroupMode: true,
+              groupSize: group.memberCount,
+              moodContext: MoodSelectionContext.groupInvite,
+            ),
+            
+            // Close button
+            Positioned(
+              top: 16.h,
+              right: 16.w,
+              child: GestureDetector(
+                onTap: () => Navigator.of(context).pop(),
+                child: Container(
+                  padding: EdgeInsets.all(8.w),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.6),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.2),
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.close,
+                    color: Colors.white,
+                    size: 18.sp,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _onMoodsSelectedForGroup(FriendGroup group, List<CurrentMood> moods) {
+    print('🔍 DEBUG: _onMoodsSelectedForGroup called');
+    print('🔍 DEBUG: Group: ${group.name}, Moods: ${moods.map((m) => m.displayName).join(", ")}');
+    
+    // Set the selected group for the original callback
+    _selectedGroup = group;
+    
+    // Call the original callback
+    _onMoodsSelected(moods);
   }
 
   void _onMoodsSelected(List<CurrentMood> moods) async {
     if (moods.isEmpty || _selectedGroup == null) return;
-
-    setState(() {
-      _showMoodSelection = false;
-    });
 
     try {
       DebugLogger.log("🎭 Creating group session with mood: ${moods.first.displayName}");
@@ -686,7 +697,7 @@ class _GroupSelectionWidgetState extends State<GroupSelectionWidget> {
       // Create collaborative session
       final session = await SessionService.createSession(
         hostName: widget.currentUser.name,
-        inviteType: InvitationType.friend, // Use friend type for group sessions
+        inviteType: InvitationType.friend,
         selectedMood: moods.first,
       );
 
@@ -701,11 +712,13 @@ class _GroupSelectionWidgetState extends State<GroupSelectionWidget> {
 
       for (final member in groupMembers) {
         try {
-          await SessionService.inviteFriend(
-            sessionId: session.sessionId,
-            friendId: member.uid,
-            friendName: member.name,
-            selectedMood: moods.first,
+          await GroupInvitationService().sendGroupInvitations(
+            groupId: _selectedGroup!.id,
+            groupName: _selectedGroup!.name,
+            groupDescription: _selectedGroup!.description,
+            groupImageUrl: _selectedGroup!.imageUrl,
+            creator: widget.currentUser,
+            invitees: groupMembers, // All members except current user
           );
           DebugLogger.log("✅ Invited: ${member.name}");
         } catch (e) {
@@ -727,33 +740,24 @@ class _GroupSelectionWidgetState extends State<GroupSelectionWidget> {
         Navigator.pop(context); // Close dialog
         widget.onSessionCreated(session);
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '${moods.first.displayName} session started! Invitations sent to ${_selectedGroup!.name}',
-            ),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 3),
-          ),
+        ThemedNotifications.showSuccess(
+          context,
+          '${moods.first.displayName} session started! Invitations sent to ${_selectedGroup!.name}',
+          icon: '🎬',
         );
       }
 
     } catch (e) {
       DebugLogger.log("❌ Error creating group session: $e");
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to create group session: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
+        ThemedNotifications.showError(
+          context,
+          'Failed to create group session: $e',
         );
       }
     } finally {
       if (mounted) {
-        setState(() {
-          _selectedGroup = null;
-        });
+        _selectedGroup = null;
       }
     }
   }

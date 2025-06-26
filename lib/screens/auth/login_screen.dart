@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../../services/auth_service.dart';
+import '../../utils/themed_notifications.dart';
 import '../../utils/user_profile_storage.dart';
 import 'register_screen.dart';
 import 'package:Zura/auth_gate.dart';
@@ -125,16 +126,11 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
   }
 
   void _showSnackBar(String message, {required bool isError}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message, style: TextStyle(fontSize: 14.sp)),
-        backgroundColor: isError ? Colors.red[600] : Colors.green[600],
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
-        margin: EdgeInsets.all(16.w),
-        duration: Duration(seconds: isError ? 4 : 3),
-      ),
-    );
+    if (isError) {
+      ThemedNotifications.showError(context, message);
+    } else {
+      ThemedNotifications.showSuccess(context, message);
+    }
   }
 
   @override

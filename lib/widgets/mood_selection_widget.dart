@@ -8,21 +8,21 @@ class MoodSelectionWidget extends StatefulWidget {
   final Function(List<CurrentMood>) onMoodsSelected;
   final bool isGroupMode;
   final int groupSize;
-  final MoodSelectionContext context; // NEW: Add context enum
+  final MoodSelectionContext moodContext; // ✅ RENAMED to avoid BuildContext conflict
 
   const MoodSelectionWidget({
     super.key,
     required this.onMoodsSelected,
     this.isGroupMode = false,
     this.groupSize = 1,
-    this.context = MoodSelectionContext.solo, // NEW: Default to solo
+    this.moodContext = MoodSelectionContext.solo, // ✅ RENAMED parameter
   });
 
   @override
   State<MoodSelectionWidget> createState() => _MoodSelectionWidgetState();
 }
 
-// NEW: Add enum for different contexts
+// Enum for different contexts
 enum MoodSelectionContext {
   solo,           // "Start Swiping"
   friendInvite,   // "Send Invite"
@@ -46,10 +46,10 @@ class _MoodSelectionWidgetState extends State<MoodSelectionWidget>
   late TabController _tabController;
   late AnimationController _fadeController;
   late AnimationController _headerController; // Header animation
-  late AnimationController _buttonController; // ✅ Button animation
+  late AnimationController _buttonController; // Button animation
   late Animation<double> _fadeAnimation;
   late Animation<double> _headerAnimation; 
-  late Animation<double> _buttonAnimation; // ✅ Button slide animation
+  late Animation<double> _buttonAnimation; // Button slide animation
 
   @override
   void initState() {
@@ -68,7 +68,7 @@ class _MoodSelectionWidgetState extends State<MoodSelectionWidget>
       duration: const Duration(milliseconds: 400),
     );
 
-    // ✅ Button animation controller
+    // Button animation controller
     _buttonController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 500),
@@ -85,7 +85,7 @@ class _MoodSelectionWidgetState extends State<MoodSelectionWidget>
       curve: Curves.easeInOut,
     );
 
-    // ✅ Button slide animation (0.0 = hidden below, 1.0 = visible)
+    // Button slide animation (0.0 = hidden below, 1.0 = visible)
     _buttonAnimation = CurvedAnimation(
       parent: _buttonController,
       curve: Curves.easeOutBack, // Nice bouncy effect
@@ -100,7 +100,7 @@ class _MoodSelectionWidgetState extends State<MoodSelectionWidget>
     _tabController.dispose();
     _fadeController.dispose();
     _headerController.dispose();
-    _buttonController.dispose(); // ✅ Dispose button controller
+    _buttonController.dispose();
 
     super.dispose();
   }
@@ -154,7 +154,7 @@ class _MoodSelectionWidgetState extends State<MoodSelectionWidget>
       }
     });
 
-    // ✅ Animate header and button based on selection state
+    // Animate header and button based on selection state
     if (selectedMoods.isNotEmpty) {
       _headerController.reverse(); // Hide category headers
       _buttonController.forward(); // Show button
@@ -164,9 +164,9 @@ class _MoodSelectionWidgetState extends State<MoodSelectionWidget>
     }
   }
 
-  // NEW: Get button text based on context
+  // Get button text based on context
   String get _buttonText {
-    switch (widget.context) {
+    switch (widget.moodContext) { // ✅ UPDATED to use new parameter name
       case MoodSelectionContext.solo:
       case MoodSelectionContext.collaborative:
         return "Start Swiping";
@@ -177,9 +177,9 @@ class _MoodSelectionWidgetState extends State<MoodSelectionWidget>
     }
   }
 
-  // NEW: Get subtitle text based on context
+  // Get subtitle text based on context
   String get _subtitleText {
-    switch (widget.context) {
+    switch (widget.moodContext) { // ✅ UPDATED to use new parameter name
       case MoodSelectionContext.solo:
         return "Browse categories and mix moods for perfect recommendations";
       case MoodSelectionContext.friendInvite:
@@ -193,25 +193,38 @@ class _MoodSelectionWidgetState extends State<MoodSelectionWidget>
 
   @override
   Widget build(BuildContext context) {
-  return Container(
-    decoration: BoxDecoration(
-      gradient: LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [
-          const Color(0xFF1A1A1A),
-          const Color(0xFF0F0F0F),
-        ],
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            const Color(0xFF1A1A1A),
+            const Color(0xFF0F0F0F),
+          ],
+        ),
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(20.r),
+          topRight: Radius.circular(20.r),
+        ),
       ),
-    ),
-    child: SafeArea(
       child: FadeTransition(
         opacity: _fadeAnimation,
-        child: Stack( // ✅ Changed to Stack to allow positioned button
+        child: Stack(
           children: [
             Column(
               children: [
-                _buildHeader(), // Keep main header always visible
+                // Add a drag handle at the top
+                Container(
+                  margin: EdgeInsets.only(top: 12.h),
+                  width: 40.w,
+                  height: 4.h,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2.r),
+                  ),
+                ),
+                _buildHeader(),
                 _buildTabBar(),
                 Expanded(
                   child: TabBarView(
@@ -223,13 +236,12 @@ class _MoodSelectionWidgetState extends State<MoodSelectionWidget>
                 ),
               ],
             ),
-            _buildAnimatedContinueButton(), // ✅ Positioned button overlays content
+            _buildAnimatedContinueButton(),
           ],
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   Widget _buildHeader() {
     return Container(
@@ -239,7 +251,7 @@ class _MoodSelectionWidgetState extends State<MoodSelectionWidget>
           Text(
             widget.isGroupMode 
                 ? "What's the group vibe?" 
-                : widget.context == MoodSelectionContext.friendInvite
+                : widget.moodContext == MoodSelectionContext.friendInvite // ✅ UPDATED to use new parameter name
                     ? "What's your vibe?"
                     : "What's your mood?",
             style: TextStyle(
@@ -262,7 +274,7 @@ class _MoodSelectionWidgetState extends State<MoodSelectionWidget>
               ),
             ),
             child: Text(
-              _subtitleText, // NEW: Use dynamic subtitle
+              _subtitleText, // Use dynamic subtitle
               style: TextStyle(
                 color: const Color(0xFFE5A00D),
                 fontSize: 13.sp, // Slightly smaller for modal
@@ -312,7 +324,7 @@ class _MoodSelectionWidgetState extends State<MoodSelectionWidget>
           final MoodCategory category = entry.value;
           return Tab(
             child: SizedBox(
-              height: 48.h, // ✅ Force tab height
+              height: 48.h, // Force tab height
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -346,7 +358,7 @@ class _MoodSelectionWidgetState extends State<MoodSelectionWidget>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // ✅ Animated category header that slides up/down based on selections
+          // Animated category header that slides up/down based on selections
           SizeTransition(
             sizeFactor: _headerAnimation,
             axisAlignment: -1.0, // Align to top
@@ -603,7 +615,7 @@ class _MoodSelectionWidgetState extends State<MoodSelectionWidget>
     );
   }
 
-  // ✅ New animated continue button with selected moods display
+  // New animated continue button with selected moods display
   Widget _buildAnimatedContinueButton() {
     return Positioned(
       bottom: 0,
@@ -629,11 +641,11 @@ class _MoodSelectionWidgetState extends State<MoodSelectionWidget>
                 stops: [0.0, 0.3, 1.0],
               ),
             ),
-            padding: EdgeInsets.fromLTRB(24.w, 32.h, 24.w, 24.h), // ✅ Increased top padding
+            padding: EdgeInsets.fromLTRB(24.w, 32.h, 24.w, 24.h), // Increased top padding
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // ✅ NEW: Compact selected moods header (always visible when moods selected)
+                // Compact selected moods header (always visible when moods selected)
                 if (selectedMoods.isNotEmpty) _buildCompactSelectedHeader(),
                 if (selectedMoods.isNotEmpty) SizedBox(height: 12.h),
                 
@@ -659,7 +671,7 @@ class _MoodSelectionWidgetState extends State<MoodSelectionWidget>
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(
-                          widget.context == MoodSelectionContext.friendInvite || widget.context == MoodSelectionContext.groupInvite
+                          widget.moodContext == MoodSelectionContext.friendInvite || widget.moodContext == MoodSelectionContext.groupInvite // ✅ UPDATED to use new parameter name
                               ? Icons.send
                               : Icons.movie_filter, 
                           color: Colors.white, 
@@ -667,7 +679,7 @@ class _MoodSelectionWidgetState extends State<MoodSelectionWidget>
                         ),
                         SizedBox(width: 12.w),
                         Text(
-                          _buttonText, // NEW: Use dynamic button text
+                          _buttonText, // Use dynamic button text
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 18.sp,
@@ -704,7 +716,7 @@ class _MoodSelectionWidgetState extends State<MoodSelectionWidget>
     );
   }
 
-  // ✅ NEW: Compact header that shows selected moods without taking much space
+  // Compact header that shows selected moods without taking much space
   Widget _buildCompactSelectedHeader() {
     final moodsList = selectedMoods.toList();
     final showCount = moodsList.length;
@@ -792,7 +804,7 @@ class _MoodSelectionWidgetState extends State<MoodSelectionWidget>
     );
   }
 
-  // ✅ NEW: Compact mood chip for the header
+  // Compact mood chip for the header
   Widget _buildCompactMoodChip(CurrentMood mood) {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
@@ -823,7 +835,7 @@ class _MoodSelectionWidgetState extends State<MoodSelectionWidget>
     );
   }
 
-  // ✅ NEW: Method to show expanded selection in a dialog
+  // Method to show expanded selection in a dialog
   void _showExpandedSelection() {
     showDialog(
       context: context,
@@ -882,7 +894,7 @@ class _MoodSelectionWidgetState extends State<MoodSelectionWidget>
     );
   }
 
-  // ✅ NEW: Full mood chip with remove option
+  // Full mood chip with remove option
   Widget _buildFullMoodChip(CurrentMood mood) {
     return GestureDetector(
       onTap: () {
@@ -930,7 +942,6 @@ class _MoodSelectionWidgetState extends State<MoodSelectionWidget>
       ),
     );
   }
-
 
   String _getMoodDescription(CurrentMood mood) {
     final description = mood.preferredVibes.isNotEmpty

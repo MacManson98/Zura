@@ -352,41 +352,84 @@ class SessionService {
       final currentUserId = FirebaseAuth.instance.currentUser?.uid;
       if (currentUserId == null) throw Exception("User not authenticated");
 
-      // ❌ Step 1: Remove invitation
+      DebugLogger.log("❌ Declining invitation: $invitationId");
+
+      // ✅ Step 1: Remove invitation from user's pending invitations
       await _usersCollection
           .doc(currentUserId)
           .collection('pending_invitations')
           .doc(invitationId)
           .delete();
 
+      DebugLogger.log("✅ Invitation removed from pending list");
+
+      // ✅ Step 2: Track the decline for host to see (without permission issues)
       if (sessionId != null) {
-        final sessionDoc = await _sessionsCollection.doc(sessionId).get();
-
-        if (sessionDoc.exists) {
-          final hostId = sessionDoc.data()?['hostId'];
-
-          // ❌ Step 2: Delete session
-          await _sessionsCollection.doc(sessionId).delete();
-
-          // 📨 Step 3: Notify host (optional Firestore notification)
-          if (hostId != null && hostId != currentUserId) {
-            await _usersCollection
-                .doc(hostId)
-                .collection('notifications')
-                .add({
-                  'type': 'session_declined',
-                  'fromUserId': currentUserId,
-                  'sessionId': sessionId,
-                  'message': 'Your session invite was declined.',
-                  'timestamp': FieldValue.serverTimestamp(),
-                });
+        try {
+          final sessionDoc = await _sessionsCollection.doc(sessionId).get();
+          
+          if (sessionDoc.exists) {
+            final sessionData = sessionDoc.data()!;
+            final hostId = sessionData['hostId'];
+            
+            // 📝 Add declined user to a tracking field (this should work with basic write permissions)
+            try {
+              await _sessionsCollection.doc(sessionId).update({
+                'declinedParticipants': FieldValue.arrayUnion([currentUserId]),
+                'lastDeclineAt': FieldValue.serverTimestamp(),
+              });
+              DebugLogger.log("📝 Added decline tracking to session");
+            } catch (e) {
+              DebugLogger.log("⚠️ Could not track decline in session (using notification instead): $e");
+            }
+            
+            // 📨 Notify host about the decline
+            if (hostId != null && hostId != currentUserId) {
+              final inviteType = sessionData['inviteType'];
+              final participantIds = List<String>.from(sessionData['participantIds'] ?? []);
+              final isFriendSession = inviteType == 'friend';
+              final onlyHostParticipating = participantIds.length <= 1;
+              
+              if (isFriendSession && onlyHostParticipating) {
+                // This was a 1-on-1 friend session
+                await _usersCollection
+                    .doc(hostId)
+                    .collection('notifications')
+                    .add({
+                      'type': 'friend_session_declined',
+                      'fromUserId': currentUserId,
+                      'sessionId': sessionId,
+                      'message': 'Your friend declined the session invitation.',
+                      'action': 'cancel_session', // Tell host to cancel
+                      'timestamp': FieldValue.serverTimestamp(),
+                    });
+                
+                DebugLogger.log("📨 Host notified: friend declined 1-on-1 session");
+              } else {
+                // Regular decline notification
+                await _usersCollection
+                    .doc(hostId)
+                    .collection('notifications')
+                    .add({
+                      'type': 'session_declined',
+                      'fromUserId': currentUserId,
+                      'sessionId': sessionId,
+                      'message': 'Your session invite was declined.',
+                      'timestamp': FieldValue.serverTimestamp(),
+                    });
+                
+                DebugLogger.log("📨 Host notified of declined invitation");
+              }
+            }
           }
-
-          DebugLogger.log("❌ Session cancelled and host notified");
+        } catch (e) {
+          DebugLogger.log("⚠️ Could not process session/notify host (not critical): $e");
+          // Don't throw - the invitation was still successfully declined
         }
       }
 
-      DebugLogger.log("✅ Invite declined and cleaned up");
+      DebugLogger.log("✅ Invitation declined successfully");
+      
     } catch (e) {
       DebugLogger.log("❌ Error declining invitation: $e");
       throw e;
@@ -681,6 +724,64 @@ class SessionService {
     } catch (e) {
       DebugLogger.log("❌ Error ending session: $e");
       rethrow;
+    }
+  }
+
+  static Stream<List<Map<String, dynamic>>> watchSessionNotifications(String userId) {
+    return _usersCollection
+        .doc(userId)
+        .collection('notifications')
+        .where('type', whereIn: ['friend_session_declined', 'session_declined'])
+        .orderBy('timestamp', descending: true)
+        .limit(10)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map((doc) => {
+              'id': doc.id,
+              ...doc.data(),
+            }).toList());
+  }
+
+  // Add this method to automatically handle friend session declines
+  static Future<void> handleFriendSessionDeclined({
+    required String sessionId,
+    required String declinedByUserId,
+  }) async {
+    try {
+      final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+      if (currentUserId == null) return;
+      
+      DebugLogger.log("🚫 Auto-cancelling session due to friend decline: $sessionId");
+      
+      // Cancel the session since the invited friend declined
+      await _sessionsCollection.doc(sessionId).update({
+        'status': SessionStatus.cancelled.name,
+        'cancelledAt': FieldValue.serverTimestamp(),
+        'cancelledBy': currentUserId,
+        'cancelReason': 'invited_friend_declined',
+        'declinedBy': declinedByUserId,
+      });
+      
+      DebugLogger.log("✅ Session auto-cancelled successfully");
+      
+    } catch (e) {
+      DebugLogger.log("❌ Error auto-cancelling session: $e");
+      throw e;
+    }
+  }
+
+  // Add this method to mark notifications as read
+  static Future<void> markNotificationAsRead(String userId, String notificationId) async {
+    try {
+      await _usersCollection
+          .doc(userId)
+          .collection('notifications')
+          .doc(notificationId)
+          .update({
+            'read': true,
+            'readAt': FieldValue.serverTimestamp(),
+          });
+    } catch (e) {
+      DebugLogger.log("⚠️ Could not mark notification as read: $e");
     }
   }
 

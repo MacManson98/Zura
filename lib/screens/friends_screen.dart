@@ -11,6 +11,7 @@ import 'group_detail_screen.dart';
 import '../services/friendship_service.dart';
 import '../services/group_service.dart';
 import '../utils/debug_loader.dart';
+import '../utils/themed_notifications.dart';
 
 class FriendsScreen extends StatefulWidget {
   final UserProfile currentUser;
@@ -66,14 +67,7 @@ class _FriendsScreenState extends State<FriendsScreen> with SingleTickerProvider
       DebugLogger.log('❌ Error loading groups: $e');
       setState(() => _isLoadingGroups = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error loading groups: $e'),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        );
+        ThemedNotifications.showError(context, 'Error loading groups: $e');
       }
     }
   }

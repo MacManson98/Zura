@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_profile.dart';
+import '../utils/themed_notifications.dart';
 
 class ProfileResetDialog extends StatefulWidget {
   final UserProfile currentUser;
@@ -157,20 +158,17 @@ class _ProfileResetDialogState extends State<ProfileResetDialog> {
 
     if (mounted) {
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Profile has been reset for testing'),
-          backgroundColor: Colors.green,
-        ),
+      ThemedNotifications.showSuccess(
+        context,
+        'Profile has been reset for testing',
+        icon: '🔄',
       );
     }
   } catch (e) {
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error resetting profile: $e'),
-          backgroundColor: Colors.red,
-        ),
+      ThemedNotifications.showError(
+        context,
+        'Error resetting profile: $e',
       );
       Navigator.pop(context);
     }

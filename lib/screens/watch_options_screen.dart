@@ -5,6 +5,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../movie.dart';
 import '../models/user_profile.dart';
+import '../utils/themed_notifications.dart';
 import '../widgets/trailer_player_widget.dart';
 import '../utils/debug_loader.dart';
 
@@ -696,11 +697,9 @@ class _WatchOptionsScreenState extends State<WatchOptionsScreen> {
         await launchUrl(uri, mode: LaunchMode.externalApplication);
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Could not open ${_formatPlatformName(platform)}'),
-              backgroundColor: Colors.red,
-            ),
+          ThemedNotifications.showError(
+            context,
+            'Could not open ${_formatPlatformName(platform)}',
           );
         }
       }
@@ -714,20 +713,16 @@ class _WatchOptionsScreenState extends State<WatchOptionsScreen> {
       widget.currentUser.likedMovies.add(widget.movie);
       widget.currentUser.likedMovieIds.add(widget.movie.id);
       
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${widget.movie.title} added to favorites'),
-          backgroundColor: Colors.green,
-          duration: const Duration(seconds: 2),
-        ),
+      ThemedNotifications.showSuccess(
+        context,
+        '${widget.movie.title} added to favorites',
+        icon: '❤️',
       );
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${widget.movie.title} is already in your favorites'),
-          backgroundColor: Colors.orange,
-          duration: const Duration(seconds: 2),
-        ),
+      ThemedNotifications.showInfo(
+        context,
+        '${widget.movie.title} is already in your favorites',
+        icon: '📋',
       );
     }
   }

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../movie.dart';
 import '../models/user_profile.dart';
+import '../utils/themed_notifications.dart';
 import '../utils/user_profile_storage.dart';
 import '../screens/movie_detail_screen.dart';
 import '../utils/debug_loader.dart';
@@ -989,20 +990,17 @@ class _LikedMoviesScreenState extends State<LikedMoviesScreen> {
       }
       await UserProfileStorage.saveProfile(_profile);
       
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Removed "${movie.title}" from liked movies'),
-          backgroundColor: Colors.green,
-        ),
+      ThemedNotifications.showSuccess(
+        context,
+        'Removed "${movie.title}" from liked movies',
+        icon: '🗑️',
       );
       
     } catch (e) {
       DebugLogger.log('Error removing liked movie: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error removing movie: $e'),
-          backgroundColor: Colors.red,
-        ),
+      ThemedNotifications.showError(
+        context,
+        'Error removing movie: $e',
       );
     }
   }

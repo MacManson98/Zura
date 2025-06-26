@@ -5,6 +5,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../../models/minigame_models.dart';
 import '../../utils/minigame_manager.dart';
 import '../../movie.dart';
+import '../../utils/themed_notifications.dart';
 import 'emoji_movie_game.dart';
 
 class MinigamesSection extends StatefulWidget {
@@ -82,11 +83,10 @@ class _MinigamesSectionState extends State<MinigamesSection>
         );
         break;
       default:
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${challenge.title} coming soon!'),
-            backgroundColor: const Color(0xFFE5A00D),
-          ),
+        ThemedNotifications.showInfo(
+          context,
+          '${challenge.title} coming soon!',
+          icon: '🎮',
         );
         return;
     }

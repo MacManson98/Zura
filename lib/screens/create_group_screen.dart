@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 import '../models/user_profile.dart';
 import '../services/group_service.dart';
+import '../utils/themed_notifications.dart';
 
 class CreateGroupScreen extends StatefulWidget {
   final UserProfile currentUser;
@@ -81,26 +82,17 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
 
       if (mounted) {
         final inviteCount = _selectedFriends.length;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Group "${group.name}" created! ${inviteCount > 0 ? "Will send $inviteCount invitation${inviteCount != 1 ? 's' : ''} once invitation system is ready." : ""}'
-            ),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 3),
-          ),
+        ThemedNotifications.showSuccess(
+          context, 
+          'Group "${group.name}" created! ${inviteCount > 0 ? "Will send $inviteCount invitation${inviteCount != 1 ? 's' : ''} once invitation system is ready." : ""}',
+          icon: "👥"
         );
 
         Navigator.pop(context, true);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to create group: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        ThemedNotifications.showError(context, 'Failed to create group: $e');
       }
     } finally {
       if (mounted) {
@@ -167,11 +159,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                                   color: Colors.white,
                                 ),
                                 onPressed: () {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Group image upload coming soon!'),
-                                    ),
-                                  );
+                                  ThemedNotifications.showInfo(context, 'Group image upload coming soon!', icon: "🚧");
                                 },
                               ),
                             ),

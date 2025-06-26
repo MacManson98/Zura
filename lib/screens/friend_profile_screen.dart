@@ -9,6 +9,7 @@ import '../widgets/compatibility_chart.dart';
 import '../services/recommendation_service.dart';
 import '../utils/movie_loader.dart';
 import 'matcher_screen.dart';
+import '../utils/themed_notifications.dart';
 
 class FriendProfileScreen extends StatefulWidget {
   final UserProfile currentUser;
@@ -1643,15 +1644,10 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
                   
                   // Show success message and go back
                   if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('${widget.friend.name} removed from friends'),
-                        backgroundColor: Colors.green,
-                        behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12.r),
-                        ),
-                      ),
+                    ThemedNotifications.showSuccess(
+                      context, 
+                      '${widget.friend.name} removed from friends',
+                      icon: "👋"
                     );
                     
                     // Go back to friends list
@@ -1661,16 +1657,7 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
                 } catch (e) {
                   // Show error message
                   if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Error removing friend: $e'),
-                        backgroundColor: Colors.red,
-                        behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12.r),
-                        ),
-                      ),
-                    );
+                    ThemedNotifications.showError(context, 'Error removing friend: $e');
                   }
                 }
               },

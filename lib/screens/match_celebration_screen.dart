@@ -4,6 +4,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'dart:math' as math;
 import '../models/user_profile.dart';
 import '../movie.dart';
+import '../utils/themed_notifications.dart';
 import '../utils/user_profile_storage.dart';
 import '../services/firestore_service.dart';
 import '../models/session_models.dart';
@@ -693,12 +694,7 @@ class _MatchCelebrationScreenState extends State<MatchCelebrationScreen>
     if (widget.currentSession == null) {
       DebugLogger.log("❌ No current session found");
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('No active session found'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      ThemedNotifications.showError(context, 'No active session found!');
       return;
     }
     

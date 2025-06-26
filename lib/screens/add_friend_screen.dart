@@ -4,6 +4,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../models/user_profile.dart';
 import '../services/friendship_service.dart';
 import '../utils/debug_loader.dart';
+import '../utils/themed_notifications.dart';
 
 class AddFriendScreen extends StatefulWidget {
   final UserProfile currentUser;
@@ -107,14 +108,7 @@ class _AddFriendScreenState extends State<AddFriendScreen> {
             _isSearching = false;
           });
           
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Search failed: $e'),
-              backgroundColor: Colors.red,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
-            ),
-          );
+          ThemedNotifications.showError(context, 'Search failed: $e');
         }
       });
     }
@@ -136,26 +130,11 @@ class _AddFriendScreenState extends State<AddFriendScreen> {
       
       setState(() {}); // Refresh UI to show updated button state
       
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Friend request sent to ${user.name}!'),
-          backgroundColor: Colors.green,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
-          duration: const Duration(seconds: 2),
-        ),
-      );
+      ThemedNotifications.showSuccess(context, 'Friend request sent to ${user.name}!', icon: "🤝");
     } catch (e) {
       if (!mounted) return;
       
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to send request: $e'),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
-        ),
-      );
+      ThemedNotifications.showError(context, 'Failed to send request: $e');
     }
   }
 

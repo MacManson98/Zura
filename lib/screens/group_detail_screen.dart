@@ -7,6 +7,7 @@ import '../models/friend_group.dart';
 import '../models/user_profile.dart';
 import '../movie.dart';
 import 'matcher_screen.dart';
+import '../utils/themed_notifications.dart';
 
 class GroupDetailScreen extends StatefulWidget {
   final FriendGroup group;
@@ -870,12 +871,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                   onTap: () {
                     // Share group invite link logic
                     Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Invite link sharing coming soon!'),
-                        backgroundColor: Colors.blue,
-                      ),
-                    );
+                    ThemedNotifications.showInfo(context, 'Invite link sharing coming soon!', icon: "🚧");
                   },
                   borderRadius: BorderRadius.circular(16.r),
                   child: Padding(
@@ -943,12 +939,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                   onTap: () {
                     // Direct friend invite logic
                     Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Friend selection coming soon!'),
-                        backgroundColor: Colors.green,
-                      ),
-                    );
+                    ThemedNotifications.showInfo(context, 'Friend selection coming soon!', icon: "🚧");
                   },
                   borderRadius: BorderRadius.circular(16.r),
                   child: Padding(
@@ -1080,9 +1071,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                         color: Colors.blue,
                         onTap: () {
                           Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Edit group coming soon!')),
-                          );
+                          ThemedNotifications.showInfo(context, 'Edit group coming soon!', icon: "🚧");
                         },
                       ),
                       
@@ -1170,9 +1159,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                         color: Colors.blue,
                         onTap: () {
                           Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Notification settings coming soon!')),
-                          );
+                          ThemedNotifications.showInfo(context, 'Notification settings coming soon!', icon: "🚧");
                         },
                       ),
                       
@@ -1185,9 +1172,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                         color: Colors.orange,
                         onTap: () {
                           Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Report feature coming soon!')),
-                          );
+                          ThemedNotifications.showInfo(context, 'Report feature coming soon!', icon: "🚧");
                         },
                       ),
                       
@@ -1508,12 +1493,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
               Navigator.pop(context); // Close dialog
               Navigator.pop(context); // Go back to groups list
               
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Group "${widget.group.name}" deleted'),
-                  backgroundColor: Colors.red,
-                ),
-              );
+              ThemedNotifications.showDecline(context, 'Group "${widget.group.name}" deleted', icon: "🗑️");
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
@@ -1554,12 +1534,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
               Navigator.pop(context); // Close dialog
               Navigator.pop(context); // Go back to groups list
               
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('You left "${widget.group.name}"'),
-                  backgroundColor: Colors.orange,
-                ),
-              );
+              ThemedNotifications.showInfo(context, 'You left "${widget.group.name}"', icon: "🚪");
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.orange,
@@ -1599,12 +1574,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
             onPressed: () {
               Navigator.pop(context);
               
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('${member.name} removed from group'),
-                  backgroundColor: Colors.red,
-                ),
-              );
+              ThemedNotifications.showDecline(context, '${member.name} removed from group', icon: "👋");
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,

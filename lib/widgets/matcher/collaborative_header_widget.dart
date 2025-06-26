@@ -8,6 +8,7 @@ import '../../utils/mood_based_learning_engine.dart';
 import '../../services/session_service.dart';
 import '../../utils/debug_loader.dart';
 import '../../movie.dart';
+import '../../utils/themed_notifications.dart';
 
 class CollaborativeHeaderWidget extends StatelessWidget {
   final bool isInCollaborativeMode;
@@ -352,27 +353,13 @@ class CollaborativeHeaderWidget extends StatelessWidget {
       if (!context.mounted) return;
       
       // Show success message
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Session ended for everyone'),
-          backgroundColor: Colors.orange,
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 3),
-        ),
-      );
+      ThemedNotifications.showInfo(context, 'Session ended for everyone', icon: "🚪");
       
       DebugLogger.log("✅ Collaborative session ended successfully");
       
     } catch (e) {
       DebugLogger.log("❌ Error ending collaborative session: $e");
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to end session'),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 3),
-        ),
-      );
+      ThemedNotifications.showError(context, 'Failed to end session');
     }
   }
 }

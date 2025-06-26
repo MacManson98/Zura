@@ -8,6 +8,7 @@ import '../../widgets/session_invitation_widget.dart';
 import '../../models/matching_models.dart';
 import '../group_selection_widget.dart';
 
+
 class SessionControlsWidget extends StatelessWidget {
   final MatchingMode currentMode;
   final bool hasStartedSession;
@@ -19,7 +20,7 @@ class SessionControlsWidget extends StatelessWidget {
   // Callback functions
   final VoidCallback onEndSession;
   final VoidCallback onStartPopularMovies;
-  final VoidCallback onShowMoodPicker;
+  final VoidCallback onShowMoodPicker; // This will be used by all modes now
   final Function(List<UserProfile>) onGroupSelected;
   final void Function(SwipeSession) onSessionCreated;
   
@@ -216,7 +217,7 @@ class SessionControlsWidget extends StatelessWidget {
               child: Material(
                 color: Colors.transparent,
                 child: InkWell(
-                  onTap: canStartSession() ? onShowMoodPicker : null,
+                  onTap: onShowMoodPicker, // ✅ UNIFIED: Use same mood picker
                   borderRadius: BorderRadius.circular(20.r),
                   child: Container(
                     padding: EdgeInsets.symmetric(horizontal: 20.w),
@@ -365,7 +366,7 @@ class SessionControlsWidget extends StatelessWidget {
                 child: Material(
                   color: Colors.transparent,
                   child: InkWell(
-                    onTap: onShowMoodPicker,
+                    onTap: onShowMoodPicker, // ✅ UNIFIED: Use same mood picker
                     borderRadius: BorderRadius.circular(18.r),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -548,7 +549,7 @@ class SessionControlsWidget extends StatelessWidget {
                 child: Material(
                   color: Colors.transparent,
                   child: InkWell(
-                    onTap: onShowMoodPicker,
+                    onTap: onShowMoodPicker, // ✅ UNIFIED: Use same mood picker
                     borderRadius: BorderRadius.circular(18.r),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,

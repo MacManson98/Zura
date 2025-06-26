@@ -75,7 +75,7 @@ class _NotificationBottomSheetState extends State<NotificationBottomSheet>
             curve: Curves.easeOutCubic,
           )),
           child: Container(
-            height: MediaQuery.of(context).size.height * 0.85,
+            height: MediaQuery.of(context).size.height * 0.90,
             decoration: BoxDecoration(
               color: const Color(0xFF1A1A1A),
               borderRadius: BorderRadius.vertical(top: Radius.circular(24.r)),

@@ -6,6 +6,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../movie.dart';
 import '../utils/movie_loader.dart';
 import '../models/user_profile.dart';
+import '../utils/themed_notifications.dart';
 import '../utils/user_profile_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'match_celebration_screen.dart';
@@ -174,13 +175,7 @@ class _MatcherScreenState extends State<MatcherScreen>
           DebugLogger.log("⚠️ Error saving auto-ended session to Firestore: $e");
         }
         
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Session ended due to inactivity'),
-            backgroundColor: Colors.orange,
-            duration: const Duration(seconds: 3),
-          ),
-        );
+        ThemedNotifications.showInfo(context, 'Session ended due to inactivity', icon: "⏰");
       }
       
       setState(() {
@@ -334,13 +329,8 @@ class _MatcherScreenState extends State<MatcherScreen>
 
   // NEW: Show error and reset to selection state
   void _showErrorAndReset(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-        duration: const Duration(seconds: 3),
-      ),
-    );
+    ThemedNotifications.showError(context, message);
+
     
     setState(() {
       _isLoadingSession = false;
@@ -352,9 +342,82 @@ class _MatcherScreenState extends State<MatcherScreen>
 
   // Show mood picker modal
   void _showMoodPicker() {
-    setState(() {
-      _showMoodSelectionModal = true;
-    });
+    // ✅ FIXED: Determine correct context based on current mode
+    MoodSelectionContext moodContext;
+    int groupSize = 1;
+    
+    switch (currentMode) {
+      case MatchingMode.solo:
+        moodContext = MoodSelectionContext.solo;
+        groupSize = 1;
+        break;
+      case MatchingMode.friend:
+        moodContext = selectedFriend != null 
+            ? MoodSelectionContext.friendInvite 
+            : MoodSelectionContext.solo; // Fallback if no friend selected
+        groupSize = 2;
+        break;
+      case MatchingMode.group:
+        moodContext = selectedGroup.isNotEmpty 
+            ? MoodSelectionContext.groupInvite 
+            : MoodSelectionContext.solo; // Fallback if no group selected
+        groupSize = selectedGroup.length + 1;
+        break;
+    }
+    
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true, // Allows full height control
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.90,
+        decoration: BoxDecoration(
+          color: const Color(0xFF121212),
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(20.r),
+            topRight: Radius.circular(20.r),
+          ),
+        ),
+        child: Stack(
+          children: [
+            // Main mood selection widget (includes the ONE drag indicator)
+            MoodSelectionWidget(
+              onMoodsSelected: (moods) {
+                Navigator.pop(context); // Close the bottom sheet
+                _onMoodSelected(moods); // ✅ PRESERVED: Use existing mood selection logic
+              },
+              isGroupMode: currentMode != MatchingMode.solo,
+              groupSize: groupSize,
+              moodContext: moodContext, // ✅ FIXED: Use correct context for button text
+            ),
+            
+            // Close button positioned over the mood widget
+            Positioned(
+              top: 16.h,
+              right: 16.w,
+              child: GestureDetector(
+                onTap: () => Navigator.of(context).pop(),
+                child: Container(
+                  padding: EdgeInsets.all(8.r),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.6),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.2),
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.close,
+                    color: Colors.white,
+                    size: 18.sp,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   // Reset to selection state
@@ -1130,54 +1193,6 @@ class _MatcherScreenState extends State<MatcherScreen>
     DebugLogger.log("🔍 BUILD: SessionManager.hasActiveSession = ${SessionManager.hasActiveSession}");
     DebugLogger.log("🔍 BUILD: sessionPool.length = ${sessionPool.length}");
     DebugLogger.log("🔍 BUILD: _isReadyToSwipe = $_isReadyToSwipe");
-    
-    // Show mood selection modal if requested
-    if (_showMoodSelectionModal) {
-      return Scaffold(
-        backgroundColor: const Color(0xFF121212),
-        body: SafeArea(
-          child: Stack(
-            children: [
-              // Main mood selection widget
-              MoodSelectionWidget(
-                onMoodsSelected: _onMoodSelected,
-                isGroupMode: currentMode != MatchingMode.solo,
-                groupSize: currentMode == MatchingMode.group 
-                    ? selectedGroup.length + 1 
-                    : currentMode == MatchingMode.friend 
-                        ? 2 
-                        : 1,
-              ),
-              
-              // Subtle cancel button at top-left (less intrusive)
-              Positioned(
-                top: 24.h,
-                left: 24.w,
-                child: GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _showMoodSelectionModal = false;
-                    });
-                  },
-                  child: Container(
-                    padding: EdgeInsets.all(8.r),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.3),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.arrow_back_ios,
-                      color: Colors.white.withValues(alpha: 0.8),
-                      size: 20.sp,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
 
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
@@ -1292,14 +1307,13 @@ class _MatcherScreenState extends State<MatcherScreen>
                   },
                   onUpdateState: _updateStateFromWidget,
                   onShowSnackBar: (String message) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(message),
-                        backgroundColor: message.contains('Failed') ? Colors.red : 
-                                      message.contains('everyone') ? Colors.orange : Colors.green,
-                        duration: const Duration(seconds: 2),
-                      ),
-                    );
+                    if (message.contains('Failed') || message.contains('Error')) {
+                      ThemedNotifications.showError(context, message);
+                    } else if (message.contains('everyone') || message.contains('waiting')) {
+                      ThemedNotifications.showWaiting(context, message);
+                    } else {
+                      ThemedNotifications.showSuccess(context, message);
+                    }
                   },
                 ),
 
@@ -1915,13 +1929,7 @@ class _MatcherScreenState extends State<MatcherScreen>
           
           // If someone else cancelled it, show notification and reset UI
           if (cancelledBy != widget.currentUser.name) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('$cancelledBy ended the session'),
-                backgroundColor: Colors.orange,
-                duration: const Duration(seconds: 3),
-              ),
-            );
+            ThemedNotifications.showInfo(context, '$cancelledBy ended the session', icon: "🚪");
           }
           
           // Reset UI for this user too
@@ -2020,16 +2028,12 @@ class _MatcherScreenState extends State<MatcherScreen>
     DebugLogger.log("🎯 Collaborative session started successfully");
     
     // Show success message to user
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          session.hostId == widget.currentUser.uid 
-              ? 'Session created! Waiting for friends...'
-              : 'Successfully joined ${session.hostName}\'s session!',
-        ),
-        backgroundColor: Colors.green,
-        duration: const Duration(seconds: 3),
-      ),
+    ThemedNotifications.showSuccess(
+      context, 
+      session.hostId == widget.currentUser.uid 
+          ? 'Session created! Waiting for friends...'
+          : 'Successfully joined ${session.hostName}\'s session!',
+      icon: "🎬"
     );
   }
 
@@ -2501,23 +2505,11 @@ class _MatcherScreenState extends State<MatcherScreen>
       );
       
       // Show confirmation to the requester
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Mood change request sent to other participants'),
-          backgroundColor: Colors.blue,
-          duration: const Duration(seconds: 2),
-        ),
-      );
+      ThemedNotifications.showWaiting(context, 'Mood change request sent to other participants', icon: "🎭");
       
     } catch (e) {
       DebugLogger.log("❌ Error sending mood change request: $e");
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to send mood change request'),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 2),
-        ),
-      );
+      ThemedNotifications.showError(context, 'Failed to send mood change request');
     }
   }
 

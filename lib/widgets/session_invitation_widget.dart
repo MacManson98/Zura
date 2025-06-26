@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:glassmorphism/glassmorphism.dart';
 import '../models/session_models.dart';
@@ -7,6 +6,7 @@ import '../services/session_service.dart';
 import '../models/user_profile.dart';
 import '../utils/mood_based_learning_engine.dart';
 import 'mood_selection_widget.dart';
+import '../utils/themed_notifications.dart';
 
 class SessionInvitationWidget extends StatefulWidget {
   final UserProfile currentUser;
@@ -353,12 +353,7 @@ class _SessionInvitationWidgetState extends State<SessionInvitationWidget> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to create session: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        ThemedNotifications.showError(context, 'Failed to create session: $e');
       }
     } finally {
       if (mounted) setState(() => _isCreatingSession = false);
@@ -614,81 +609,6 @@ class _SessionInvitationWidgetState extends State<SessionInvitationWidget> {
                   ),
                 ),
                 
-                SizedBox(height: 20.h),
-                
-                Text(
-                  "Share this code with your friend:",
-                  style: TextStyle(color: Colors.white70, fontSize: 14.sp),
-                ),
-                
-                SizedBox(height: 16.h),
-                
-                // Session code
-                Container(
-                  padding: EdgeInsets.all(20.r),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        const Color(0xFFE5A00D).withValues(alpha: 0.2),
-                        Colors.orange.withValues(alpha: 0.1),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(16.r),
-                    border: Border.all(color: const Color(0xFFE5A00D), width: 2.w),
-                  ),
-                  child: Column(
-                    children: [
-                      Text(
-                        sessionCode,
-                        style: TextStyle(
-                          color: const Color(0xFFE5A00D),
-                          fontSize: 32.sp,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 6.w,
-                        ),
-                      ),
-                      SizedBox(height: 8.h),
-                      Text(
-                        "6-digit session code",
-                        style: TextStyle(color: Colors.white60, fontSize: 12.sp),
-                      ),
-                    ],
-                  ),
-                ),
-                
-                SizedBox(height: 24.h),
-                
-                // Action buttons
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextButton.icon(
-                        onPressed: () {
-                          Clipboard.setData(ClipboardData(text: sessionCode));
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Code copied! Send it to your friend'),
-                              backgroundColor: Colors.green,
-                            ),
-                          );
-                        },
-                        icon: Icon(Icons.copy, size: 18.sp, color: const Color(0xFFE5A00D)),
-                        label: Text(
-                          "Copy Code",
-                          style: TextStyle(color: const Color(0xFFE5A00D), fontSize: 13.sp),
-                        ),
-                        style: TextButton.styleFrom(
-                          side: BorderSide(color: const Color(0xFFE5A00D)),
-                          padding: EdgeInsets.symmetric(vertical: 12.h),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12.r),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                
                 SizedBox(height: 16.h),
                 
                 // Status
@@ -883,27 +803,12 @@ class _SessionInvitationWidgetState extends State<SessionInvitationWidget> {
                                       Navigator.of(context).pop();
                                       widget.onSessionCreated(session);
                                       
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(
-                                          content: Text('Successfully joined session!'),
-                                          backgroundColor: Colors.green,
-                                        ),
-                                      );
+                                      ThemedNotifications.showSuccess(context, 'Successfully joined session!', icon: "🎬");
                                     } else {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(
-                                          content: Text('Session not found. Check the code and try again.'),
-                                          backgroundColor: Colors.red,
-                                        ),
-                                      );
+                                      ThemedNotifications.showError(context, 'Session not found. Check the code and try again.');
                                     }
                                   } catch (e) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text('Failed to join: $e'),
-                                        backgroundColor: Colors.red,
-                                      ),
-                                    );
+                                    ThemedNotifications.showError(context, 'Failed to join: $e');
                                   } finally {
                                     setState(() => isJoining = false);
                                   }
@@ -1388,106 +1293,56 @@ class _FriendInviteDialogState extends State<FriendInviteDialog> {
   void _showMoodSelectionModal() {
     showModalBottomSheet(
       context: context,
-      isScrollControlled: true,
+      isScrollControlled: true, // Allows full height control
       backgroundColor: Colors.transparent,
-      barrierColor: Colors.black.withValues(alpha: 0.7),
-      enableDrag: true,
-      isDismissible: true,
-      useSafeArea: true,
-      builder: (BuildContext context) {
-        return DraggableScrollableSheet(
-          initialChildSize: 0.95,
-          minChildSize: 0.5,
-          maxChildSize: 0.95,
-          expand: false,
-          snap: true,
-          snapSizes: const [0.5, 0.75, 0.95],
-          builder: (context, scrollController) {
-            return Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    const Color(0xFF1A1A1A),
-                    const Color(0xFF0F0F0F),
-                  ],
-                ),
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(24.r),
-                  topRight: Radius.circular(24.r),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.3),
-                    blurRadius: 20.r,
-                    spreadRadius: 5.r,
-                    offset: Offset(0, -5.h),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  // Modal header with drag indicator and close button
-                  Container(
-                    padding: EdgeInsets.fromLTRB(24.w, 12.h, 24.w, 8.h),
-                    child: Column(
-                      children: [
-                        // Drag indicator
-                        Container(
-                          width: 40.w,
-                          height: 4.h,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.3),
-                            borderRadius: BorderRadius.circular(2.r),
-                          ),
-                        ),
-                        
-                        SizedBox(height: 12.h),
-                        
-                        // Just close button, no title
-                        Row(
-                          children: [
-                            Spacer(),
-                            GestureDetector(
-                              onTap: () => Navigator.of(context).pop(),
-                              child: Container(
-                                padding: EdgeInsets.all(8.r),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.1),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  Icons.close,
-                                  color: Colors.white.withValues(alpha: 0.8),
-                                  size: 20.sp,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.90, // 85% of screen height
+        decoration: BoxDecoration(
+          color: const Color(0xFF121212),
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(20.r),
+            topRight: Radius.circular(20.r),
+          ),
+        ),
+        child: Stack(
+          children: [
+            // Main mood selection widget (includes the ONE drag indicator)
+            MoodSelectionWidget(
+              onMoodsSelected: (moods) {
+                Navigator.pop(context); // Close the bottom sheet
+                _onMoodsSelected(moods);
+              },
+              isGroupMode: false,
+              groupSize: 2,
+              moodContext: MoodSelectionContext.friendInvite,
+            ),
+            
+            // Close button positioned over the mood widget
+            Positioned(
+              top: 16.h,
+              right: 16.w,
+              child: GestureDetector(
+                onTap: () => Navigator.of(context).pop(),
+                child: Container(
+                  padding: EdgeInsets.all(8.r),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.6),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.2),
                     ),
                   ),
-                  
-                  // Main mood selection content
-                  Expanded(
-                    child: MoodSelectionWidget(
-                      onMoodsSelected: (moods) {
-                        Navigator.of(context).pop(); // Close modal first
-                        _onMoodsSelected(moods); // Then call your method
-                      },
-                      isGroupMode: false,
-                      groupSize: 2,
-                      context: MoodSelectionContext.friendInvite,
-                    ),
+                  child: Icon(
+                    Icons.close,
+                    color: Colors.white,
+                    size: 18.sp,
                   ),
-                ],
+                ),
               ),
-            );
-          },
-        );
-      },
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1526,25 +1381,15 @@ class _FriendInviteDialogState extends State<FriendInviteDialog> {
         Navigator.of(context).pop();
         widget.onSessionCreated(session);
         
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Invitation sent to ${friend.name}! Waiting for them to join...',
-            ),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 3),
-          ),
+        ThemedNotifications.showSuccess(
+          context, 
+          'Invitation sent to ${friend.name}! Waiting for them to join...',
+          icon: "📨"
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to send invitation: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
-        );
+        ThemedNotifications.showError(context, 'Failed to send invitation: $e');
       }
     } finally {
       if (mounted) setState(() => isCreatingSession = false);

@@ -11,6 +11,7 @@ import '../../utils/user_profile_storage.dart';
 import '../../utils/mood_based_learning_engine.dart';
 import '../../services/session_service.dart';
 import '../../screens/movie_detail_screen.dart';
+import '../../utils/themed_notifications.dart';
 
 class MainContentWidget extends StatelessWidget {
   // State variables
@@ -508,35 +509,17 @@ class MainContentWidget extends StatelessWidget {
           'userLikedMovies': [...currentUser.likedMovies, movie],
         });
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${movie.title} added to favorites'),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 2),
-          ),
-        );
+        ThemedNotifications.showSuccess(context, '${movie.title} added to favorites', icon: "❤️");
       },
       onRemoveFromFavorites: isInFavorites ? (Movie movie) {
         onUpdateState({
           'userLikedMovies': {...currentUser.likedMovies}..remove(movie),
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${movie.title} removed from favorites'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 2),
-          ),
-        );
+        ThemedNotifications.showDecline(context, '${movie.title} removed from favorites', icon: "💔");
       } : null,
       onMarkAsWatched: currentMode == MatchingMode.friend || currentMode == MatchingMode.group
           ? (Movie movie) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('${movie.title} marked as watched'),
-                  backgroundColor: Colors.green,
-                  duration: const Duration(seconds: 2),
-                ),
-              );
+              ThemedNotifications.showSuccess(context, '${movie.title} marked as watched', icon: "✅");
             }
           : null,
       isInFavorites: isInFavorites,

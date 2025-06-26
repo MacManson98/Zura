@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:glassmorphism/glassmorphism.dart';
 import '../models/user_profile.dart';
+import '../utils/themed_notifications.dart';
 import '../utils/user_profile_storage.dart';
 import '../widgets/profile_reset_dialog.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -49,23 +50,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _profile = updatedProfile;
       });
       
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Profile updated successfully'),
-          backgroundColor: Colors.green,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
-        ),
-      );
+      ThemedNotifications.showSuccess(context, 'Profile updated successfully', icon: "✅");
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error updating profile: $e'),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
-        ),
-      );
+      ThemedNotifications.showError(context, 'Error updating profile: $e');
     }
   }
 
@@ -538,14 +525,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           icon: Icons.help_outline,
           color: Colors.blue,
           onTap: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: const Text('Help & Support coming soon'),
-                backgroundColor: Colors.blue,
-                behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
-              ),
-            );
+            ThemedNotifications.showInfo(context, 'Help & Support coming soon', icon: "🚧");
           },
         ),
         
@@ -628,14 +608,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     Colors.blue,
                     () async {
                       try {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: const Text('Testing cleanup... check console'),
-                            backgroundColor: Colors.blue,
-                            behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
-                          ),
-                        );
+                        ThemedNotifications.showInfo(context, 'Testing cleanup... check console', icon: "🔍");
                         
                         DebugLogger.log("🔍 === MANUAL CLEANUP TEST STARTED ===");
                         
@@ -682,25 +655,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         DebugLogger.log("🗑️ Deleted: $deleted sessions");
                         DebugLogger.log("🔍 === CLEANUP TEST FINISHED ===");
                         
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Deleted $deleted sessions. Check console for details.'),
-                            backgroundColor: deleted > 0 ? Colors.green : Colors.orange,
-                            behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
-                          ),
-                        );
+                        if (deleted > 0) {
+                          ThemedNotifications.showSuccess(context, 'Deleted $deleted sessions. Check console for details.', icon: "🗑️");
+                        } else {
+                          ThemedNotifications.showInfo(context, 'No sessions found to delete. Check console for details.', icon: "ℹ️");
+                        }
+
                         
                       } catch (e) {
                         DebugLogger.log("❌ Cleanup test failed: $e");
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Error: $e'),
-                            backgroundColor: Colors.red,
-                            behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
-                          ),
-                        );
+                        ThemedNotifications.showError(context, 'Error: $e');
                       }
                     },
                   ),
@@ -737,24 +701,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           await batch.commit();
                           DebugLogger.log("✅ Force deleted ${oldSessions.docs.length} sessions!");
                           
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Force deleted ${oldSessions.docs.length} sessions!'),
-                              backgroundColor: Colors.green,
-                              behavior: SnackBarBehavior.floating,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
-                            ),
-                          );
+                          ThemedNotifications.showSuccess(context, 'Force deleted ${oldSessions.docs.length} sessions!', icon: "💥");
                         } else {
                           DebugLogger.log("ℹ️ No sessions older than 1 hour found");
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: const Text('No sessions old enough (1h+)'),
-                              backgroundColor: Colors.orange,
-                              behavior: SnackBarBehavior.floating,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
-                            ),
-                          );
+                          ThemedNotifications.showInfo(context, 'No sessions old enough (1h+)', icon: "ℹ️");
                         }
                         
                         DebugLogger.log("🔥 === FORCE DELETE TEST FINISHED ===");
@@ -796,14 +746,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       await batch.commit();
                       DebugLogger.log("💥 DELETED ALL ${allSessions.docs.length} SESSIONS!");
                       
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('DELETED ALL ${allSessions.docs.length} sessions!'),
-                          backgroundColor: Colors.red,
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
-                        ),
-                      );
+                      ThemedNotifications.showError(context, 'DELETED ALL ${allSessions.docs.length} sessions!', icon: "💥");
                     }
                     
                   } catch (e) {
@@ -838,14 +781,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     DebugLogger.log("📨 Found ${invitationsSnapshot.docs.length} pending invitations");
                     
                     if (invitationsSnapshot.docs.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: const Text('No pending invitations to test'),
-                          backgroundColor: Colors.orange,
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
-                        ),
-                      );
+                      ThemedNotifications.showInfo(context, 'No pending invitations to test', icon: "📭");
                       return;
                     }
                     
@@ -863,36 +799,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     
                     if (session != null) {
                       DebugLogger.log("✅ Successfully accepted invitation!");
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: const Text('✅ Invitation test successful!'),
-                          backgroundColor: Colors.green,
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
-                        ),
-                      );
+                      ThemedNotifications.showSuccess(context, '✅ Invitation test successful!');
                     } else {
                       DebugLogger.log("❌ Failed to accept invitation");
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: const Text('❌ Invitation test failed'),
-                          backgroundColor: Colors.red,
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
-                        ),
-                      );
+                      ThemedNotifications.showError(context, '❌ Invitation test failed');
                     }
                     
                   } catch (e) {
                     DebugLogger.log("❌ Invitation test failed: $e");
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('❌ Test failed: $e'),
-                        backgroundColor: Colors.red,
-                        behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
-                      ),
-                    );
+                    ThemedNotifications.showError(context, '❌ Test failed: $e');
                   }
                 },
               ),
@@ -1119,14 +1034,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   .set(userData);
             }
 
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: const Text('Test users created! You can now search for Alice, Bob, or Carol'),
-                backgroundColor: Colors.green,
-                behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
-              ),
-            );
+            ThemedNotifications.showSuccess(context, 'Test users created! You can now search for Alice, Bob, or Carol', icon: "👥");
           },
           borderRadius: BorderRadius.circular(16.r),
           child: Row(
@@ -1420,14 +1328,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   void _showGenreAnalytics(Map<String, int> genreCount) {
     if (genreCount.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Like some movies first to see your genre breakdown!'),
-          backgroundColor: Colors.orange,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
-        ),
-      );
+      ThemedNotifications.showInfo(context, 'Like some movies first to see your genre breakdown!', icon: "📊");
       return;
     }
 

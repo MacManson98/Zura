@@ -11,6 +11,7 @@ import '../screens/watch_options_screen.dart';
 import '../utils/debug_loader.dart';
 import 'package:intl/intl.dart';
 import '../utils/movie_loader.dart';
+import '../utils/themed_notifications.dart';
 
 class MatchesScreen extends StatefulWidget {
   final UserProfile currentUser;
@@ -1159,21 +1160,11 @@ class _MatchesScreenState extends State<MatchesScreen> {
       }
       await UserProfileStorage.saveProfile(_profile);
       
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Added "${movie.title}" to favorites'),
-          backgroundColor: Colors.green,
-        ),
-      );
+      ThemedNotifications.showSuccess(context, 'Added "${movie.title}" to favorites', icon: "❤️");
       
     } catch (e) {
       DebugLogger.log('Error adding to favorites: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error adding to favorites: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      ThemedNotifications.showError(context, 'Error adding to favorites: $e');
     }
   }
 
@@ -1197,22 +1188,12 @@ class _MatchesScreenState extends State<MatchesScreen> {
         }
         await UserProfileStorage.saveProfile(_profile);
         
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Marked "${match.movie.title}" as watched'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        ThemedNotifications.showSuccess(context, 'Marked "${match.movie.title}" as watched', icon: "✅");
       }
       
     } catch (e) {
       DebugLogger.log('Error marking as watched: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error updating status: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      ThemedNotifications.showError(context, 'Error updating status: $e');
     }
   }
 

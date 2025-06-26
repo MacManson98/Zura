@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../movie.dart';
 import '../models/user_profile.dart';
 import '../models/session_models.dart';
+import '../utils/themed_notifications.dart';
 import '../widgets/trailer_player_widget.dart';
 import '../utils/debug_loader.dart';
 import '../utils/movie_loader.dart';
@@ -1153,11 +1154,9 @@ class _MultiMatchCarouselScreenState extends State<MultiMatchCarouselScreen>
         await launchUrl(uri, mode: LaunchMode.externalApplication);
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Could not open ${_formatPlatformName(platform)}'),
-              backgroundColor: Colors.red,
-            ),
+          ThemedNotifications.showError(
+            context,
+            'Could not open ${_formatPlatformName(platform)}',
           );
         }
       }
@@ -1223,18 +1222,10 @@ class _MultiMatchCarouselScreenState extends State<MultiMatchCarouselScreen>
   }
 
   void _performEndSession() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(Icons.check_circle, color: Colors.white),
-            SizedBox(width: 8.w),
-            Text('Session ended successfully!'),
-          ],
-        ),
-        backgroundColor: Colors.green,
-        duration: const Duration(seconds: 2),
-      ),
+    ThemedNotifications.showSuccess(
+      context,
+      'Session ended successfully!',
+      icon: '✅',
     );
     
     // Navigate back to home or main screen
