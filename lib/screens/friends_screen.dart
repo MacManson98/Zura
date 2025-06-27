@@ -118,8 +118,7 @@ class _FriendsScreenState extends State<FriendsScreen> with SingleTickerProvider
           )
         ),
       ),
-      // Keep the floating action button functionality
-      floatingActionButton: _buildFloatingActionButton(),
+      // ✅ REMOVE: floatingActionButton: _buildFloatingActionButton(),
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -150,45 +149,6 @@ class _FriendsScreenState extends State<FriendsScreen> with SingleTickerProvider
         ),
       ),
     );
-  }
-
-  // Keep the original floating action button logic
-  Widget? _buildFloatingActionButton() {
-    // Only show FAB for groups tab since friends has prominent add button
-    if (_tabController.index == 1) {
-      return AnimatedSwitcher(
-        duration: const Duration(milliseconds: 300),
-        child: Container(
-          key: ValueKey(_tabController.index),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16.r),
-            gradient: LinearGradient(
-              colors: [const Color(0xFFE5A00D), Colors.orange.shade600],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFFE5A00D).withValues(alpha: 0.4),
-                blurRadius: 12.r,
-                spreadRadius: 2.r,
-              ),
-            ],
-          ),
-          child: FloatingActionButton(
-            onPressed: _createNewGroup,
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            child: Icon(
-              Icons.group_add,
-              color: Colors.white,
-              size: 28.sp,
-            ),
-          ),
-        ),
-      );
-    }
-    return null;
   }
 
   Widget _buildModernTabSelector() {
@@ -450,26 +410,107 @@ class _FriendsScreenState extends State<FriendsScreen> with SingleTickerProvider
   }
 
   Widget _buildGroupsContent() {
-    if (_isLoadingGroups) {
-      return _buildLoadingState();
-    }
-
-    if (_groups.isEmpty) {
-      return _buildEmptyGroupsState();
-    }
-
-    return RefreshIndicator(
-      onRefresh: _loadGroups,
-      color: const Color(0xFFE5A00D),
-      backgroundColor: const Color(0xFF1F1F1F),
-      child: ListView.builder(
-        padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 100.h),
-        itemCount: _groups.length,
-        itemBuilder: (context, index) {
-          final group = _groups[index];
-          return _buildCleanGroupCard(group, index);
-        },
-      ),
+    return Column(
+      children: [
+        // ✅ NEW: Create Group button (similar to Add Friends button)
+        Container(
+          margin: EdgeInsets.all(16.w),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                const Color(0xFFE5A00D).withValues(alpha: 0.9),
+                Colors.orange.shade600.withValues(alpha: 0.8),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(16.r),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFE5A00D).withValues(alpha: 0.3),
+                blurRadius: 8.r,
+                offset: Offset(0, 4.h),
+              ),
+            ],
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: _createNewGroup,
+              borderRadius: BorderRadius.circular(16.r),
+              child: Padding(
+                padding: EdgeInsets.all(16.w),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(12.w),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(12.r),
+                      ),
+                      child: Icon(
+                        Icons.group_add,
+                        color: Colors.white,
+                        size: 24.sp,
+                      ),
+                    ),
+                    SizedBox(width: 16.w),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Create Group',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18.sp,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          SizedBox(height: 2.h),
+                          Text(
+                            'Start a movie group with friends',
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.8),
+                              fontSize: 14.sp,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      Icons.arrow_forward_ios,
+                      color: Colors.white.withValues(alpha: 0.8),
+                      size: 16.sp,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        
+        // ✅ EXISTING: Groups list content
+        Expanded(
+          child: _isLoadingGroups
+              ? _buildLoadingState()
+              : _groups.isEmpty
+                  ? _buildEmptyGroupsState()
+                  : RefreshIndicator(
+                      onRefresh: _loadGroups,
+                      color: const Color(0xFFE5A00D),
+                      backgroundColor: const Color(0xFF1F1F1F),
+                      child: ListView.builder(
+                        padding: EdgeInsets.fromLTRB(16.w, 0, 16.w, 100.h),
+                        itemCount: _groups.length,
+                        itemBuilder: (context, index) {
+                          final group = _groups[index];
+                          return _buildCleanGroupCard(group, index);
+                        },
+                      ),
+                    ),
+        ),
+      ],
     );
   }
 

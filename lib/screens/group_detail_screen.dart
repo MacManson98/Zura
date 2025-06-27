@@ -1,5 +1,6 @@
 // File: lib/screens/group_detail_screen.dart
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:glassmorphism/glassmorphism.dart';
@@ -11,6 +12,9 @@ import '../utils/themed_notifications.dart';
 import '../services/friendship_service.dart';
 import '../services/group_invitation_service.dart';
 import '../services/group_service.dart';
+import '../models/session_models.dart';
+import 'movie_detail_screen.dart';
+import '../utils/movie_loader.dart';
 
 class GroupDetailScreen extends StatefulWidget {
   final FriendGroup group;
@@ -35,12 +39,15 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
   Set<Movie> _recommendedMovies = {};
   List<UserProfile> _userFriends = [];
   bool _isLoadingFriends = false;
+  List<Movie> _groupMatches = [];
+  bool _isLoadingMatches = false;
 
   @override
   void initState() {
     super.initState();
     _loadGroupRecommendations();
     _loadUserFriends();
+    _loadGroupMatches();
   }
 
   void _loadGroupRecommendations() {
@@ -539,6 +546,11 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                   _buildMembersSection(),
                   
                   SizedBox(height: 24.h),
+
+                  //Group Matches Section
+                  _buildGroupMatchesSection(),
+
+                  SizedBox(height: 24.h),
                   
                   // Group recommendations section
                   _buildRecommendationsSection(),
@@ -880,6 +892,249 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
         _buildEnhancedMembersList(),
       ],
     );
+  }
+
+  Widget _buildGroupMatchesSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              "Group Matches",
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18.sp,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Text(
+              "${_groupMatches.length} matches",
+              style: TextStyle(
+                color: Colors.white54,
+                fontSize: 14.sp,
+              ),
+            ),
+          ],
+        ),
+        
+        SizedBox(height: 8.h),
+        
+        Text(
+          "Movies this group has matched together",
+          style: TextStyle(
+            color: Colors.white60,
+            fontSize: 12.sp,
+          ),
+        ),
+        
+        SizedBox(height: 16.h),
+        
+        _isLoadingMatches
+            ? _buildLoadingMatches()
+            : _groupMatches.isEmpty
+                ? _buildEmptyMatches()
+                : _buildMatchesCarousel(),
+      ],
+    );
+  }
+
+  // 7. Add these supporting widgets:
+  Widget _buildLoadingMatches() {
+    return Container(
+      height: 180.h,
+      child: Center(
+        child: CircularProgressIndicator(
+          color: Color(0xFFE5A00D),
+          strokeWidth: 2.w,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyMatches() {
+    return Container(
+      height: 120.h,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Color(0xFF1F1F1F),
+        borderRadius: BorderRadius.circular(16.r),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.1),
+          width: 1.w,
+        ),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.movie_outlined,
+            color: Colors.white30,
+            size: 32.sp,
+          ),
+          SizedBox(height: 8.h),
+          Text(
+            "No matches yet",
+            style: TextStyle(
+              color: Colors.white60,
+              fontSize: 14.sp,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          SizedBox(height: 4.h),
+          Text(
+            "Start matching together to see results here",
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.4),
+              fontSize: 12.sp,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMatchesCarousel() {
+    return Container(
+      height: 180.h,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        itemCount: _groupMatches.length,
+        itemBuilder: (context, index) {
+          final movie = _groupMatches[index]; // ✅ use preloaded object
+
+          return Container(
+            width: 120.w,
+            margin: EdgeInsets.only(right: 12.w),
+            child: GestureDetector(
+              onTap: () {
+                showMovieDetails(
+                  context: context,
+                  movie: movie,
+                  currentUser: widget.currentUser,
+                );
+              },
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12.r),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
+                            blurRadius: 8.r,
+                            offset: Offset(0, 2.h),
+                          ),
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12.r),
+                        child: Image.network(
+                          movie.posterUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => Container(
+                            color: Colors.grey[800],
+                            child: Center(
+                              child: Icon(Icons.broken_image, color: Colors.white30, size: 24.sp),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 8.h),
+                  Text(
+                    movie.title,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12.sp,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  SizedBox(height: 2.h),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _loadGroupMatches() async {
+    setState(() => _isLoadingMatches = true);
+
+    try {
+      final allMovies = await MovieDatabaseLoader.loadMovieDatabase();
+      final sessions = await _getGroupSessions();
+
+      final Set<String> movieIds = {};
+
+      for (final session in sessions) {
+        movieIds.addAll(session.matches); // simple list of IDs
+      }
+
+      final matchedMovies = allMovies
+          .where((movie) => movieIds.contains(movie.id))
+          .toList();
+
+      setState(() {
+        _groupMatches = matchedMovies;
+      });
+    } catch (e) {
+      print("❌ Error loading group matches: $e");
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingMatches = false);
+      }
+    }
+  }
+
+  // 4. Add this helper method to get group sessions:
+  Future<List<SwipeSession>> _getGroupSessions() async {
+    try {
+      // Query sessions where this group's members were participants
+      final memberNames = widget.group.members.map((m) => m.name).toList();
+      
+      // Get sessions from Firestore where participant names match group members
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection('swipeSessions')
+          .where('status', isEqualTo: 'completed')
+          .where('participantNames', arrayContainsAny: memberNames)
+          .orderBy('createdAt', descending: true)
+          .limit(50) // Limit to last 50 sessions
+          .get();
+      
+      final sessions = <SwipeSession>[];
+      
+      for (final doc in querySnapshot.docs) {
+        try {
+          final session = SwipeSession.fromJson(doc.data());
+          
+          // Only include sessions where ALL participants are group members
+          // (to exclude sessions where group members played with non-group friends)
+          final sessionParticipants = session.participantNames.toSet();
+          final isGroupSession = sessionParticipants.length > 1 && 
+              sessionParticipants.every((name) => memberNames.contains(name));
+          
+          if (isGroupSession && session.matches.isNotEmpty) {
+            sessions.add(session);
+          }
+        } catch (e) {
+          print("⚠️ Error parsing session: $e");
+        }
+      }
+      
+      return sessions;
+    } catch (e) {
+      print("❌ Error querying group sessions: $e");
+      return [];
+    }
   }
 
   Widget _buildRecommendationsSection() {
