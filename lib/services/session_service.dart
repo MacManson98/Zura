@@ -84,24 +84,54 @@ class SessionService {
     required String sessionId,
     required String friendId,
     required String friendName,
-    CurrentMood? selectedMood, // 🆕 NEW: Changed to CurrentMood? for type safety
+    CurrentMood? selectedMood,
+    String? groupName, // NEW: Optional group context
+    bool isGroupInvitation = false, // NEW: Flag for group invitations
   }) async {
     try {
-      final currentUser = FirebaseAuth.instance.currentUser;
-      if (currentUser == null) throw Exception("User not authenticated");
-      
-      final currentUserProfile = await getCurrentUserProfile();
-      
-      // 🆕 NEW: Prepare mood information for invitation
-      Map<String, dynamic> invitationData = {
+      final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+      if (currentUserId == null) throw Exception("User not authenticated");
+
+      // Get host information
+      final hostDoc = await _usersCollection.doc(currentUserId).get();
+      final hostName = hostDoc.data()?['name'] ?? 'Someone';
+
+      DebugLogger.log("📨 Sending ${isGroupInvitation ? 'group' : 'friend'} session invitation");
+      DebugLogger.log("   Session: $sessionId");
+      DebugLogger.log("   To: $friendName ($friendId)");
+      DebugLogger.log("   From: $hostName");
+      if (groupName != null) {
+        DebugLogger.log("   Group: $groupName");
+      }
+
+      // Create invitation data
+      final invitationData = <String, dynamic>{
         'sessionId': sessionId,
-        'fromUserId': currentUser.uid,
-        'fromUserName': currentUserProfile.name,
+        'fromUserId': currentUserId,
+        'fromUserName': hostName,
+        'toUserId': friendId,
+        'toUserName': friendName,
         'invitedAt': DateTime.now().toIso8601String(),
-        'type': 'swipe_session',
+        'timestamp': FieldValue.serverTimestamp(),
+        'status': 'pending',
+        'type': isGroupInvitation ? 'group_session' : 'friend_session', // NEW: Different types
       };
-      
-      // 🆕 FIXED: Use correct CurrentMood properties
+
+      // Add group context if this is a group invitation
+      if (isGroupInvitation && groupName != null) {
+        invitationData.addAll({
+          'groupName': groupName,
+          'isGroupSession': true,
+          'invitationType': 'group',
+        });
+      } else {
+        invitationData.addAll({
+          'isGroupSession': false,
+          'invitationType': 'friend',
+        });
+      }
+
+      // Add mood information if provided
       if (selectedMood != null) {
         invitationData.addAll({
           'selectedMoodId': selectedMood.toString().split('.').last, // e.g., "chill" from "CurrentMood.chill"
@@ -123,10 +153,68 @@ class SessionService {
       if (selectedMood != null) {
         DebugLogger.log("   Mood: ${selectedMood.displayName} ${selectedMood.emoji}");
       }
+      if (groupName != null) {
+        DebugLogger.log("   Group context: $groupName");
+      }
       
     } catch (e) {
       DebugLogger.log("❌ Error sending invitation: $e");
       throw e;
+    }
+  }
+
+  static Future<void> inviteGroupToSession({
+    required String sessionId,
+    required List<UserProfile> groupMembers,
+    required String groupName,
+    required String hostName,
+    CurrentMood? selectedMood,
+  }) async {
+    try {
+      final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+      if (currentUserId == null) throw Exception("User not authenticated");
+
+      DebugLogger.log("📧 Inviting ${groupMembers.length} group members to session: $sessionId");
+      DebugLogger.log("👥 Group: $groupName");
+      if (selectedMood != null) {
+        DebugLogger.log("🎭 Mood: ${selectedMood.displayName} ${selectedMood.emoji}");
+      }
+
+      // Send individual session invitations to each group member
+      final futures = groupMembers.map((member) async {
+        try {
+          // Skip sending invitation to the host (current user)
+          if (member.uid == currentUserId) {
+            DebugLogger.log("⏭️ Skipping invitation to host: ${member.name}");
+            return;
+          }
+
+          await inviteFriend(
+            sessionId: sessionId,
+            friendId: member.uid,
+            friendName: member.name,
+            selectedMood: selectedMood,
+            // Add group context to the invitation
+            groupName: groupName,
+            isGroupInvitation: true,
+          );
+
+          DebugLogger.log("✅ Session invitation sent to: ${member.name}");
+        } catch (e) {
+          DebugLogger.log("⚠️ Failed to invite ${member.name}: $e");
+          // Continue with other invitations even if one fails
+        }
+      });
+
+      // Wait for all invitations to complete
+      await Future.wait(futures);
+
+      final invitedCount = groupMembers.where((m) => m.uid != currentUserId).length;
+      DebugLogger.log("📨 Completed sending $invitedCount session invitations for group: $groupName");
+      
+    } catch (e) {
+      DebugLogger.log("❌ Error inviting group to session: $e");
+      throw Exception('Failed to invite group to session: $e');
     }
   }
 

@@ -7,7 +7,6 @@ import 'package:glassmorphism/glassmorphism.dart';
 import '../models/user_profile.dart';
 import '../models/friend_group.dart';
 import '../models/session_models.dart';
-import '../services/group_invitation_service.dart';
 import '../services/group_service.dart';
 import '../services/session_service.dart';
 import '../screens/create_group_screen.dart';
@@ -697,34 +696,29 @@ class _GroupSelectionWidgetState extends State<GroupSelectionWidget> {
       // Create collaborative session
       final session = await SessionService.createSession(
         hostName: widget.currentUser.name,
-        inviteType: InvitationType.friend,
+        inviteType: InvitationType.friend, // This creates a collaborative session
         selectedMood: moods.first,
       );
 
       DebugLogger.log("✅ Session created: ${session.sessionId}");
 
-      // Send invitations to all group members (except current user)
+      // Get group members (excluding current user)
       final groupMembers = _selectedGroup!.members
           .where((member) => member.uid != widget.currentUser.uid)
           .toList();
 
-      DebugLogger.log("📧 Sending invitations to ${groupMembers.length} group members");
+      DebugLogger.log("📧 Sending session invitations to ${groupMembers.length} group members");
 
-      for (final member in groupMembers) {
-        try {
-          await GroupInvitationService().sendGroupInvitations(
-            groupId: _selectedGroup!.id,
-            groupName: _selectedGroup!.name,
-            groupDescription: _selectedGroup!.description,
-            groupImageUrl: _selectedGroup!.imageUrl,
-            creator: widget.currentUser,
-            invitees: groupMembers, // All members except current user
-          );
-          DebugLogger.log("✅ Invited: ${member.name}");
-        } catch (e) {
-          DebugLogger.log("⚠️ Failed to invite ${member.name}: $e");
-        }
-      }
+      // ✅ FIXED: Use the new inviteGroupToSession method instead of GroupInvitationService
+      await SessionService.inviteGroupToSession(
+        sessionId: session.sessionId,
+        groupMembers: groupMembers,
+        groupName: _selectedGroup!.name,
+        hostName: widget.currentUser.name,
+        selectedMood: moods.first,
+      );
+
+      DebugLogger.log("✅ All session invitations sent successfully");
 
       // Update group activity
       try {
@@ -742,7 +736,7 @@ class _GroupSelectionWidgetState extends State<GroupSelectionWidget> {
 
         ThemedNotifications.showSuccess(
           context,
-          '${moods.first.displayName} session started! Invitations sent to ${_selectedGroup!.name}',
+          '${moods.first.displayName} session started! Session invitations sent to ${_selectedGroup!.name}',
           icon: '🎬',
         );
       }
