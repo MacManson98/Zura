@@ -161,7 +161,12 @@ class CompletedSession {
       id: docId,
       startTime: _parseDateTime(data['startedAt']) ?? DateTime.now(),
       endTime: _parseDateTime(data['completedAt']) ?? DateTime.now(), // Use now if null
-      type: _inferSessionType(data['inviteType']),
+            type: _inferSessionType(
+        (data['inviteType'] ??
+            data['sessionType'] ??
+            (data['isGroupSession'] == true ? 'group' : null))
+            ?.toString(),
+      ),
       participantNames: List<String>.from(data['participantNames'] ?? []),
       likedMovieIds: [], // Optional: You can try reconstructing from `userLikes` if needed
       matchedMovieIds: List<String>.from(data['matches'] ?? []),
@@ -175,8 +180,7 @@ class CompletedSession {
     switch (inviteType) {
       case 'friend':
         return SessionType.friend;
-      case 'qr':
-      case 'code':
+      case 'group':
         return SessionType.group;
       default:
         return SessionType.solo;
