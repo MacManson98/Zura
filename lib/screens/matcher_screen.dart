@@ -739,6 +739,7 @@ void initState() {
   /// - `GroupMatchingHandler`: Core business logic for group matching
   /// - `MatcherGroupIntegration`: Integration layer for UI coordination  
   /// - This method: Orchestrates the flow and handles UI updates
+  
   void likeMovie(Movie movie) async {
     _startSessionIfNeeded();
     SessionManager.addLikedMovie(movie.id);
@@ -776,7 +777,7 @@ void initState() {
       );
     }
     
-    // ✅ FIXED: Use the new addLikedMovie method
+    // ✅ KEEP: Add to personal likes
     setState(() {
       widget.currentUser.addLikedMovie(movie);
     });
@@ -798,16 +799,17 @@ void initState() {
       DebugLogger.log("🎉 Friend match detected!");
       SessionManager.addMatchedMovie(movie.id);
       
-      // ✅ FIXED: Use the new addMatchedMovie method
+      // ✅ FIXED: In session-based system, matches are tracked in sessions
+      // No need to add to user profile - just add to cache for immediate display
       setState(() {
-        widget.currentUser.addMatchedMovie(movie);
+        widget.currentUser.loadMoviesIntoCache([movie]);
       });
       
-      // Save the updated profile
+      // Save the updated profile (personal likes only)
       try {
         await UserProfileStorage.saveProfile(widget.currentUser);
       } catch (e) {
-        DebugLogger.log("⚠️ Error saving matched movie to profile: $e");
+        DebugLogger.log("⚠️ Error saving profile: $e");
       }
       
       await _markSessionAsCompleted(movie: movie);
@@ -831,16 +833,17 @@ void initState() {
           DebugLogger.log("🎉 Group match created for: ${movie.title}");
           SessionManager.addMatchedMovie(movie.id);
           
-          // ✅ FIXED: Use the new addMatchedMovie method
+          // ✅ FIXED: In session-based system, matches are tracked in sessions
+          // Just add to cache for immediate display
           setState(() {
-            widget.currentUser.addMatchedMovie(movie);
+            widget.currentUser.loadMoviesIntoCache([movie]);
           });
           
-          // Save the updated profile
+          // Save the updated profile (personal likes only)
           try {
             await UserProfileStorage.saveProfile(widget.currentUser);
           } catch (e) {
-            DebugLogger.log("⚠️ Error saving matched movie to profile: $e");
+            DebugLogger.log("⚠️ Error saving profile: $e");
           }
           
           await _markSessionAsCompleted(movie: movie);

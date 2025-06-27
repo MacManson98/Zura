@@ -133,24 +133,16 @@ class _SessionHubWidgetState extends State<SessionHubWidget> {
       for (final movieId in allMovieIds) {
         Movie? foundMovie;
         
-        // Try likedMovies first
+        // ✅ FIXED: Only check likedMovies cache (matchedMovies doesn't exist anymore)
         try {
           foundMovie = widget.currentUser.likedMovies.firstWhere(
             (movie) => movie.id == movieId,
           );
           DebugLogger.log("✅ Found movie in likedMovies: ${foundMovie.title}");
         } catch (e) {
-          // Try matchedMovies
-          try {
-            foundMovie = widget.currentUser.matchedMovies.firstWhere(
-              (movie) => movie.id == movieId,
-            );
-            DebugLogger.log("✅ Found movie in matchedMovies: ${foundMovie.title}");
-          } catch (e) {
-            // Movie not found in either collection
-            missingMovieIds.add(movieId);
-            DebugLogger.log("⚠️ Movie ID $movieId not found in user collections");
-          }
+          // Movie not found in cache - add to missing list
+          missingMovieIds.add(movieId);
+          DebugLogger.log("⚠️ Movie ID $movieId not found in user cache");
         }
         
         if (foundMovie != null) {
@@ -626,20 +618,17 @@ class _SessionHubWidgetState extends State<SessionHubWidget> {
     
     // Get preview movies for display
     final previewMovies = <Movie>[];
-    for (final movieId in relevantMovieIds.take(4)) {
-      Movie? movie;
-      try {
-        movie = widget.currentUser.likedMovies.firstWhere((m) => m.id == movieId);
-      } catch (e) {
+      for (final movieId in relevantMovieIds.take(4)) {
+        Movie? movie;
         try {
-          movie = widget.currentUser.matchedMovies.firstWhere((m) => m.id == movieId);
+          // ✅ FIXED: Only check likedMovies cache
+          movie = widget.currentUser.likedMovies.firstWhere((m) => m.id == movieId);
+          previewMovies.add(movie);
         } catch (e) {
-          // ✅ FIX: Skip async loading in build method, just log missing movies
-          DebugLogger.log("   ⚠️ Movie not found in user collections: $movieId");
+          // ✅ FIX: Skip movies not in cache during build method
+          DebugLogger.log("   ⚠️ Movie not found in user cache: $movieId");
           continue; // Skip this movie instead of trying to load database
         }
-      }
-      previewMovies.add(movie);
       }
 
     final isCollaborativeSession = isActive && session.id.startsWith("active_collaborative_") || !isSolo;

@@ -292,7 +292,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Expanded(
               child: _buildInteractiveStatCard(
                 'Matches',
-                _profile.matchHistory.length.toString(),
+                _profile.totalMatches.toString(),
                 Icons.movie_filter,
                 Colors.green,
                 _navigateToMatches,

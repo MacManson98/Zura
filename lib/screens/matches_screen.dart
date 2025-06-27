@@ -12,6 +12,7 @@ import '../utils/debug_loader.dart';
 import 'package:intl/intl.dart';
 import '../utils/movie_loader.dart';
 import '../utils/themed_notifications.dart';
+import '../utils/completed_session.dart';
 
 class MatchesScreen extends StatefulWidget {
   final UserProfile currentUser;
@@ -63,146 +64,71 @@ class _MatchesScreenState extends State<MatchesScreen> {
     setState(() => _isLoading = true);
     
     try {
-      DebugLogger.log('🎯 Loading matches...');
-      DebugLogger.log('Total match history entries: ${_profile.matchHistory.length}');
+      DebugLogger.log('🎯 Loading matches from sessions...');
       
-      // Collect all movie IDs we need from match history
-      final movieIds = <String>{};
-      for (final match in _profile.matchHistory) {
-        if (match['movieId'] != null) {
-          movieIds.add(match['movieId']);
-        }
-      }
+      // Get all completed sessions (both local and collaborative)
+      final allSessions = await _profile.getAllSessionsForDisplay();
+      DebugLogger.log('Found ${allSessions.length} total sessions');
       
-      DebugLogger.log('Unique movie IDs needed: ${movieIds.length}');
+      // Extract matches from collaborative sessions only
+      final List<MatchData> matches = [];
+      final movieDatabase = await MovieDatabaseLoader.loadMovieDatabase();
       
-      // Get movies we already have cached
-      final Map<String, Movie> availableMovies = {};
-      
-      // Check both liked and matched movie caches
-      for (final movie in _profile.likedMovies) {
-        if (movieIds.contains(movie.id)) {
-          availableMovies[movie.id] = movie;
-        }
-      }
-      
-      for (final movie in _profile.matchedMovies) {
-        if (movieIds.contains(movie.id)) {
-          availableMovies[movie.id] = movie;
-        }
-      }
-      
-      DebugLogger.log('Movies available in cache: ${availableMovies.length}');
-      
-      // Find missing movie IDs
-      final missingIds = movieIds.difference(availableMovies.keys.toSet());
-      DebugLogger.log('Missing movie IDs: ${missingIds.length}');
-      
-      if (missingIds.isNotEmpty) {
-        DebugLogger.log('🔄 Fetching ${missingIds.length} missing movies from TMDB...');
-        
-        // Fetch missing movies from TMDB
-        final allMovies = await MovieDatabaseLoader.loadMovieDatabase();
-        final missingMovies = allMovies.where((movie) => missingIds.contains(movie.id)).toList();
-        DebugLogger.log('✅ Found ${missingMovies.length} movies in JSON database');
-        
-        if (missingMovies.isNotEmpty) {
-          // Add them to our available movies
-          for (final movie in missingMovies) {
-            availableMovies[movie.id] = movie;
-          }
-          
-          // Load them into cache (they'll be categorized as liked or matched as appropriate)
-          _profile.loadMoviesIntoCache(missingMovies);
-          
-          // Save updated profile with new cached data
-          if (widget.onProfileUpdate != null) {
-            widget.onProfileUpdate!(_profile);
-          }
-          await UserProfileStorage.saveProfile(_profile);
-          
-          DebugLogger.log('💾 Saved ${missingMovies.length} movies to cache');
-        }
-      }
-      
-      // Now create MatchData objects for all matches where we have movie data
-      final matchDataList = <MatchData>[];
-      int skippedMatches = 0;
-      
-      for (final match in _profile.matchHistory) {
-        final movieId = match['movieId'];
-        final movie = availableMovies[movieId];
-        
-        if (movie != null) {
-          // Handle different date formats (String or Timestamp)
-          DateTime matchDate = DateTime.now();
-          final rawDate = match['matchDate'];
-          
-          if (rawDate != null) {
-            if (rawDate is String) {
-              matchDate = DateTime.tryParse(rawDate) ?? DateTime.now();
-            } else if (rawDate is Timestamp) {
-              matchDate = rawDate.toDate();
-            } else {
-              // Try to convert other types to string first
-              try {
-                matchDate = DateTime.tryParse(rawDate.toString()) ?? DateTime.now();
-              } catch (e) {
-                DebugLogger.log('Could not parse date: $rawDate, using current time');
-                matchDate = DateTime.now();
-              }
+      for (final session in allSessions) {
+        if (session.type != SessionType.solo && session.matchedMovieIds.isNotEmpty) {
+          for (final movieId in session.matchedMovieIds) {
+            try {
+              final movie = movieDatabase.firstWhere((m) => m.id == movieId);
+              
+              // Get partner name(s)
+              final partners = session.participantNames
+                  .where((name) => name != _profile.name)
+                  .toList();
+              final partnerName = partners.isNotEmpty ? partners.join(', ') : 'Unknown';
+              
+              matches.add(MatchData(
+                movie: movie,
+                matchDate: session.endTime,
+                partnerName: partnerName,
+                watched: false, // Note: Watch status would need separate tracking
+                archived: false,
+                groupName: session.groupName,
+              ));
+            } catch (e) {
+              DebugLogger.log("⚠️ Could not find movie for ID: $movieId");
             }
           }
-          
-          // Handle archivedDate similarly
-          DateTime? archivedDate;
-          final rawArchivedDate = match['archivedDate'];
-          if (rawArchivedDate != null) {
-            if (rawArchivedDate is String) {
-              archivedDate = DateTime.tryParse(rawArchivedDate);
-            } else if (rawArchivedDate is Timestamp) {
-              archivedDate = rawArchivedDate.toDate();
-            }
-          }
-          
-          matchDataList.add(MatchData(
-            movie: movie,
-            partnerName: match['username'] ?? 'Unknown',
-            matchDate: matchDate,
-            watched: match['watched'] ?? false,
-            archived: match['archived'] ?? false,
-            groupName: match['groupName'],
-            archivedDate: archivedDate,
-          ));
-        } else {
-          skippedMatches++;
-          DebugLogger.log('Skipping match for missing movie: $movieId');
         }
       }
       
-      _allMatches = matchDataList;
+      DebugLogger.log('Loaded ${matches.length} matches from sessions');
       
-      DebugLogger.log('📊 Created ${matchDataList.length} matches, skipped $skippedMatches');
-      
-      // Show info if some matches are missing movie data
-      if (skippedMatches > 0) {
-        DebugLogger.log('⚠️ Skipped $skippedMatches matches due to missing movie data');
+      // Load missing movies into cache for faster future access
+      final loadedMovies = matches.map((m) => m.movie).toList();
+      if (loadedMovies.isNotEmpty) {
+        _profile.loadMoviesIntoCache(loadedMovies);
+        await UserProfileStorage.saveProfile(_profile);
       }
       
-      // Build filter options
-      _buildFilterOptions();
-      
-      // Apply initial filtering
-      _applyFilters();
+      if (mounted) {
+        setState(() {
+          _allMatches = matches;
+          _displayedMatches = matches;
+          _isLoading = false;
+        });
+        
+        _updateFilterOptions();
+        _applyFilters();
+      }
       
     } catch (e) {
       DebugLogger.log('❌ Error loading matches: $e');
-    } finally {
       setState(() => _isLoading = false);
     }
   }
 
-  void _buildFilterOptions() {
+  // Also add this missing method that's being called:
+  void _updateFilterOptions() {
     // Extract unique genres and partners
     final allGenres = <String>{};
     final allPartners = <String>{};
@@ -456,7 +382,7 @@ class _MatchesScreenState extends State<MatchesScreen> {
   Widget _buildStatsSection() {
     final watchedCount = _displayedMatches.where((m) => m.watched).length;
     final notWatchedCount = _displayedMatches.length - watchedCount;
-    final totalMatchHistoryCount = _profile.matchHistory.length;
+    final totalMatchesFromSessions = _profile.totalMatches; // Use session-based count
     
     return Container(
       margin: EdgeInsets.fromLTRB(16.w, 0, 16.w, 16.h),
@@ -475,9 +401,9 @@ class _MatchesScreenState extends State<MatchesScreen> {
                       fontSize: 14.sp,
                     ),
                   ),
-                  if (_allMatches.length < totalMatchHistoryCount)
+                  if (_allMatches.length < totalMatchesFromSessions)
                     Text(
-                      '$totalMatchHistoryCount total • ${totalMatchHistoryCount - _allMatches.length} missing movie details',
+                      '$totalMatchesFromSessions total • ${totalMatchesFromSessions - _allMatches.length} missing movie details',
                       style: TextStyle(
                         color: Colors.orange,
                         fontSize: 12.sp,
@@ -525,6 +451,7 @@ class _MatchesScreenState extends State<MatchesScreen> {
       ),
     );
   }
+
 
   Widget _buildQuickStat({
     required IconData icon,
@@ -1170,32 +1097,55 @@ class _MatchesScreenState extends State<MatchesScreen> {
 
   Future<void> _markAsWatched(MatchData match) async {
     try {
-      // Update the match in the profile's match history
-      final matchIndex = _profile.matchHistory.indexWhere(
-        (m) => m['movieId'] == match.movie.id && m['username'] == match.partnerName,
-      );
+      // ✅ NEW: In session-based system, we need a different approach for watch status
+      // Option 1: Create a separate watched movies collection
+      // Option 2: Add watch status to user profile
+      // Option 3: Store in a dedicated user preferences collection
       
-      if (matchIndex != -1) {
-        _profile.matchHistory[matchIndex]['watched'] = true;
-        _profile.matchHistory[matchIndex]['watchedDate'] = DateTime.now().toIso8601String();
-        
-        // Update local state
-        match.watched = true;
-        _applyFilters();
-        
-        if (widget.onProfileUpdate != null) {
-          widget.onProfileUpdate!(_profile);
-        }
-        await UserProfileStorage.saveProfile(_profile);
-        
-        ThemedNotifications.showSuccess(context, 'Marked "${match.movie.title}" as watched', icon: "✅");
+      // For now, we'll update local state and save to user profile's watched list
+      // You could expand this to save to Firestore for persistence across devices
+      
+      // Update local state immediately
+      match.watched = true;
+      _applyFilters();
+      
+      // Optional: Save to a user's watched movies list (you'd need to add this field to UserProfile)
+      // _profile.watchedMovieIds.add(match.movie.id);
+      
+      if (widget.onProfileUpdate != null) {
+        widget.onProfileUpdate!(_profile);
       }
+      
+      // For persistence, you could save to Firestore:
+      try {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(_profile.uid)
+            .collection('watchedMovies')
+            .doc(match.movie.id)
+            .set({
+          'movieId': match.movie.id,
+          'movieTitle': match.movie.title,
+          'watchedAt': DateTime.now(),
+          'partnerName': match.partnerName,
+          'sessionType': match.sessionType,
+        });
+        
+        DebugLogger.log("✅ Saved watch status to Firestore");
+      } catch (e) {
+        DebugLogger.log("⚠️ Failed to save watch status to Firestore: $e");
+      }
+      
+      await UserProfileStorage.saveProfile(_profile);
+      
+      ThemedNotifications.showSuccess(context, 'Marked "${match.movie.title}" as watched', icon: "✅");
       
     } catch (e) {
       DebugLogger.log('Error marking as watched: $e');
       ThemedNotifications.showError(context, 'Error updating status: $e');
     }
   }
+
 
   String _formatDate(DateTime date) {
     final now = DateTime.now();
@@ -1247,4 +1197,7 @@ class MatchData {
     this.groupName,
     this.archivedDate,
   });
+
+  // Helper getter to determine session type
+  String get sessionType => groupName != null ? 'group' : 'friend';
 }

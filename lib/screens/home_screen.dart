@@ -674,7 +674,7 @@ class _HomeScreenState extends State<HomeScreen>
           ),
           _buildStatDivider(),
           _buildStatItem(
-            '${widget.profile.matchHistory.length}',
+            '${widget.profile.totalMatches}',  // ✅ CHANGED: Use totalMatches getter
             'Matches',
             Colors.red,
             Icons.local_fire_department,
@@ -944,7 +944,7 @@ class _HomeScreenState extends State<HomeScreen>
             Expanded(
               child: _buildSecondaryActionCard(
                 title: 'My Matches',
-                subtitle: '${widget.profile.matchHistory.length} found',
+                subtitle: '${widget.profile.totalMatches} found',  // ✅ CHANGED: Use totalMatches getter
                 icon: Icons.favorite,
                 color: Colors.red,
                 onTap: _navigateToMatches,
@@ -2015,10 +2015,10 @@ class _HomeScreenState extends State<HomeScreen>
             children: [
               _buildEnhancedStatItem('Movies Liked', widget.profile.likedMovies.length.toString()),
               _buildEnhancedStatItem('Top Genre', sortedGenres.isNotEmpty ? sortedGenres.first.key : 'None'),
-              _buildEnhancedStatItem('Matches', widget.profile.matchHistory.length.toString()),
+              _buildEnhancedStatItem('Matches', widget.profile.totalMatches.toString()),  // ✅ CHANGED: Use totalMatches getter
             ],
           ),
-        ],
+        ]
       ),
     );
   }

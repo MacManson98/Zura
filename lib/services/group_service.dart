@@ -244,9 +244,8 @@ class GroupService {
             profiles.add(UserProfile(
               uid: memberId,
               name: 'Unknown User',
-              likedMovieIds: {},
-              matchedMovieIds: {},
-              matchHistory: [],
+              likedMovieIds: {},  // ✅ KEEP: Only liked movies
+              // ❌ REMOVED: matchedMovieIds and matchHistory
             ));
           }
         } catch (e) {
@@ -255,9 +254,8 @@ class GroupService {
           profiles.add(UserProfile(
             uid: memberId,
             name: 'Unknown User',
-            likedMovieIds: {},
-            matchedMovieIds: {},
-            matchHistory: [],
+            likedMovieIds: {},  // ✅ KEEP: Only liked movies
+            // ❌ REMOVED: matchedMovieIds and matchHistory
           ));
         }
       }

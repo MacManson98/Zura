@@ -204,53 +204,54 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
 
   Future<void> _loadMatchHistory() async {
     try {
-      // Get matches from the current user's match history
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(widget.currentUser.uid)
+      print("📅 Loading matches between ${widget.currentUser.name} and ${widget.friend.name}");
+      
+      // Query swipeSessions collection for sessions with both users
+      final sessionsQuery = await FirebaseFirestore.instance
+          .collection('swipeSessions')
+          .where('participantIds', arrayContains: widget.currentUser.uid)
+          .where('status', isEqualTo: 'completed')
           .get();
       
-      if (!userDoc.exists) {
-        print("❌ Current user document not found");
-        _matchedMovies = [];
-        _matchesCount = 0;
-        return;
-      }
+      print("📊 Found ${sessionsQuery.docs.length} total sessions for current user");
       
-      final userData = userDoc.data()!;
-      final matchHistory = userData['matchHistory'] as List<dynamic>? ?? [];
-      
-      print("📊 Found ${matchHistory.length} total matches in user history");
-      
-      // Filter matches that include both users
-      final collaborativeMatches = matchHistory.where((match) {
-        final username = match['username'] as String? ?? '';
-        final currentUserName = widget.currentUser.name;
-        final friendName = widget.friend.name;
+      // Filter for sessions that include both users (friend sessions only)
+      final friendSessions = sessionsQuery.docs.where((doc) {
+        final data = doc.data();
+        final participantIds = List<String>.from(data['participantIds'] ?? []);
         
-        // Check if both users are mentioned in the username field
-        return username.contains(currentUserName) && username.contains(friendName);
+        // Must have exactly 2 participants and include both users
+        return participantIds.length == 2 && 
+              participantIds.contains(widget.currentUser.uid) && 
+              participantIds.contains(widget.friend.uid);
       }).toList();
       
-      print("📅 Found ${collaborativeMatches.length} collaborative matches");
+      print("🤝 Found ${friendSessions.length} friend sessions together");
       
-      _matchesCount = collaborativeMatches.length;
+      // Extract all matched movie IDs from these sessions
+      final Set<String> allMatchedMovieIds = {};
+      for (final sessionDoc in friendSessions) {
+        final data = sessionDoc.data();
+        final matches = List<String>.from(data['matches'] ?? []);
+        allMatchedMovieIds.addAll(matches);
+        print("📽️ Session ${sessionDoc.id}: ${matches.length} matches");
+      }
       
-      // Load full movie database to get movie details
-      final fullMovieDatabase = await MovieDatabaseLoader.loadMovieDatabase();
+      _matchesCount = allMatchedMovieIds.length;
+      print("🎬 Total unique matched movies: $_matchesCount");
       
-      if (fullMovieDatabase.isNotEmpty && collaborativeMatches.isNotEmpty) {
+      // Load movie details from local database
+      if (allMatchedMovieIds.isNotEmpty) {
+        final fullMovieDatabase = await MovieDatabaseLoader.loadMovieDatabase();
         _matchedMovies = [];
         
-        for (final match in collaborativeMatches) {
-          final movieId = match['movieId'] as String? ?? '';
-          
+        for (final movieId in allMatchedMovieIds) {
           final movie = fullMovieDatabase.firstWhere(
             (movie) => movie.id == movieId,
             orElse: () => Movie(
               id: '-1',
-              title: '',
-              overview: '',
+              title: 'Unknown Movie',
+              overview: 'Movie details not found',
               genres: [],
               tags: [],
               posterUrl: '',
@@ -260,50 +261,16 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
           
           if (movie.id != '-1') {
             _matchedMovies.add(movie);
-            print("✅ Found matched movie: ${movie.title} (ID: ${movie.id})");
+            print("✅ Loaded movie: ${movie.title}");
+          } else {
+            print("❌ Could not find movie with ID: $movieId");
           }
         }
         
-        // Sort by match date (most recent first)
-        final matchesWithDates = collaborativeMatches.map((match) {
-          final movieId = match['movieId'] as String? ?? '';
-          final movie = _matchedMovies.firstWhere(
-            (m) => m.id == movieId,
-            orElse: () => Movie(
-              id: '-1', 
-              title: '', 
-              overview: '', 
-              genres: [], 
-              tags: [], 
-              posterUrl: '', 
-              cast: []
-            ),
-          );
-          return {
-            'movie': movie,
-            'date': match['matchDate'] as Timestamp?,
-            'watched': match['watched'] as bool? ?? false,
-          };
-        }).where((item) {
-          final movie = item['movie'] as Movie?;
-          return movie != null && movie.id != '-1';
-        }).toList();
-        
-        matchesWithDates.sort((a, b) {
-          final aDate = a['date'] as Timestamp?;
-          final bDate = b['date'] as Timestamp?;
-          if (aDate == null || bDate == null) return 0;
-          return bDate.compareTo(aDate); // Most recent first
-        });
-        
-        _matchedMovies = matchesWithDates
-            .map((item) => item['movie'] as Movie)
-            .where((movie) => movie.id != '-1')
-            .toList();
-        
-        print("📊 Successfully loaded ${_matchedMovies.length} matched movie objects");
+        print("📊 Successfully loaded ${_matchedMovies.length} movie objects");
       } else {
         _matchedMovies = [];
+        print("ℹ️ No matches found between users");
       }
       
     } catch (e) {

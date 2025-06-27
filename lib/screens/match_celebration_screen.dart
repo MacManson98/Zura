@@ -6,7 +6,6 @@ import '../models/user_profile.dart';
 import '../movie.dart';
 import '../utils/themed_notifications.dart';
 import '../utils/user_profile_storage.dart';
-import '../services/firestore_service.dart';
 import '../models/session_models.dart';
 import '../utils/debug_loader.dart';
 import 'watch_options_screen.dart';
@@ -141,36 +140,33 @@ class _MatchCelebrationScreenState extends State<MatchCelebrationScreen>
     }
   }
 
-  Future<void> _saveMatchAutomatically() async {
-    try {
-      final matchEntry = {
-        'username': widget.matchedName ?? 'Matched user',
-        'movieTitle': widget.movie.title,
-        'movieId': widget.movie.id,
-        'matchDate': DateTime.now(),
-        'posterUrl': widget.movie.posterUrl,
-        'watched': false,
-        'archived': false,
-        'watchedDate': null,
-        'archivedDate': null,
-        'groupName': widget.allMatchedUsers?.length != null && widget.allMatchedUsers!.length > 1 
-            ? "Group Match" : null,
-        'movie': widget.movie.toJson(),
-      };
 
-      widget.currentUser.matchHistory.add(matchEntry);
-      await UserProfileStorage.saveProfile(widget.currentUser);
-      
-      try {
-        await FirestoreService().saveMatchToFirestore(widget.currentUser.uid, widget.movie);
-      } catch (firestoreError) {
-        DebugLogger.log("⚠️ Firestore save failed: $firestoreError");
-      }
-      
-    } catch (e) {
-      DebugLogger.log("❌ Error saving match: $e");
-    }
+Future<void> _saveMatchAutomatically() async {
+  try {
+    // ✅ NEW: In the session-based system, matches are saved automatically 
+    // when the session completes. This method now just ensures the movie
+    // is in the user's cache for immediate display.
+    
+    DebugLogger.log("🎬 Match celebration: ${widget.movie.title}");
+    DebugLogger.log("👥 Matched with: ${widget.matchedName ?? 'Unknown user'}");
+    
+    // Add the movie to user's cache for immediate access
+    widget.currentUser.loadMoviesIntoCache([widget.movie]);
+    
+    // The actual match recording happens in the session system:
+    // 1. Active collaborative sessions track matches in real-time
+    // 2. When session ends, matches are saved to swipeSessions collection
+    // 3. Friend profiles query swipeSessions directly for match history
+    
+    // Optional: Save user profile to update any cached data
+    await UserProfileStorage.saveProfile(widget.currentUser);
+    
+    DebugLogger.log("✅ Match processing completed (session-based)");
+    
+  } catch (e) {
+    DebugLogger.log("❌ Error processing match: $e");
   }
+}
 
   @override
   void dispose() {

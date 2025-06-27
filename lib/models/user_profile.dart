@@ -36,10 +36,8 @@ class UserProfile {
   String uid;
   String name;
   String email;
-  Set<String> likedMovieIds;
-  Set<String> matchedMovieIds;
-  List<CompletedSession> sessionHistory;
-  List<Map<String, dynamic>> matchHistory;
+  Set<String> likedMovieIds;                    // ✅ KEEP: Personal likes
+  List<CompletedSession> sessionHistory;        // ✅ KEEP: Session-based matches
   final List<String> friendIds;
   final List<String> groupIds;
   List<MovieLike> recentLikes;
@@ -48,14 +46,9 @@ class UserProfile {
   Set<String> passedMovieIds;
   bool hasSeenMatcher = false;
 
-  // ✅ SMART SOLUTION: In-memory cache for Movie objects (not persisted)
-  // This gives us the performance benefits without storage bloat
+  // ✅ KEEP: In-memory cache for personal likes only
   Set<Movie> _cachedLikedMovies = <Movie>{};
-  Set<Movie> _cachedMatchedMovies = <Movie>{};
-  
-  // ✅ PERFORMANCE: Track what's in cache to avoid duplicate loading
   Set<String> _cachedLikedMovieIds = <String>{};
-  Set<String> _cachedMatchedMovieIds = <String>{};
 
   UserProfile({
     required this.uid,
@@ -64,14 +57,13 @@ class UserProfile {
     this.friendIds = const [],
     this.groupIds = const [],
     required this.likedMovieIds,
-    required this.matchedMovieIds,
-    required this.matchHistory,
     this.hasSeenMatcher = false,
     List<String>? recentLikedMovieIds,
     DateTime? lastActivityDate,
     Set<String>? passedMovieIds,
     List<MovieLike>? recentLikes,
     this.sessionHistory = const [],
+    // ✅ IGNORE: Old parameters for backwards compatibility
     Set<String>? preferredGenres,
     Set<String>? preferredVibes,
     Set<String>? blockedGenres, 
@@ -85,28 +77,27 @@ class UserProfile {
         passedMovieIds = passedMovieIds ?? {},
         recentLikes = recentLikes ?? [];
 
-  // ✅ SMART GETTERS: Return cached movies + lazy load missing ones
+  // ✅ SIMPLIFIED: Only liked movies getter
   Set<Movie> get likedMovies {
-    // Return what we have in cache - UI can request loading of missing ones separately
     return Set.from(_cachedLikedMovies);
   }
-  
-  Set<Movie> get matchedMovies {
-    // Return what we have in cache - UI can request loading of missing ones separately  
-    return Set.from(_cachedMatchedMovies);
+
+  // ✅ NEW: Get matched movies from sessions
+  Set<Movie> getMatchedMoviesFromSessions() {
+    final matchedIds = sessionHistory
+        .where((session) => session.type != SessionType.solo)
+        .expand((session) => session.matchedMovieIds)
+        .toSet();
+    
+    // Return cached movies that match these IDs
+    return _cachedLikedMovies.where((movie) => matchedIds.contains(movie.id)).toSet();
   }
 
-  // ✅ EFFICIENT: Add movies to both cache and IDs
+  // ✅ SIMPLIFIED: Only for liked movies
   void addLikedMovie(Movie movie) {
     likedMovieIds.add(movie.id);
     _cachedLikedMovies.add(movie);
     _cachedLikedMovieIds.add(movie.id);
-  }
-  
-  void addMatchedMovie(Movie movie) {
-    matchedMovieIds.add(movie.id);
-    _cachedMatchedMovies.add(movie);
-    _cachedMatchedMovieIds.add(movie.id);
   }
 
   // ✅ BULK LOADING: Load missing movies into cache
@@ -117,12 +108,6 @@ class UserProfile {
         _cachedLikedMovies.add(movie);
         _cachedLikedMovieIds.add(movie.id);
       }
-      
-      // Add to matched cache if ID is in matchedMovieIds but not yet cached
-      if (matchedMovieIds.contains(movie.id) && !_cachedMatchedMovieIds.contains(movie.id)) {
-        _cachedMatchedMovies.add(movie);
-        _cachedMatchedMovieIds.add(movie.id);
-      }
     }
   }
 
@@ -130,22 +115,12 @@ class UserProfile {
   Set<String> getMissingLikedMovieIds() {
     return likedMovieIds.difference(_cachedLikedMovieIds);
   }
-  
-  Set<String> getMissingMatchedMovieIds() {
-    return matchedMovieIds.difference(_cachedMatchedMovieIds);
-  }
 
-  // ✅ SETTERS: Clear both cache and IDs (for reset functionality)
+  // ✅ SIMPLIFIED: Only for liked movies
   set likedMovies(Set<Movie> value) {
     _cachedLikedMovies = Set.from(value);
     _cachedLikedMovieIds = value.map((movie) => movie.id).toSet();
     likedMovieIds = Set.from(_cachedLikedMovieIds);
-  }
-  
-  set matchedMovies(Set<Movie> value) {
-    _cachedMatchedMovies = Set.from(value);
-    _cachedMatchedMovieIds = value.map((movie) => movie.id).toSet();
-    matchedMovieIds = Set.from(_cachedMatchedMovieIds);
   }
 
   void addCompletedSession(CompletedSession session) {
@@ -210,8 +185,6 @@ class UserProfile {
       friendIds: const [],
       groupIds: const [],
       likedMovieIds: {},
-      matchedMovieIds: {},
-      matchHistory: [],
       recentLikedMovieIds: [],
       passedMovieIds: {},
       recentLikes: [],
@@ -225,16 +198,16 @@ class UserProfile {
     List<String>? friendIds,
     List<String>? groupIds,
     Set<String>? likedMovieIds,
-    Set<String>? favouriteMovieIds,
-    Set<String>? matchedMovieIds,
-    List<Map<String, dynamic>>? matchHistory,
     bool? hasSeenMatcher,
     List<String>? recentLikedMovieIds,
     DateTime? lastActivityDate,
     Set<String>? passedMovieIds,
     List<MovieLike>? recentLikes,
     List<CompletedSession>? sessionHistory,
-    // Compatibility: Ignore these old parameters for now
+    // ✅ IGNORE: Old parameters for backwards compatibility
+    Set<String>? favouriteMovieIds,
+    Set<String>? matchedMovieIds,
+    List<Map<String, dynamic>>? matchHistory,
     Set<String>? preferredGenres,
     Set<String>? preferredVibes,
     Set<String>? blockedGenres,
@@ -251,8 +224,6 @@ class UserProfile {
       friendIds: friendIds ?? this.friendIds,
       groupIds: groupIds ?? this.groupIds,
       likedMovieIds: likedMovieIds ?? this.likedMovieIds,
-      matchedMovieIds: matchedMovieIds ?? this.matchedMovieIds,
-      matchHistory: matchHistory ?? this.matchHistory,
       hasSeenMatcher: hasSeenMatcher ?? this.hasSeenMatcher,
       recentLikedMovieIds: recentLikedMovieIds ?? this.recentLikedMovieIds,
       lastActivityDate: lastActivityDate ?? this.lastActivityDate,
@@ -263,45 +234,25 @@ class UserProfile {
     
     // ✅ IMPORTANT: Preserve cache when copying
     newProfile._cachedLikedMovies = Set.from(_cachedLikedMovies);
-    newProfile._cachedMatchedMovies = Set.from(_cachedMatchedMovies);
     newProfile._cachedLikedMovieIds = Set.from(_cachedLikedMovieIds);
-    newProfile._cachedMatchedMovieIds = Set.from(_cachedMatchedMovieIds);
     
     return newProfile;
   }
 
   Map<String, dynamic> toJson() {
-    // ✅ EFFICIENT: Only persist IDs, not Movie objects
     return {
       'uid': uid,
       'name': name,
       'email': email,
       'friendIds': friendIds,
       'groupIds': groupIds,
-      'likedMovieIds': likedMovieIds.toList(),
-      'matchedMovieIds': matchedMovieIds.toList(),
-      
-      // ✅ OPTIMIZED: Store only essential match data, not full movie objects
-      'matchHistory': matchHistory.map((match) => {
-        'movieId': match['movieId'],
-        'matchDate': match['matchDate'],
-        'username': match['username'],
-        'watched': match['watched'] ?? false,
-        'archived': match['archived'] ?? false,
-        'archivedDate': match['archivedDate'],
-        'groupName': match['groupName'],
-        // Remove 'movie' object - fetch details when needed
-      }).toList(),
-      
+      'likedMovieIds': likedMovieIds.toList(),           // ✅ KEEP
       'hasSeenMatcher': hasSeenMatcher,
       'recentLikedMovieIds': recentLikedMovieIds,
       'lastActivityDate': lastActivityDate.toIso8601String(),
       'passedMovieIds': passedMovieIds.toList(),
       'recentLikes': recentLikes.map((like) => like.toJson()).toList(),
       'sessionHistory': sessionHistory.map((session) => session.toJson()).toList(),
-      
-      // ✅ NOTE: _cachedLikedMovies and _cachedMatchedMovies are NOT persisted
-      // They will be rebuilt from IDs when the profile is loaded
     };
   }
 
@@ -311,12 +262,8 @@ class UserProfile {
       name: json['name'] ?? '',
       email: json['email'] ?? '',
       friendIds: List<String>.from(json['friendIds'] ?? []),
-      groupIds: List<String>.from(json['groupIds'] ??[]),
+      groupIds: List<String>.from(json['groupIds'] ?? []),
       likedMovieIds: Set<String>.from(json['likedMovieIds'] ?? []),
-      matchedMovieIds: Set<String>.from(json['matchedMovieIds'] ?? []),
-      matchHistory: (json['matchHistory'] as List<dynamic>? ?? [])
-          .map((entry) => Map<String, dynamic>.from(entry))
-          .toList(),
       hasSeenMatcher: json['hasSeenMatcher'] ?? false,
       recentLikedMovieIds: List<String>.from(json['recentLikedMovieIds'] ?? []),
       lastActivityDate: json['lastActivityDate'] != null 
@@ -329,19 +276,7 @@ class UserProfile {
       sessionHistory: (json['sessionHistory'] as List<dynamic>?)
           ?.map((sessionJson) => CompletedSession.fromJson(sessionJson))
           .toList() ?? [],
-      
-      // 🔄 COMPATIBILITY: Ignore old format data gracefully
-      // These fields existed in old profiles but are no longer stored
-      preferredGenres: null, // Ignored
-      preferredVibes: null,  // Ignored  
-      blockedGenres: null,   // Ignored
-      blockedAttributes: null, // Ignored
-      likedMovies: null,     // Ignored - use likedMovieIds instead
-      matchedMovies: null,   // Ignored - use matchedMovieIds instead
-      genreScores: null,     // Ignored for now
-      vibeScores: null,      // Ignored for now
     );
-    // ✅ NOTE: Cache starts empty and gets populated as movies are loaded
   }
 
   // Helper methods
@@ -381,7 +316,7 @@ class UserProfile {
     }
   }
 
-  // 🆕 Method 2: Get all sessions for display (combines local solo + firestore collaborative)
+  // Get all sessions for display (combines local solo + firestore collaborative)
   Future<List<CompletedSession>> getAllSessionsForDisplay() async {
     final soloSessions = sessionHistory
         .where((session) => session.type == SessionType.solo)
@@ -389,7 +324,7 @@ class UserProfile {
     
     try {
       final uid = this.uid;
-      final userService = UserService(); // You'll need to import this
+      final userService = UserService();
       final collaborativeSessions = await userService.loadCollaborativeSessionsForDisplay(uid);
       
       // Combine and sort by date
@@ -403,7 +338,7 @@ class UserProfile {
     }
   }
 
-  // 🆕 Method 3: Delete session from appropriate storage
+  // Delete session from appropriate storage
   Future<void> deleteSession(CompletedSession session) async {
     if (session.type == SessionType.solo) {
       // Remove from local storage
@@ -424,8 +359,6 @@ class UserProfile {
 
   // ✅ COMPATIBILITY: Temporary getters for existing code
   // These provide backwards compatibility while you migrate your UI code
-  
-  // Empty sets/maps for now since mood system doesn't use these
   Set<String> get preferredGenres => <String>{};
   Set<String> get preferredVibes => <String>{};
   Set<String> get blockedGenres => <String>{};
