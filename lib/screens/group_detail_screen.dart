@@ -1092,37 +1092,6 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
       }
     }
   }
-  // 4. Add this helper method to get group sessions:
-  Future<List<SwipeSession>> _getGroupSessions() async {
-    try {
-      // Get sessions from Firestore where participant names match group members
-      final querySnapshot = await FirebaseFirestore.instance
-          .collection('swipeSessions')
-          .where('groupId', isEqualTo: widget.group.id)
-          .where('status', isEqualTo: 'completed')
-          .orderBy('createdAt', descending: true)
-          .limit(50) // Limit to last 50 sessions
-          .get();
-      
-      final sessions = <SwipeSession>[];
-      
-      for (final doc in querySnapshot.docs) {
-        try {
-          final session = SwipeSession.fromJson(doc.data());
-            if (session.matches.isNotEmpty) {
-            sessions.add(session);
-          }
-        } catch (e) {
-          print("⚠️ Error parsing session: $e");
-        }
-      }
-      
-      return sessions;
-    } catch (e) {
-      print("❌ Error querying group sessions: $e");
-      return [];
-    }
-  }
 
 
   Widget _buildRecommendationsSection() {

@@ -974,6 +974,21 @@ void initState() {
         'completedAt': FieldValue.serverTimestamp(),
       });
 
+      // ✅ If it's a group session, also update the group's matched movies
+      if (currentMode == MatchingMode.group &&
+          currentSession?.groupId != null &&
+          movie.id.isNotEmpty) {
+        final groupId = currentSession!.groupId!;
+        await FirebaseFirestore.instance
+            .collection('groups')
+            .doc(groupId)
+            .update({
+          'matchMovieIds': FieldValue.arrayUnion([movie.id])
+        });
+        DebugLogger.log("✅ Added match to group doc: $groupId -> ${movie.id}");
+      }
+
+
       DebugLogger.log("✅ Session marked as completed");
 
       // ✅ FIXED: Don't end session yet - just record the match and create a snapshot

@@ -59,6 +59,7 @@ class SwipeSession {
   final String sessionId;
   final String hostId;
   final String hostName;
+  final String? groupId;
   final List<String> participantIds;
   final List<String> participantNames;
   final SessionStatus status;
@@ -118,6 +119,7 @@ class SwipeSession {
     required this.selectedMoodIds,
     required this.currentMovieIndex,
     this.groupName,
+    this.groupId,
   });
 
   factory SwipeSession.create({

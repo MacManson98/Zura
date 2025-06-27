@@ -25,7 +25,6 @@ class MatcherGroupIntegration {
     required bool isInCollaborativeMode,
     required Function(Movie) onShowMatchCelebration,
   }) async {
-    
     if (!isInCollaborativeMode || currentSession == null) {
       DebugLogger.log("🚫 Not in collaborative mode or no session - skipping group match check");
       return false;
@@ -36,76 +35,76 @@ class MatcherGroupIntegration {
       DebugLogger.log("   Movie: ${movie.title}");
       DebugLogger.log("   Session: ${currentSession.sessionId}");
       DebugLogger.log("   User: ${currentUser.name}");
-      
+
       // ✅ DEBUG: Check session state BEFORE match check
       DebugLogger.log("🔍 BEFORE MATCH CHECK:");
       DebugLogger.log("   UnifiedSessionManager.activeCollaborativeSession: ${UnifiedSessionManager.activeCollaborativeSession?.sessionId ?? 'null'}");
       DebugLogger.log("   Current session matches: ${UnifiedSessionManager.activeCollaborativeSession?.matches ?? []}");
       DebugLogger.log("   Current session ID matches: ${currentSession.sessionId}");
-      
+
       // Mark user as active (they're swiping)
       await GroupMatchingHandler.markUserAsActive(
         currentSession.sessionId,
         currentUser.uid,
       );
-      
+
       // Check if this creates a group match
       final isGroupMatch = await GroupMatchingHandler.checkForGroupMatch(
         sessionId: currentSession.sessionId,
         movieId: movie.id,
         userId: currentUser.uid,
       );
-      
+
       if (isGroupMatch) {
         DebugLogger.log("🎉 GROUP MATCH DETECTED!");
-        
-        // ✅ DEBUG: More detailed session checking
-        DebugLogger.log("🔍 SESSION UPDATE DEBUG:");
-        DebugLogger.log("   UnifiedSessionManager.activeCollaborativeSession == null: ${UnifiedSessionManager.activeCollaborativeSession == null}");
-        
+
+        // ✅ STEP 1: Add movie to active session (in-memory)
         if (UnifiedSessionManager.activeCollaborativeSession != null) {
-          DebugLogger.log("   Active session ID: ${UnifiedSessionManager.activeCollaborativeSession!.sessionId}");
-          DebugLogger.log("   Current session ID: ${currentSession.sessionId}");
-          DebugLogger.log("   IDs match: ${UnifiedSessionManager.activeCollaborativeSession!.sessionId == currentSession.sessionId}");
-          DebugLogger.log("   Matches before update: ${UnifiedSessionManager.activeCollaborativeSession!.matches}");
-          DebugLogger.log("   Movie ID to add: ${movie.id}");
-          DebugLogger.log("   Already contains movie: ${UnifiedSessionManager.activeCollaborativeSession!.matches.contains(movie.id)}");
-          
           if (!UnifiedSessionManager.activeCollaborativeSession!.matches.contains(movie.id)) {
             UnifiedSessionManager.activeCollaborativeSession!.matches.add(movie.id);
-            DebugLogger.log("✅ Updated UnifiedSessionManager.activeCollaborativeSession with match: ${movie.id}");
-            DebugLogger.log("   Matches after update: ${UnifiedSessionManager.activeCollaborativeSession!.matches}");
-            DebugLogger.log("   Active session now has ${UnifiedSessionManager.activeCollaborativeSession!.matches.length} matches");
-          } else {
-            DebugLogger.log("⚠️ Movie already in matches list");
           }
-        } else {
-          DebugLogger.log("❌ UnifiedSessionManager.activeCollaborativeSession is null!");
         }
-        
-        // 2. Update SessionManager (for consistency, though not used for collaborative)
+
+        // ✅ STEP 2: Also update the Firestore group doc
+        try {
+          final sessionSnapshot = await FirebaseFirestore.instance
+              .collection('swipeSessions')
+              .doc(currentSession.sessionId)
+              .get();
+
+          final sessionData = sessionSnapshot.data();
+          final groupId = sessionData?['groupId'];
+
+          if (groupId != null) {
+            await FirebaseFirestore.instance
+                .collection('groups')
+                .doc(groupId)
+                .update({
+              'matchMovieIds': FieldValue.arrayUnion([movie.id])
+            });
+            DebugLogger.log("✅ Synced group match to Firestore group: $groupId → ${movie.id}");
+          } else {
+            DebugLogger.log("⚠️ No groupId found in session – cannot update group matches.");
+          }
+        } catch (e) {
+          DebugLogger.log("❌ Failed to sync match to group doc: $e");
+        }
+
+        // ✅ STEP 3: Continue normal match handling
         SessionManager.addMatchedMovie(movie.id);
-        DebugLogger.log("✅ Updated SessionManager with match: ${movie.id}");
-        
-        // ✅ DEBUG: Final state check
-        DebugLogger.log("🔍 FINAL STATE:");
-        DebugLogger.log("   UnifiedSessionManager matches: ${UnifiedSessionManager.activeCollaborativeSession?.matches ?? []}");
-        DebugLogger.log("   SessionManager matches: ${SessionManager.currentSession?.matchedMovieIds ?? []}");
-        
-        // Show match celebration
         onShowMatchCelebration(movie);
-        
         return true;
-      } else {
-        DebugLogger.log("⏳ Not yet a group match - waiting for more participants");
-        return false;
       }
-      
+
+      // Not a group match
+      return false;
+
     } catch (e) {
       DebugLogger.log("❌ Error handling group like: $e");
       return false;
     }
   }
+
 
   /// Check if session can start matching (minimum participants)
   static Future<bool> canStartGroupMatching(String sessionId) async {
