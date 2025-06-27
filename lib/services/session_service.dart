@@ -100,11 +100,11 @@ class SessionService {
       final moodName = selectedMood.displayName;
       final moodEmoji = selectedMood.emoji;
 
-      // Create session with group context
+      // ✅ FIXED: Create session with GROUP invite type
       final session = SwipeSession.create(
         hostId: currentUser.uid,
         hostName: hostName,
-        inviteType: InvitationType.friend, // Use friend type for collaborative sessions
+        inviteType: InvitationType.group, // ✅ CHANGED: Use group type instead of friend
         selectedMoodId: moodId,
         selectedMoodName: moodName,
         selectedMoodEmoji: moodEmoji,
@@ -144,6 +144,7 @@ class SessionService {
       DebugLogger.log("📍 Group ID: $groupId");
       DebugLogger.log("📍 Group Name: $groupName");
       DebugLogger.log("📍 Mood: $moodName $moodEmoji");
+      DebugLogger.log("📍 Invite Type: GROUP"); // ✅ Now it will log GROUP
       
       return session;
       

@@ -12,7 +12,7 @@ enum SessionStatus {
 enum InvitationType {
   friend,      // Direct friend invite
   code,        // Share code method
-  qr,          // QR code sharing
+  group,
 }
 
 class MoodChangeRequest {
@@ -319,8 +319,8 @@ class SwipeSession {
         return InvitationType.code;
       case 'friend':
         return InvitationType.friend;
-      case 'qr':
-        return InvitationType.qr;
+      case 'group':
+        return InvitationType.group;
       default:
         return InvitationType.code;
     }

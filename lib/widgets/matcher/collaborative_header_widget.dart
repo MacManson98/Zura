@@ -50,6 +50,11 @@ class CollaborativeHeaderWidget extends StatelessWidget {
       return const SizedBox.shrink();
     }
     
+    // ✅ NEW: Determine if this is a group session
+    final isGroupSession = currentSession!.inviteType == InvitationType.group || 
+                          currentSession!.groupName != null ||
+                          (currentSession!.participantNames.length > 2);
+    
     return Container(
       margin: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
       child: GlassmorphicContainer(
@@ -111,13 +116,20 @@ class CollaborativeHeaderWidget extends StatelessWidget {
                   
                   SizedBox(width: 16.w),
                   
-                  // Session info
+                  // ✅ UPDATED: Session info with group awareness
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          actuallyWaiting ? "Waiting for friend..." : "Swiping together!",
+                          // ✅ FIXED: Show appropriate text based on session type
+                          actuallyWaiting 
+                              ? (isGroupSession 
+                                  ? "Waiting for group members..." 
+                                  : "Waiting for friend...")
+                              : (isGroupSession 
+                                  ? "Swiping with group!" 
+                                  : "Swiping together!"),
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 16.sp,
@@ -126,6 +138,20 @@ class CollaborativeHeaderWidget extends StatelessWidget {
                           ),
                         ),
                         SizedBox(height: 4.h),
+                        
+                        // ✅ NEW: Show group name if it's a group session
+                        if (isGroupSession && currentSession!.groupName != null) ...[
+                          Text(
+                            "Group: ${currentSession!.groupName}",
+                            style: TextStyle(
+                              color: const Color(0xFFE5A00D),
+                              fontSize: 12.sp,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          SizedBox(height: 2.h),
+                        ],
+                        
                         if (currentSession!.sessionCode != null)
                           Container(
                             padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 2.h),
@@ -154,7 +180,10 @@ class CollaborativeHeaderWidget extends StatelessWidget {
                               SizedBox(width: 4.w),
                               Expanded(
                                 child: Text(
-                                  "With: ${currentSession!.participantNames.where((name) => name != currentUser.name).join(', ')}",
+                                  // ✅ IMPROVED: Better text for group vs friend sessions
+                                  isGroupSession 
+                                      ? "${currentSession!.participantNames.length} members active"
+                                      : "With: ${currentSession!.participantNames.where((name) => name != currentUser.name).join(', ')}",
                                   style: TextStyle(
                                     color: Colors.white70,
                                     fontSize: 12.sp,
