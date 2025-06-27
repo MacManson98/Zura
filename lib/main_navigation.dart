@@ -22,22 +22,29 @@ import 'utils/themed_notifications.dart';
 
 class MainNavigation extends StatefulWidget {
   final UserProfile profile;
-  final List<Movie> preloadedMovies; // ✅ NEW: Accept preloaded movies
+  final List<Movie> preloadedMovies;
   
   const MainNavigation({
     super.key,
     required this.profile,
-    this.preloadedMovies = const [], // ✅ Default to empty list
+    this.preloadedMovies = const [],
   });
 
   static void Function(SwipeSession)? _globalSessionCallback;
+  static void Function(String)? _globalSessionListenerCallback; // ✅ NEW: For starting listener
   
   static void setSessionCallback(void Function(SwipeSession) callback) {
     _globalSessionCallback = callback;
   }
   
+  // ✅ NEW: Method to set session listener callback
+  static void setSessionListenerCallback(void Function(String) callback) {
+    _globalSessionListenerCallback = callback;
+  }
+  
   static void clearSessionCallback() {
     _globalSessionCallback = null;
+    _globalSessionListenerCallback = null; // ✅ NEW: Clear both callbacks
   }
 
   @override
@@ -400,10 +407,20 @@ class _MainNavigationState extends State<MainNavigation> {
           _selectedIndex = 1; // Go to matcher tab
         });
         
-        // ✅ RESTORED: This is the critical part that was missing
+        // ✅ CRITICAL: Load session first, then start listener
         if (MainNavigation._globalSessionCallback != null) {
           DebugLogger.log("📥 Loading joined session in matcher");
           MainNavigation._globalSessionCallback!(session);
+          
+          // ✅ NEW: Start session listener after user is in session
+          // Give the UI a moment to update, then start listening
+          Future.delayed(const Duration(milliseconds: 500), () {
+            // Call the matcher screen to start listening now that user is in session
+            if (MainNavigation._globalSessionListenerCallback != null) {
+              DebugLogger.log("👂 Starting session listener after successful join");
+              MainNavigation._globalSessionListenerCallback!(session.sessionId);
+            }
+          });
         }
         
         if (mounted) {

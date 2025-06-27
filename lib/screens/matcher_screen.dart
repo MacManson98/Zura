@@ -86,25 +86,29 @@ class _MatcherScreenState extends State<MatcherScreen>
   Timer? _groupStatsTimer;
   
   @override
-  void initState() {
-    super.initState();
-    
-    // Register callback for direct session joining
-    MainNavigation.setSessionCallback(_startCollaborativeSession);
-    currentMode = widget.mode;
-    selectedFriend = widget.selectedFriend;
-    _initializeApp();
-    _startSessionTimer();
+void initState() {
+  super.initState();
+  
+  // Register callback for direct session joining
+  MainNavigation.setSessionCallback(_startCollaborativeSession);
+  
+  // ✅ NEW: Register callback for starting session listener after joining
+  MainNavigation.setSessionListenerCallback(_startSessionListener);
+  
+  currentMode = widget.mode;
+  selectedFriend = widget.selectedFriend;
+  _initializeApp();
+  _startSessionTimer();
 
-    WidgetsBinding.instance.addObserver(this);
+  WidgetsBinding.instance.addObserver(this);
 
-    if (isInCollaborativeMode && currentSession != null) {
-      DebugLogger.log("🎯 Starting group monitoring in initState");
-      _startGroupStatsMonitoring();
-    }
-
-    _checkTutorialStatus();
+  if (isInCollaborativeMode && currentSession != null) {
+    DebugLogger.log("🎯 Starting group monitoring in initState");
+    _startGroupStatsMonitoring();
   }
+
+  _checkTutorialStatus();
+}
 
   Future<void> _checkTutorialStatus() async {
     final prefs = await SharedPreferences.getInstance();
@@ -1890,13 +1894,28 @@ class _MatcherScreenState extends State<MatcherScreen>
     DebugLogger.log("   Status: ${session.status}");
     DebugLogger.log("   Participants: ${session.participantNames}");
     DebugLogger.log("   Is host: ${session.hostId == widget.currentUser.uid}");
+    DebugLogger.log("   Invite Type: ${session.inviteType}");
+    DebugLogger.log("   Group Name: ${session.groupName}");
+    
+    // ✅ FIXED: Properly determine if this is a group session
+    final isGroupSession = session.inviteType == InvitationType.group || 
+                          session.groupName != null ||
+                          session.participantNames.length > 2;
+    
+    DebugLogger.log("🎯 Detected session type: ${isGroupSession ? 'GROUP' : 'FRIEND'}");
+    
+    // ✅ NEW: Check if current user is already in the session
+    final currentUserId = widget.currentUser.uid;
+    final isAlreadyInSession = session.participantIds.contains(currentUserId);
+    
+    DebugLogger.log("👤 User already in session: $isAlreadyInSession");
     
     setState(() {
       currentSession = session;
       isWaitingForFriend = session.status == SessionStatus.created;
       isInCollaborativeMode = true;
-      currentMode = MatchingMode.friend;
-      currentMode = session.participantNames.length > 2 ? MatchingMode.group : MatchingMode.friend;
+      // ✅ FIXED: Use proper group detection instead of just participant count
+      currentMode = isGroupSession ? MatchingMode.group : MatchingMode.friend;
       
       // Reset session state
       _isReadyToSwipe = false;
@@ -1906,14 +1925,41 @@ class _MatcherScreenState extends State<MatcherScreen>
 
      UnifiedSessionManager.setActiveCollaborativeSession(session);
 
-      if (session.participantNames.length > 2) {
+      // ✅ FIXED: Use the same group detection logic
+      if (isGroupSession) {
         DebugLogger.log("🎯 Starting group monitoring for collaborative session");
         _startGroupStatsMonitoring();
       }
 
-    // Listen to session updates
+    // ✅ FIXED: Only start listening if user is already in session
+    // This prevents permission errors when joining a session
+    if (isAlreadyInSession) {
+      DebugLogger.log("👂 Starting session listener - user is already in session");
+      _startSessionListener(session.sessionId);
+    } else {
+      DebugLogger.log("⏳ Delaying session listener until user joins session");
+      // The listener will be started after acceptInvitation completes
+    }
+    
+    DebugLogger.log("🎯 Collaborative session started successfully");
+    
+    // Show success message to user
+    ThemedNotifications.showSuccess(
+      context, 
+      session.hostId == widget.currentUser.uid 
+          ? 'Session created! Waiting for friends...'
+          : 'Successfully joined ${session.hostName}\'s session!',
+      icon: "🎬"
+    );
+  }
+
+  // ✅ NEW: Separate method for starting session listener
+  void _startSessionListener(String sessionId) {
+    // Cancel any existing listener
     sessionSubscription?.cancel();
-    sessionSubscription = SessionService.watchSession(session.sessionId).listen(
+    
+    // Start listening to session updates
+    sessionSubscription = SessionService.watchSession(sessionId).listen(
       (updatedSession) {
         DebugLogger.log("📡 Session update received:");
         DebugLogger.log("   Status: ${updatedSession.status}");
@@ -2024,16 +2070,6 @@ class _MatcherScreenState extends State<MatcherScreen>
         DebugLogger.log("❌ Session stream error: $error");
         _endCollaborativeSessionWithReset(); // Updated to use the new reset method
       },
-    );
-    DebugLogger.log("🎯 Collaborative session started successfully");
-    
-    // Show success message to user
-    ThemedNotifications.showSuccess(
-      context, 
-      session.hostId == widget.currentUser.uid 
-          ? 'Session created! Waiting for friends...'
-          : 'Successfully joined ${session.hostName}\'s session!',
-      icon: "🎬"
     );
   }
 
