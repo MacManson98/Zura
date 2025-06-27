@@ -50,7 +50,7 @@ class _FriendsScreenState extends State<FriendsScreen> with SingleTickerProvider
     
     // ✅ ADD THIS: Register the refresh callback with MainNavigation
     if (widget.onRegisterRefreshCallback != null) {
-      widget.onRegisterRefreshCallback!(refreshGroups); // or _loadGroups
+      widget.onRegisterRefreshCallback!(_loadGroups); // or _loadGroups
     }
   }
 
