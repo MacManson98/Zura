@@ -171,7 +171,6 @@ class CompletedSession {
       likedMovieIds: [], // Optional: You can try reconstructing from `userLikes` if needed
       matchedMovieIds: List<String>.from(data['matches'] ?? []),
       mood: data['selectedMoodName'],
-      totalSwipes: _estimateSwipeCount(data['userLikes'], data['userPasses']),
       groupName: data['groupName'] as String?,
     );
   }
@@ -184,18 +183,6 @@ class CompletedSession {
         return SessionType.group;
       default:
         return SessionType.solo;
-    }
-  }
-
-  static int _estimateSwipeCount(dynamic likes, dynamic passes) {
-    try {
-      final likeMap = Map<String, dynamic>.from(likes ?? {});
-      final passMap = Map<String, dynamic>.from(passes ?? {});
-      final totalLikes = likeMap.values.fold(0, (sum, list) => sum + (list as List).length);
-      final totalPasses = passMap.values.fold(0, (sum, list) => sum + (list as List).length);
-      return totalLikes + totalPasses;
-    } catch (_) {
-      return 0;
     }
   }
 
