@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../movie.dart';
+import '../utils/group_matching_handler.dart';
 import '../utils/movie_loader.dart';
 import '../models/user_profile.dart';
 import '../utils/themed_notifications.dart';
@@ -741,6 +742,18 @@ void initState() {
   void likeMovie(Movie movie) async {
     _startSessionIfNeeded();
     SessionManager.addLikedMovie(movie.id);
+
+    if (isInCollaborativeMode && currentSession != null) {
+      try {
+        await GroupMatchingHandler.markUserAsActive(
+          currentSession!.sessionId,
+          widget.currentUser.uid,
+        );
+        DebugLogger.log("✅ Marked user as active in session: ${currentSession!.sessionId}");
+      } catch (e) {
+        DebugLogger.log("⚠️ Failed to mark user as active: $e");
+      }
+    }
     
     // Track with timestamp and session type
     final sessionType = currentMode == MatchingMode.solo 
@@ -905,10 +918,14 @@ void initState() {
 
   // Add this widget to show group session status
   Widget _buildGroupSessionStatus() {
+    // ✅ FIXED: Also check if timer is active
     if (!isInCollaborativeMode || 
         _groupSessionStats.isEmpty || 
         currentMode != MatchingMode.group ||
-        !_isReadyToSwipe) {
+        !_isReadyToSwipe ||
+        currentSession == null ||
+        _groupStatsTimer == null ||
+        !_groupStatsTimer!.isActive) {
       return const SizedBox.shrink();
     }
     
@@ -1902,6 +1919,12 @@ void initState() {
                           session.groupName != null ||
                           session.participantNames.length > 2;
     
+    DebugLogger.log("🔍 Group Detection Debug:");
+    DebugLogger.log("   session.inviteType: ${session.inviteType}");
+    DebugLogger.log("   session.groupName: ${session.groupName}");
+    DebugLogger.log("   session.participantNames.length: ${session.participantNames.length}");
+    DebugLogger.log("   isGroupSession result: $isGroupSession");
+    
     DebugLogger.log("🎯 Detected session type: ${isGroupSession ? 'GROUP' : 'FRIEND'}");
     
     // ✅ NEW: Check if current user is already in the session
@@ -1983,6 +2006,12 @@ void initState() {
           return; // Don't process any other updates
         }
         
+        // ✅ FIXED: Don't show match celebration for completed sessions
+        if (updatedSession.status == SessionStatus.completed) {
+          DebugLogger.log("🏁 Session completed - not triggering match celebration");
+          return; // Don't process match celebration for completed sessions
+        }
+        
         // Track previous matches to detect new ones
         final previousMatches = currentSession?.matches ?? [];
         
@@ -2057,13 +2086,19 @@ void initState() {
           }
         }
         
-        // Check for new matches and show match screen
-        final newMatches = updatedSession.matches.where(
-          (movieId) => !previousMatches.contains(movieId)
-        ).toList();
-        
-        for (final movieId in newMatches) {
-          _handleSessionMatch(movieId);
+        // ✅ FIXED: Only show match celebration for active sessions with new matches
+        if (updatedSession.status == SessionStatus.active) {
+          // Check for new matches and show match screen
+          final newMatches = updatedSession.matches.where(
+            (movieId) => !previousMatches.contains(movieId)
+          ).toList();
+          
+          if (newMatches.isNotEmpty) {
+            DebugLogger.log("🎉 New matches detected in active session: ${newMatches.length}");
+            for (final movieId in newMatches) {
+              _handleSessionMatch(movieId);
+            }
+          }
         }
       },
       onError: (error) {
@@ -2152,53 +2187,64 @@ void initState() {
   }
 
   Future<void> _endCollaborativeSessionWithReset() async {
-    // Cancel the session subscription
-    sessionSubscription?.cancel();
+    if (currentSession == null) return;
     
-    // Properly end the collaborative session in Firestore with mounted check
-    if (currentSession != null && mounted) {
-      try {
-        await UnifiedSessionManager.endSessionProperly(
-          sessionType: currentSession!.participantNames.length > 2 
-              ? SessionType.group 
-              : SessionType.friend,
-          sessionId: currentSession!.sessionId,
-          userProfile: widget.currentUser,
-        );
-      } catch (e) {
-        DebugLogger.log("❌ Error ending session properly: $e");
+    try {
+      // ✅ FIXED: Stop group stats timer before ending session
+      if (_groupStatsTimer != null) {
+        _groupStatsTimer!.cancel();
+        _groupStatsTimer = null;
+        DebugLogger.log("✅ Group stats timer stopped");
       }
+      
+      // ✅ FIXED: Properly save completed session to history
+      final sessionId = currentSession!.sessionId;
+      
+      // End the collaborative session in Firestore with proper completion
+      await UnifiedSessionManager.endSessionProperly(
+        sessionType: currentSession!.participantNames.length > 2 
+            ? SessionType.group 
+            : SessionType.friend,
+        sessionId: sessionId,
+        userProfile: widget.currentUser,
+      );
+      
+      DebugLogger.log("✅ Session properly ended and saved to history: $sessionId");
+      
+    } catch (e) {
+      DebugLogger.log("❌ Error ending session properly: $e");
     }
     
     // Clear from unified session manager
     UnifiedSessionManager.clearActiveCollaborativeSession();
     
-    // Only call setState if widget is still mounted
-    if (mounted) {
-      setState(() {
-        currentSession = null;
-        isWaitingForFriend = false;
-        isInCollaborativeMode = false;
-        currentMode = MatchingMode.solo;
-        
-        _isReadyToSwipe = false;
-        _isLoadingSession = false;
-        _hasStartedSession = false;
-        sessionPool.clear();
-        currentSessionMovieIds.clear();
-        selectedMoods.clear();
-        currentSessionContext = null;
-        sessionPassedMovieIds.clear();
-        _swipeCount = 0;
-        
-        selectedFriend = null;
-        selectedGroup.clear();
-        groupLikes.clear();
-      });
-    }
+    // Reset UI state
+    setState(() {
+      currentSession = null;
+      isWaitingForFriend = false;
+      isInCollaborativeMode = false;
+      currentMode = MatchingMode.solo;
+      _isReadyToSwipe = false;
+      _isLoadingSession = false;
+      _hasStartedSession = false;
+      sessionPool.clear();
+      currentSessionMovieIds.clear();
+      selectedMoods.clear();
+      currentSessionContext = null;
+      sessionPassedMovieIds.clear();
+      _swipeCount = 0;
+      selectedFriend = null;
+      selectedGroup.clear();
+      groupLikes.clear();
+      
+      // ✅ FIXED: Clear group stats state
+      _groupSessionStats.clear();
+      _isLoadingGroupStats = false;
+    });
     
     DebugLogger.log("✅ Collaborative session ended and UI reset");
-  }
+}
+
 
   Future<void> _generateCollaborativeSession() async {
     DebugLogger.log("🔍 DEBUG: _generateCollaborativeSession called");
@@ -2554,24 +2600,31 @@ void initState() {
     _sessionTimer?.cancel();
     _groupStatsTimer?.cancel();
     
-    // ✅ ADD THIS LINE:
     MainNavigation.clearSessionCallback();
-
     WidgetsBinding.instance.removeObserver(this);
 
     if (SessionManager.hasActiveSession) {
       final completedSession = SessionManager.endSession();
       if (completedSession != null) {
         widget.currentUser.addCompletedSession(completedSession);
-        UserProfileStorage.saveProfile(widget.currentUser);
         
-        FirebaseFirestore.instance.collection('swipeSessions').add({
+        // ✅ Use unawaited for fire-and-forget operations in dispose
+        unawaited(UserProfileStorage.saveProfile(widget.currentUser).catchError((e) {
+          DebugLogger.log("⚠️ Error saving profile during dispose: $e");
+          return; // This satisfies the return requirement but is ignored
+        }));
+        
+        unawaited(FirebaseFirestore.instance.collection('swipeSessions').add({
           ...completedSession.toJson(),
           'participantIds': [widget.currentUser.uid],
           'createdAt': FieldValue.serverTimestamp(),
-        });
+        }).catchError((e) {
+          DebugLogger.log("⚠️ Error saving session during dispose: $e");
+          return FirebaseFirestore.instance.collection('swipeSessions').doc(); // Return dummy doc
+        }));
       }
     }
+    
     sessionSubscription?.cancel();
     _tutorialPageController.dispose();
     super.dispose();

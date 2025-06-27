@@ -197,8 +197,13 @@ class _SessionHubWidgetState extends State<SessionHubWidget> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
+    @override
+    Widget build(BuildContext context) {
+    // ✅ ADD: Debug logging when in group mode
+    if (widget.currentMode == MatchingMode.group && !_isLoadingHistory && _allDisplaySessions.isNotEmpty) {
+      _debugSessionHistory();
+    }
+    
     // Show collaborative waiting screen if in collaborative mode
     if (widget.isInCollaborativeMode) {
       return _buildCollaborativeWaitingScreen();
@@ -206,6 +211,24 @@ class _SessionHubWidgetState extends State<SessionHubWidget> {
     
     // Show session history based on current mode
     return _buildSessionHistoryView();
+  }
+
+  void _debugSessionHistory() {
+    DebugLogger.log("🔍 SESSION HISTORY DEBUG:");
+    DebugLogger.log("   Current mode: ${widget.currentMode}");
+    DebugLogger.log("   Total sessions loaded: ${_allDisplaySessions.length}");
+    
+    for (int i = 0; i < _allDisplaySessions.length; i++) {
+      final session = _allDisplaySessions[i];
+      DebugLogger.log("   Session $i:");
+      DebugLogger.log("     ID: ${session.id}");
+      DebugLogger.log("     Type: ${session.type}");
+      DebugLogger.log("     Participants: ${session.participantNames} (${session.participantNames.length})");
+      DebugLogger.log("     Group Name: '${session.groupName}'");
+      DebugLogger.log("     Matches: ${session.matchedMovieIds.length}");
+      DebugLogger.log("     Liked: ${session.likedMovieIds.length}");
+      DebugLogger.log("     Start Time: ${session.startTime}");
+    }
   }
 
   Widget _buildSessionHistoryView() {
@@ -320,9 +343,31 @@ class _SessionHubWidgetState extends State<SessionHubWidget> {
   }
 
   Widget _buildGroupHistory() {
+    // ✅ FIXED: Better group session detection
     final groupSessions = _allDisplaySessions
-        .where((s) => s.type != SessionType.solo && s.participantNames.length >= 3)
+        .where((s) => 
+          // Check if it's a group session by:
+          // 1. Having 3+ participants, OR
+          // 2. Having a group name (even with 2 participants), OR  
+          // 3. Being marked as SessionType.group
+          (s.participantNames.length >= 3) ||
+          (s.groupName != null && s.groupName!.isNotEmpty) ||
+          (s.type == SessionType.group)
+        )
         .toList();
+    
+    // ✅ ADD: Debug logging to see what's happening
+    DebugLogger.log("🔍 Group History Filter Debug:");
+    DebugLogger.log("   Total sessions: ${_allDisplaySessions.length}");
+    DebugLogger.log("   Found group sessions: ${groupSessions.length}");
+    
+    for (final session in _allDisplaySessions) {
+      DebugLogger.log("   Session: ${session.id}");
+      DebugLogger.log("     Type: ${session.type}");
+      DebugLogger.log("     Participants: ${session.participantNames.length} (${session.participantNames})");
+      DebugLogger.log("     Group Name: '${session.groupName}'");
+      DebugLogger.log("     Is Group: ${(session.participantNames.length >= 3) || (session.groupName != null && session.groupName!.isNotEmpty) || (session.type == SessionType.group)}");
+    }
     
     if (groupSessions.isEmpty) {
       return _buildEmptyHistoryState();
