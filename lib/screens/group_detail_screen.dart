@@ -12,7 +12,6 @@ import '../utils/themed_notifications.dart';
 import '../services/friendship_service.dart';
 import '../services/group_invitation_service.dart';
 import '../services/group_service.dart';
-import '../models/session_models.dart';
 import 'movie_detail_screen.dart';
 import '../utils/movie_loader.dart';
 
@@ -1071,13 +1070,12 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
 
     try {
       final allMovies = await MovieDatabaseLoader.loadMovieDatabase();
-      final sessions = await _getGroupSessions();
+      final groupDoc = await FirebaseFirestore.instance
+          .collection('groups')
+          .doc(widget.group.id)
+          .get();
 
-      final Set<String> movieIds = {};
-
-      for (final session in sessions) {
-        movieIds.addAll(session.matches); // simple list of IDs
-      }
+      final movieIds = List<String>.from(groupDoc.data()?['matchMovieIds'] ?? []);
 
       final matchedMovies = allMovies
           .where((movie) => movieIds.contains(movie.id))
@@ -1092,48 +1090,6 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
       if (mounted) {
         setState(() => _isLoadingMatches = false);
       }
-    }
-  }
-
-  // 4. Add this helper method to get group sessions:
-  Future<List<SwipeSession>> _getGroupSessions() async {
-    try {
-      // Query sessions where this group's members were participants
-      final memberNames = widget.group.members.map((m) => m.name).toList();
-      
-      // Get sessions from Firestore where participant names match group members
-      final querySnapshot = await FirebaseFirestore.instance
-          .collection('swipeSessions')
-          .where('status', isEqualTo: 'completed')
-          .where('participantNames', arrayContainsAny: memberNames)
-          .orderBy('createdAt', descending: true)
-          .limit(50) // Limit to last 50 sessions
-          .get();
-      
-      final sessions = <SwipeSession>[];
-      
-      for (final doc in querySnapshot.docs) {
-        try {
-          final session = SwipeSession.fromJson(doc.data());
-          
-          // Only include sessions where ALL participants are group members
-          // (to exclude sessions where group members played with non-group friends)
-          final sessionParticipants = session.participantNames.toSet();
-          final isGroupSession = sessionParticipants.length > 1 && 
-              sessionParticipants.every((name) => memberNames.contains(name));
-          
-          if (isGroupSession && session.matches.isNotEmpty) {
-            sessions.add(session);
-          }
-        } catch (e) {
-          print("⚠️ Error parsing session: $e");
-        }
-      }
-      
-      return sessions;
-    } catch (e) {
-      print("❌ Error querying group sessions: $e");
-      return [];
     }
   }
 

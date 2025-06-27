@@ -114,7 +114,29 @@ class GroupMatchingHandler {
         'lastMatchAt': FieldValue.serverTimestamp(),
         'totalMatches': FieldValue.increment(1),
       });
-      
+
+      // Also record match under the group's document if available
+      try {
+        final sessionSnap = await _firestore
+            .collection('swipeSessions')
+            .doc(sessionId)
+            .get();
+
+        final groupId = sessionSnap.data()?['groupId'] as String?;
+        if (groupId != null && groupId.isNotEmpty) {
+          await _firestore
+              .collection('groups')
+              .doc(groupId)
+              .update({
+            'matchMovieIds': FieldValue.arrayUnion([movieId]),
+            'totalMatches': FieldValue.increment(1),
+            'lastActivityDate': FieldValue.serverTimestamp(),
+          });
+        }
+      } catch (e) {
+        DebugLogger.log("❌ Error updating group match list: $e");
+      }
+
       // Record detailed match info
       await _firestore
           .collection('swipeSessions')
