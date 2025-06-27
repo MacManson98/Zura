@@ -1233,76 +1233,20 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     );
   }
 
-  Widget _buildMatchesCarousel() {
-    return Container(
-      height: 180.h,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        itemCount: _groupMatches.length,
-        itemBuilder: (context, index) {
-          final movie = _groupMatches[index]; // ✅ use preloaded object
-
-          return Container(
-            width: 120.w,
-            margin: EdgeInsets.only(right: 12.w),
-            child: GestureDetector(
-              onTap: () {
-                showMovieDetails(
-                  context: context,
-                  movie: movie,
-                  currentUser: widget.currentUser,
-                );
-              },
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12.r),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
-                            blurRadius: 8.r,
-                            offset: Offset(0, 2.h),
-                          ),
-                        ],
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(12.r),
-                        child: Image.network(
-                          movie.posterUrl,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) => Container(
-                            color: Colors.grey[800],
-                            child: Center(
-                              child: Icon(Icons.broken_image, color: Colors.white30, size: 24.sp),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: 8.h),
-                  Text(
-                    movie.title,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 12.sp,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  SizedBox(height: 2.h),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
+    Widget _buildMatchesCarousel() {
+      return Container(
+        height: 200.h,
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          padding: EdgeInsets.symmetric(horizontal: 8.w),
+          itemCount: _groupMatches.length,
+          itemBuilder: (context, index) {
+            final movie = _groupMatches[index];
+            return _buildCarouselMovieCard(movie, isFromMatches: true);
+          },
+        ),
+      );
+    }
 
   Future<void> _loadGroupMatches() async {
     setState(() {
@@ -1403,28 +1347,183 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
       });
     }
   }
-
-
-
   Widget _buildRecommendationsSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          "Recommended For Group",
-          style: TextStyle(
+           "Recommended For Group",
+           style: TextStyle(
             color: Colors.white,
             fontSize: 18.sp,
             fontWeight: FontWeight.bold,
           ),
         ),
-        
-        SizedBox(height: 16.h),
-        
+          
+        SizedBox(height: 16.h),  
         _recommendedMovies.isEmpty
             ? _buildEmptyRecommendations()
-            : _buildRecommendationsGrid(),
+             : _buildRecommendationsCarousel(),
       ],
+    );
+  } 
+
+  Widget _buildRecommendationsCarousel() {
+    return Container(
+      height: 200.h,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: EdgeInsets.symmetric(horizontal: 8.w),
+        itemCount: _recommendedMovies.length,
+        itemBuilder: (context, index) {
+          final movie = _recommendedMovies.elementAt(index);
+          return _buildCarouselMovieCard(movie, isFromMatches: false);
+        },
+      ),
+    );
+  }
+
+  Widget _buildCarouselMovieCard(Movie movie, {required bool isFromMatches}) {
+    return Container(
+      width: 130.w, // Fixed width for each card
+      margin: EdgeInsets.symmetric(horizontal: 6.w),
+      child: GestureDetector(
+        onTap: () => _showMovieDetails(movie),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12.r),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.4),
+                blurRadius: 8.r,
+                offset: Offset(0, 3.h),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12.r),
+            child: Stack(
+              children: [
+                // Movie poster
+                Container(
+                  width: double.infinity,
+                  height: double.infinity,
+                  child: Image.network(
+                    movie.posterUrl,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        color: Colors.grey[800],
+                        child: Center(
+                          child: Icon(
+                            Icons.broken_image, 
+                            color: Colors.white30, 
+                            size: 24.sp,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                
+                // Gradient overlay
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.transparent,
+                        Colors.transparent,
+                        Colors.black.withValues(alpha: 0.7),
+                        Colors.black.withValues(alpha: 0.9),
+                      ],
+                      stops: const [0.0, 0.4, 0.8, 1.0],
+                    ),
+                  ),
+                ),
+                
+                // Movie info overlay
+                Positioned(
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  child: Padding(
+                    padding: EdgeInsets.all(8.w),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          movie.title,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 11.sp,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        SizedBox(height: 2.h),
+                        Row(
+                          children: [
+                            if (movie.rating != null) ...[
+                              Icon(
+                                Icons.star,
+                                color: Colors.amber,
+                                size: 10.sp,
+                              ),
+                              SizedBox(width: 2.w),
+                              Text(
+                                movie.rating!.toStringAsFixed(1),
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 9.sp,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                
+                // Badge for matches vs recommendations
+                Positioned(
+                  top: 6.h,
+                  right: 6.w,
+                  child: Container(
+                    padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 2.h),
+                    decoration: BoxDecoration(
+                      color: isFromMatches 
+                          ? const Color(0xFFE5A00D) 
+                          : Colors.blue.withValues(alpha: 0.8),
+                      borderRadius: BorderRadius.circular(8.r),
+                    ),
+                    child: Text(
+                      isFromMatches ? "MATCH" : "PICK",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 8.sp,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+   void _showMovieDetails(Movie movie) {
+    showMovieDetails(
+      context: context,
+      movie: movie,
+      currentUser: widget.currentUser,
     );
   }
 
@@ -1635,63 +1734,6 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildRecommendationsGrid() {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        childAspectRatio: 0.7,
-        crossAxisSpacing: 12.w,
-        mainAxisSpacing: 12.h,
-      ),
-      itemCount: _recommendedMovies.length,
-      itemBuilder: (context, index) {
-        final movie = _recommendedMovies.elementAt(index);
-        
-        return GestureDetector(
-          onTap: () {
-            // Show movie details dialog
-          },
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8.r),
-                  child: Image.network(
-                    movie.posterUrl,
-                    fit: BoxFit.cover,
-                    width: double.infinity,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        color: Colors.grey[800],
-                        child: Center(
-                          child: Icon(Icons.broken_image, color: Colors.white30, size: 24.sp),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ),
-              SizedBox(height: 4.h),
-              Text(
-                movie.title,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 12.sp,
-                  fontWeight: FontWeight.bold,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-        );
-      },
     );
   }
 
