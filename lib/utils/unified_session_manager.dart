@@ -55,7 +55,6 @@ class UnifiedSessionManager {
         likedMovieIds: activeSession.likedMovieIds,
         matchedMovieIds: activeSession.matchedMovieIds,
         mood: activeSession.mood,
-        totalSwipes: activeSession.totalSwipes,
         groupName: null,
       );
     }
@@ -79,7 +78,6 @@ class UnifiedSessionManager {
         likedMovieIds: [],
         matchedMovieIds: session.matches, // ✅ FIX: Use session.matches instead of empty list
         mood: session.selectedMoodName.isNotEmpty ? session.selectedMoodName : null,
-        totalSwipes: session.matches.length,
         groupName: session.groupName,
       );
     }

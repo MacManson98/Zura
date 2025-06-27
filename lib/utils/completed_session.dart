@@ -12,7 +12,6 @@ class CompletedSession {
   final List<String> likedMovieIds; // For solo sessions
   final List<String> matchedMovieIds; // For collaborative sessions
   final String? mood; // If mood-based session
-  final int totalSwipes;
   final String? groupName;
 
   CompletedSession({
@@ -24,7 +23,6 @@ class CompletedSession {
     required this.likedMovieIds,
     required this.matchedMovieIds,
     this.mood,
-    this.totalSwipes = 0,
     this.groupName,
   });
 
@@ -134,7 +132,6 @@ class CompletedSession {
       'likedMovieIds': likedMovieIds,
       'matchedMovieIds': matchedMovieIds,
       'mood': mood,
-      'totalSwipes': totalSwipes,
       'groupName': groupName,
     };
   }
@@ -151,7 +148,6 @@ class CompletedSession {
       likedMovieIds: List<String>.from(json['likedMovieIds']),
       matchedMovieIds: List<String>.from(json['matchedMovieIds']),
       mood: json['mood'],
-      totalSwipes: json['totalSwipes'] ?? 0,
       groupName: json['groupName'] as String?,
     );
   }

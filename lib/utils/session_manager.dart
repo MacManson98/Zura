@@ -4,9 +4,7 @@ import 'completed_session.dart';
 // Session Management Utility for Active Solo Sessions
 class SessionManager {
   static CompletedSession? _currentSession;
-  static DateTime? _lastActivity;
-  static int _swipeCount = 0;
-  
+  static DateTime? _lastActivity;  
   // Start a new session
   static void startSession({
     required SessionType type,
@@ -22,16 +20,12 @@ class SessionManager {
       likedMovieIds: [],
       matchedMovieIds: [],
       mood: mood,
-      totalSwipes: 0,
     );
-    _lastActivity = DateTime.now();
-    _swipeCount = 0;
-  }
+    _lastActivity = DateTime.now();  }
 
   // Record activity (swipe, like, etc.)
   static void recordActivity() {
     _lastActivity = DateTime.now();
-    _swipeCount++;
   }
 
   // Add liked movie to current session
@@ -46,7 +40,6 @@ class SessionManager {
         likedMovieIds: [..._currentSession!.likedMovieIds, movieId],
         matchedMovieIds: _currentSession!.matchedMovieIds,
         mood: _currentSession!.mood,
-        totalSwipes: _swipeCount,
       );
     }
     recordActivity();
@@ -64,7 +57,6 @@ class SessionManager {
         likedMovieIds: _currentSession!.likedMovieIds,
         matchedMovieIds: [..._currentSession!.matchedMovieIds, movieId],
         mood: _currentSession!.mood,
-        totalSwipes: _swipeCount,
       );
     }
     recordActivity();
@@ -89,13 +81,10 @@ class SessionManager {
       likedMovieIds: _currentSession!.likedMovieIds,
       matchedMovieIds: _currentSession!.matchedMovieIds,
       mood: _currentSession!.mood,
-      totalSwipes: _swipeCount,
     );
     
     _currentSession = null;
-    _lastActivity = null;
-    _swipeCount = 0;
-    
+    _lastActivity = null;    
     return completedSession;
   }
 
