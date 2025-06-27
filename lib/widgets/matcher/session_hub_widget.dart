@@ -294,17 +294,14 @@ class _SessionHubWidgetState extends State<SessionHubWidget> {
       return _buildEmptyHistoryState();
     }
 
-    // Group sessions by time periods for better organization
     final groupedSessions = _groupSessionsByTime(soloSessions);
     
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Section header
         _buildSectionHeader("Your Recent Sessions", soloSessions.length),
         SizedBox(height: 16.h),
         
-        // Time-grouped sessions with accordions
         ...groupedSessions.entries.map((entry) {
           if (entry.value.isEmpty) return SizedBox.shrink();
           return _buildTimeGroupAccordion(entry.key, entry.value);
@@ -315,14 +312,17 @@ class _SessionHubWidgetState extends State<SessionHubWidget> {
 
   Widget _buildFriendHistory() {
     final friendSessions = _allDisplaySessions
-        .where((s) => s.type != SessionType.solo && s.participantNames.length == 2)
+        .where((s) => 
+          s.type == SessionType.friend && // ✅ FIX: Explicit friend type check
+          s.participantNames.length == 2 &&
+          (s.groupName == null || s.groupName!.isEmpty) // ✅ FIX: No group name
+        )
         .toList();
     
     if (friendSessions.isEmpty) {
       return _buildEmptyHistoryState();
     }
 
-    // Group by friend
     final sessionsByFriend = <String, List<CompletedSession>>{};
     for (final session in friendSessions) {
       final friendName = session.getOtherParticipantsDisplay(widget.currentUser.name);
@@ -343,37 +343,38 @@ class _SessionHubWidgetState extends State<SessionHubWidget> {
   }
 
   Widget _buildGroupHistory() {
-    // ✅ FIXED: Better group session detection
+    // ✅ FIXED: Strict group session detection
     final groupSessions = _allDisplaySessions
         .where((s) => 
-          // Check if it's a group session by:
-          // 1. Having 3+ participants, OR
-          // 2. Having a group name (even with 2 participants), OR  
-          // 3. Being marked as SessionType.group
-          (s.participantNames.length >= 3) ||
+          // Must be explicitly marked as group type OR have group indicators
+          s.type == SessionType.group ||
           (s.groupName != null && s.groupName!.isNotEmpty) ||
-          (s.type == SessionType.group)
+          s.participantNames.length > 2
         )
         .toList();
     
-    // ✅ ADD: Debug logging to see what's happening
+    // ✅ ENHANCED: Debug logging
     DebugLogger.log("🔍 Group History Filter Debug:");
     DebugLogger.log("   Total sessions: ${_allDisplaySessions.length}");
     DebugLogger.log("   Found group sessions: ${groupSessions.length}");
     
     for (final session in _allDisplaySessions) {
+      final isGroup = session.type == SessionType.group ||
+                    (session.groupName != null && session.groupName!.isNotEmpty) ||
+                    session.participantNames.length > 2;
+      
       DebugLogger.log("   Session: ${session.id}");
       DebugLogger.log("     Type: ${session.type}");
       DebugLogger.log("     Participants: ${session.participantNames.length} (${session.participantNames})");
       DebugLogger.log("     Group Name: '${session.groupName}'");
-      DebugLogger.log("     Is Group: ${(session.participantNames.length >= 3) || (session.groupName != null && session.groupName!.isNotEmpty) || (session.type == SessionType.group)}");
+      DebugLogger.log("     Matches: ${session.matchedMovieIds.length}"); // ✅ FIX: Log matches
+      DebugLogger.log("     Is Group: $isGroup");
     }
     
     if (groupSessions.isEmpty) {
       return _buildEmptyHistoryState();
     }
 
-    // Group by group participants
     final sessionsByGroup = <String, List<CompletedSession>>{};
     for (final session in groupSessions) {
       final groupKey = session.groupName ?? session.getOtherParticipantsDisplay(widget.currentUser.name);
@@ -586,13 +587,25 @@ class _SessionHubWidgetState extends State<SessionHubWidget> {
     final isActive = session.id.startsWith("active_");
     final isSolo = session.type == SessionType.solo;
     
+    // ✅ DEBUG: Add logging to understand what's happening
+    DebugLogger.log("🎬 Building session card for: ${session.id}");
+    DebugLogger.log("   Type: ${session.type}");
+    DebugLogger.log("   Is Active: $isActive");
+    DebugLogger.log("   Is Solo: $isSolo");
+    DebugLogger.log("   Group Name: '${session.groupName}'");
+    DebugLogger.log("   Participants: ${session.participantNames}");
+    DebugLogger.log("   Matched Movies: ${session.matchedMovieIds.length}");
+    DebugLogger.log("   Liked Movies: ${session.likedMovieIds.length}");
+    
     // Determine relevant movie IDs and count
     late final List<String> relevantMovieIds;
     if (isActive && session.id.startsWith("active_collaborative_")) {
       relevantMovieIds = session.matchedMovieIds;
+      DebugLogger.log("   Using matchedMovieIds for active collaborative: ${relevantMovieIds.length}");
     } else if (isSolo) {
       if (isActive) {
         relevantMovieIds = session.likedMovieIds;
+        DebugLogger.log("   Using likedMovieIds for active solo: ${relevantMovieIds.length}");
       } else {
         relevantMovieIds = widget.currentUser.recentLikes
           .where((like) =>
@@ -600,15 +613,20 @@ class _SessionHubWidgetState extends State<SessionHubWidget> {
             like.likedAt.isBefore(session.endTime))
           .map((like) => like.movieId)
           .toList();
+        DebugLogger.log("   Using recent likes for completed solo: ${relevantMovieIds.length}");
       }
     } else {
+      // ✅ FIX: For completed collaborative sessions, use matchedMovieIds
       relevantMovieIds = session.matchedMovieIds;
+      DebugLogger.log("   Using matchedMovieIds for completed collaborative: ${relevantMovieIds.length}");
     }
 
     final movieCount = relevantMovieIds.length;
+    DebugLogger.log("   Final movie count: $movieCount");
     
     // Get preview movies for display
-    final previewMovies = relevantMovieIds.take(4).map((movieId) {
+    final previewMovies = <Movie>[];
+    for (final movieId in relevantMovieIds.take(4)) {
       Movie? movie;
       try {
         movie = widget.currentUser.likedMovies.firstWhere((m) => m.id == movieId);
@@ -616,16 +634,22 @@ class _SessionHubWidgetState extends State<SessionHubWidget> {
         try {
           movie = widget.currentUser.matchedMovies.firstWhere((m) => m.id == movieId);
         } catch (e) {
-          return null;
+          // ✅ FIX: Skip async loading in build method, just log missing movies
+          DebugLogger.log("   ⚠️ Movie not found in user collections: $movieId");
+          continue; // Skip this movie instead of trying to load database
         }
       }
-      return movie;
-    }).where((movie) => movie != null).cast<Movie>().toList();
+      previewMovies.add(movie);
+      }
 
     final isCollaborativeSession = isActive && session.id.startsWith("active_collaborative_") || !isSolo;
     final countLabel = isCollaborativeSession
         ? (movieCount == 1 ? 'match' : 'matches')
         : (movieCount == 1 ? 'pick' : 'picks');
+
+    // ✅ DEBUG: Log final display values
+    DebugLogger.log("   Display: $movieCount $countLabel");
+    DebugLogger.log("   Preview movies found: ${previewMovies.length}");
 
     return Container(
       margin: EdgeInsets.symmetric(horizontal: 16.w, vertical: 4.h),
