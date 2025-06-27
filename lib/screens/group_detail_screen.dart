@@ -1659,16 +1659,21 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
               Navigator.pop(context); // Close manage members sheet
               
               try {
-                // Actually remove the member from the group
+                // ✅ FIXED: Actually remove the member from the group
                 await GroupService().removeMemberFromGroup(
                   groupId: widget.group.id,
                   memberIdToRemove: member.uid,
                 );
                 
-                // Update the local UI by removing from the current group object
+                // ✅ FIXED: Update the local UI by removing from the current group object
                 setState(() {
                   widget.group.members.removeWhere((m) => m.uid == member.uid);
                 });
+                
+                // ✅ FIXED: Call the refresh callback
+                if (widget.onGroupUpdated != null) {
+                  widget.onGroupUpdated!();
+                }
                 
                 ThemedNotifications.showDecline(context, '${member.name} removed from group', icon: "👋");
               } catch (e) {
@@ -1838,11 +1843,24 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
             ),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context); // Close dialog
-              Navigator.pop(context); // Go back to groups list
               
-              ThemedNotifications.showDecline(context, 'Group "${widget.group.name}" deleted', icon: "🗑️");
+              try {
+                // ✅ FIXED: Actually delete the group from backend
+                await GroupService().deleteGroup(widget.group.id, widget.currentUser.uid);
+                
+                Navigator.pop(context); // Go back to groups list
+                
+                // ✅ FIXED: Call the refresh callback
+                if (widget.onGroupUpdated != null) {
+                  widget.onGroupUpdated!();
+                }
+                
+                ThemedNotifications.showDecline(context, 'Group "${widget.group.name}" deleted', icon: "🗑️");
+              } catch (e) {
+                ThemedNotifications.showError(context, 'Failed to delete group: $e');
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
@@ -1932,10 +1950,33 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
             ),
           ),
           ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
+            onPressed: () async {
+              Navigator.pop(context); // Close dialog
               
-              ThemedNotifications.showDecline(context, '${member.name} removed from group', icon: "👋");
+              try {
+                // ✅ FIXED: Actually remove the member from the group backend
+                await GroupService().removeMemberFromGroup(
+                  groupId: widget.group.id,
+                  memberIdToRemove: member.uid,
+                );
+                
+                // ✅ FIXED: Update the local UI by removing from the current group object
+                setState(() {
+                  widget.group.members.removeWhere((m) => m.uid == member.uid);
+                });
+                
+                // ✅ FIXED: Call the refresh callback
+                if (widget.onGroupUpdated != null) {
+                  widget.onGroupUpdated!();
+                }
+                
+                // Close the manage members sheet if it's open
+                Navigator.pop(context);
+                
+                ThemedNotifications.showDecline(context, '${member.name} removed from group', icon: "👋");
+              } catch (e) {
+                ThemedNotifications.showError(context, 'Failed to remove member: $e');
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,

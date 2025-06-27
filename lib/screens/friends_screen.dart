@@ -17,12 +17,14 @@ class FriendsScreen extends StatefulWidget {
   final UserProfile currentUser;
   final List<Movie> allMovies;
   final void Function(UserProfile friend)? onMatchWithFriend;
+  final void Function(VoidCallback callback)? onRegisterRefreshCallback; // ✅ NEW
 
   const FriendsScreen({
     super.key,
     required this.currentUser,
     required this.allMovies,
     this.onMatchWithFriend,
+    this.onRegisterRefreshCallback, // ✅ NEW
   });
 
   @override
@@ -36,11 +38,20 @@ class _FriendsScreenState extends State<FriendsScreen> with SingleTickerProvider
 
   final GroupService _groupService = GroupService();
 
+  Future<void> refreshGroups() async {
+    await _loadGroups();
+  }
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _loadGroups();
+    
+    // ✅ ADD THIS: Register the refresh callback with MainNavigation
+    if (widget.onRegisterRefreshCallback != null) {
+      widget.onRegisterRefreshCallback!(refreshGroups); // or _loadGroups
+    }
   }
 
   @override
@@ -689,7 +700,9 @@ class _FriendsScreenState extends State<FriendsScreen> with SingleTickerProvider
                           group: group,
                           currentUser: widget.currentUser,
                           allMovies: widget.allMovies,
-                          onGroupUpdated: _refreshGroups,
+                          onGroupUpdated: () async {
+                            await _loadGroups();
+                          },
                         ),
                       ),
                     ),
@@ -1161,8 +1174,5 @@ class _FriendsScreenState extends State<FriendsScreen> with SingleTickerProvider
         ),
       ),
     );
-  }
-  void _refreshGroups() {
-    _loadGroups(); // Call the async method without await
   }
 }

@@ -70,12 +70,10 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
     });
 
     try {
-      // ✅ TEMPORARY FIX - Use current GroupService signature
-      // Create group with only current user, then send invitations separately
       final group = await _groupService.createGroup(
         name: _groupNameController.text.trim(),
         description: _groupDescriptionController.text.trim(),
-        members: [widget.currentUser], // ✅ Only current user initially
+        members: [widget.currentUser],
         isPrivate: _isPrivate,
         notificationsEnabled: _notificationsEnabled,
       );
@@ -85,9 +83,10 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
         ThemedNotifications.showSuccess(
           context, 
           'Group "${group.name}" created! ${inviteCount > 0 ? "Will send $inviteCount invitation${inviteCount != 1 ? 's' : ''} once invitation system is ready." : ""}',
-          icon: "👥"
+          icon: "🎉"
         );
-
+        
+        // ✅ FIXED: Return true to indicate success
         Navigator.pop(context, true);
       }
     } catch (e) {

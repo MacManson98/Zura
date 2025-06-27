@@ -52,6 +52,8 @@ class _MainNavigationState extends State<MainNavigation> {
   MatchingMode _matcherMode = MatchingMode.solo;
   List<UserProfile> _friendIds = [];
   late Widget _matcherScreen;
+  VoidCallback? _refreshGroupsCallback;
+
   
   // ✅ SIMPLIFIED: No more complex loading states
   List<Movie> _completeMovieDatabase = [];
@@ -227,6 +229,9 @@ class _MainNavigationState extends State<MainNavigation> {
         currentUser: widget.profile,
         allMovies: _completeMovieDatabase,
         onMatchWithFriend: _goToFriendMatcher,
+        onRegisterRefreshCallback: (callback) {
+          _refreshGroupsCallback = callback; // ✅ Store the callback
+        },
       ),
       ProfileScreen(
         currentUser: widget.profile,
@@ -338,8 +343,13 @@ class _MainNavigationState extends State<MainNavigation> {
         context: context,
       );
       
-      // ✅ ADD THIS: Refresh friends/groups data
+      // ✅ UPDATED: Refresh friends
       await _loadFriends();
+      
+      // ✅ NEW: Trigger groups refresh if callback is available
+      if (_refreshGroupsCallback != null) {
+        _refreshGroupsCallback!();
+      }
       
       // Navigate to friends screen to see the new group
       setState(() {
