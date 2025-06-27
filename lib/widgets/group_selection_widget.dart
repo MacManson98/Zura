@@ -693,14 +693,17 @@ class _GroupSelectionWidgetState extends State<GroupSelectionWidget> {
       DebugLogger.log("🎭 Creating group session with mood: ${moods.first.displayName}");
       DebugLogger.log("📦 Group: ${_selectedGroup!.name} (${_selectedGroup!.memberCount} members)");
 
-      // Create collaborative session
-      final session = await SessionService.createSession(
+      // ✅ ENHANCED: Create collaborative session with group context
+      final session = await SessionService.createGroupSession(
         hostName: widget.currentUser.name,
-        inviteType: InvitationType.friend, // This creates a collaborative session
         selectedMood: moods.first,
+        groupId: _selectedGroup!.id,
+        groupName: _selectedGroup!.name,
+        groupMembers: _selectedGroup!.members,
       );
 
-      DebugLogger.log("✅ Session created: ${session.sessionId}");
+      DebugLogger.log("✅ Group session created: ${session.sessionId}");
+      DebugLogger.log("📊 Session will be stored with group context: ${_selectedGroup!.name}");
 
       // Get group members (excluding current user)
       final groupMembers = _selectedGroup!.members
@@ -709,7 +712,7 @@ class _GroupSelectionWidgetState extends State<GroupSelectionWidget> {
 
       DebugLogger.log("📧 Sending session invitations to ${groupMembers.length} group members");
 
-      // ✅ FIXED: Use the new inviteGroupToSession method instead of GroupInvitationService
+      // Send session invitations with group context
       await SessionService.inviteGroupToSession(
         sessionId: session.sessionId,
         groupMembers: groupMembers,

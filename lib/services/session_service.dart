@@ -79,6 +79,156 @@ class SessionService {
     return session;
   }
 
+  static Future<SwipeSession> createGroupSession({
+    required String hostName,
+    required CurrentMood selectedMood,
+    required String groupId,
+    required String groupName,
+    required List<UserProfile> groupMembers,
+  }) async {
+    try {
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null) throw Exception("User not authenticated");
+
+      DebugLogger.log("🎭 Creating group session with enhanced group context");
+      DebugLogger.log("👥 Group: $groupName ($groupId)");
+      DebugLogger.log("🎬 Mood: ${selectedMood.displayName} ${selectedMood.emoji}");
+      DebugLogger.log("📊 Members: ${groupMembers.map((m) => m.name).join(', ')}");
+
+      // Extract mood information
+      final moodId = selectedMood.toString().split('.').last;
+      final moodName = selectedMood.displayName;
+      final moodEmoji = selectedMood.emoji;
+
+      // Create session with group context
+      final session = SwipeSession.create(
+        hostId: currentUser.uid,
+        hostName: hostName,
+        inviteType: InvitationType.friend, // Use friend type for collaborative sessions
+        selectedMoodId: moodId,
+        selectedMoodName: moodName,
+        selectedMoodEmoji: moodEmoji,
+        groupName: groupName, // ✅ CRITICAL: Store group name in session
+      );
+
+      // ✅ ENHANCED: Create session data with comprehensive group context
+      final sessionData = session.toJson();
+      sessionData.addAll({
+        // Group identification fields
+        'groupId': groupId,
+        'groupName': groupName,
+        'isGroupSession': true,
+        'groupMemberCount': groupMembers.length,
+        'groupMemberIds': groupMembers.map((m) => m.uid).toList(),
+        'groupMemberNames': groupMembers.map((m) => m.name).toList(),
+        
+        // Session type markers
+        'sessionType': 'group',
+        'collaborativeType': 'group_matching',
+        
+        // Mood context
+        'groupMoodId': moodId,
+        'groupMoodName': moodName,
+        'groupMoodEmoji': moodEmoji,
+        
+        // Timestamps for tracking
+        'groupSessionCreatedAt': FieldValue.serverTimestamp(),
+        'lastGroupActivity': FieldValue.serverTimestamp(),
+      });
+
+      // Save to Firebase with enhanced group context
+      await _sessionsCollection.doc(session.sessionId).set(sessionData);
+      
+      DebugLogger.log("✅ Group session saved to Firebase with comprehensive context");
+      DebugLogger.log("📍 Session ID: ${session.sessionId}");
+      DebugLogger.log("📍 Group ID: $groupId");
+      DebugLogger.log("📍 Group Name: $groupName");
+      DebugLogger.log("📍 Mood: $moodName $moodEmoji");
+      
+      return session;
+      
+    } catch (e) {
+      DebugLogger.log("❌ Error creating group session: $e");
+      throw Exception('Failed to create group session: $e');
+    }
+  }
+
+  static Future<void> verifySessionCreated(String sessionId) async {
+    try {
+      DebugLogger.log("🔍 Verifying session was created: $sessionId");
+      
+      final sessionDoc = await _sessionsCollection.doc(sessionId).get();
+      
+      if (!sessionDoc.exists) {
+        DebugLogger.log("❌ Session NOT found in Firebase: $sessionId");
+        return;
+      }
+      
+      final data = sessionDoc.data()!;
+      DebugLogger.log("✅ Session found in Firebase:");
+      DebugLogger.log("   ID: $sessionId");
+      DebugLogger.log("   Group Session: ${data['isGroupSession'] ?? false}");
+      DebugLogger.log("   Group Name: ${data['groupName']}");
+      DebugLogger.log("   Status: ${data['status']}");
+      DebugLogger.log("   Participants: ${data['participantNames']}");
+      
+    } catch (e) {
+      DebugLogger.log("❌ Error verifying session: $e");
+    }
+  }
+
+  static Future<void> debugCheckGroupSessions(String userId) async {
+    try {
+      DebugLogger.log("🔍 DEBUG: Checking group sessions for user: $userId");
+      
+      // Check all sessions where user is a participant
+      final userSessions = await _sessionsCollection
+          .where('participantIds', arrayContains: userId)
+          .get();
+      
+      DebugLogger.log("📊 Found ${userSessions.docs.length} total sessions for user");
+      
+      for (final doc in userSessions.docs) {
+        final data = doc.data();
+        final sessionId = doc.id;
+        final isGroupSession = data['isGroupSession'] ?? false;
+        final groupName = data['groupName'];
+        final groupId = data['groupId'];
+        final status = data['status'];
+        final participantNames = List<String>.from(data['participantNames'] ?? []);
+        
+        DebugLogger.log("📋 Session: $sessionId");
+        DebugLogger.log("   Group Session: $isGroupSession");
+        DebugLogger.log("   Group Name: $groupName");
+        DebugLogger.log("   Group ID: $groupId");
+        DebugLogger.log("   Status: $status");
+        DebugLogger.log("   Participants: ${participantNames.join(', ')}");
+        DebugLogger.log("   Created: ${data['createdAt']}");
+        DebugLogger.log("---");
+      }
+      
+      // Check specifically for group sessions
+      final groupSessions = await _sessionsCollection
+          .where('participantIds', arrayContains: userId)
+          .where('isGroupSession', isEqualTo: true)
+          .get();
+      
+      DebugLogger.log("🎯 Found ${groupSessions.docs.length} group sessions specifically");
+      
+      // Check for recent sessions (last 24 hours)
+      final yesterday = DateTime.now().subtract(Duration(hours: 24));
+      final recentSessions = await _sessionsCollection
+          .where('participantIds', arrayContains: userId)
+          .where('createdAt', isGreaterThan: yesterday.toIso8601String())
+          .get();
+      
+      DebugLogger.log("⏰ Found ${recentSessions.docs.length} sessions from last 24 hours");
+      
+    } catch (e) {
+      DebugLogger.log("❌ Error debugging group sessions: $e");
+    }
+  }
+
   // 🆕 UPDATED: Send direct friend invitation with mood support
   static Future<void> inviteFriend({
     required String sessionId,
