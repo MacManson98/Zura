@@ -1098,14 +1098,11 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
   // 4. Add this helper method to get group sessions:
   Future<List<SwipeSession>> _getGroupSessions() async {
     try {
-      // Query sessions where this group's members were participants
-      final memberNames = widget.group.members.map((m) => m.name).toList();
-      
       // Get sessions from Firestore where participant names match group members
       final querySnapshot = await FirebaseFirestore.instance
           .collection('swipeSessions')
+          .where('groupId', isEqualTo: widget.group.id)
           .where('status', isEqualTo: 'completed')
-          .where('participantNames', arrayContainsAny: memberNames)
           .orderBy('createdAt', descending: true)
           .limit(50) // Limit to last 50 sessions
           .get();
@@ -1115,14 +1112,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
       for (final doc in querySnapshot.docs) {
         try {
           final session = SwipeSession.fromJson(doc.data());
-          
-          // Only include sessions where ALL participants are group members
-          // (to exclude sessions where group members played with non-group friends)
-          final sessionParticipants = session.participantNames.toSet();
-          final isGroupSession = sessionParticipants.length > 1 && 
-              sessionParticipants.every((name) => memberNames.contains(name));
-          
-          if (isGroupSession && session.matches.isNotEmpty) {
+            if (session.matches.isNotEmpty) {
             sessions.add(session);
           }
         } catch (e) {
