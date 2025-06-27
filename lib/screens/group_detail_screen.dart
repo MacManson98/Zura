@@ -8,17 +8,22 @@ import '../models/user_profile.dart';
 import '../movie.dart';
 import 'matcher_screen.dart';
 import '../utils/themed_notifications.dart';
+import '../services/friendship_service.dart';
+import '../services/group_invitation_service.dart';
+import '../services/group_service.dart';
 
 class GroupDetailScreen extends StatefulWidget {
   final FriendGroup group;
   final UserProfile currentUser;
   final List<Movie> allMovies;
+  final VoidCallback? onGroupUpdated;
 
   const GroupDetailScreen({
     super.key,
     required this.group,
     required this.currentUser,
     required this.allMovies,
+    required this.onGroupUpdated,
   });
 
   @override
@@ -28,11 +33,14 @@ class GroupDetailScreen extends StatefulWidget {
 class _GroupDetailScreenState extends State<GroupDetailScreen> {
   bool _isLoading = false;
   Set<Movie> _recommendedMovies = {};
+  List<UserProfile> _userFriends = [];
+  bool _isLoadingFriends = false;
 
   @override
   void initState() {
     super.initState();
     _loadGroupRecommendations();
+    _loadUserFriends();
   }
 
   void _loadGroupRecommendations() {
@@ -83,12 +91,380 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     );
   }
 
-  void _inviteMembers() {
+  void _showManageMembers() {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (context) => _buildInviteMembersSheet(),
+      builder: (context) => _buildManageMembersSheet(),
+    );
+  }
+
+  void _loadUserFriends() async {
+    if (_isLoadingFriends) return;
+    
+    setState(() {
+      _isLoadingFriends = true;
+    });
+
+    try {
+      final friends = await FriendshipService.getFriends(widget.currentUser.uid);
+      setState(() {
+        _userFriends = friends;
+        _isLoadingFriends = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoadingFriends = false;
+      });
+      ThemedNotifications.showDecline(context, 'Failed to load friends', icon: "❌");
+    }
+  }
+
+  // Show Add Members Dialog
+  void _showAddMembersDialog() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => _buildAddMembersSheet(),
+    );
+  }
+
+  Widget _buildAddMembersSheet() {
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.8,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            const Color(0xFF1F1F1F),
+            const Color(0xFF161616),
+            const Color(0xFF121212),
+          ],
+        ),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24.r)),
+      ),
+      child: Column(
+        children: [
+          // Handle bar
+          Container(
+            margin: EdgeInsets.only(top: 12.h, bottom: 20.h),
+            width: 40.w,
+            height: 4.h,
+            decoration: BoxDecoration(
+              color: Colors.white30,
+              borderRadius: BorderRadius.circular(2.r),
+            ),
+          ),
+          
+          // Header
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 24.w),
+            child: Row(
+              children: [
+                Icon(Icons.person_add, color: Colors.blue, size: 24.sp),
+                SizedBox(width: 12.w),
+                Text(
+                  "Add Members",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20.sp,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          SizedBox(height: 20.h),
+          
+          // Friends to invite
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: 24.w),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          "Available Friends",
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      if (_isLoadingFriends)
+                        SizedBox(
+                          width: 16.w,
+                          height: 16.h,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: const Color(0xFFE5A00D),
+                          ),
+                        ),
+                    ],
+                  ),
+                  
+                  SizedBox(height: 16.h),
+                  
+                  // Friends list
+                  if (_userFriends.isNotEmpty)
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: _userFriends.length,
+                        itemBuilder: (context, index) {
+                          final friend = _userFriends[index];
+                          final isAlreadyMember = widget.group.members.any((member) => member.uid == friend.uid);
+                          
+                          if (isAlreadyMember) return const SizedBox.shrink();
+                          
+                          return _buildMemberListItem(friend, false);
+                        },
+                      ),
+                    ),
+                  
+                  // Empty state for friends
+                  if (_userFriends.isEmpty && !_isLoadingFriends)
+                    Expanded(
+                      child: Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.people_outline,
+                              size: 48.sp,
+                              color: Colors.white24,
+                            ),
+                            SizedBox(height: 16.h),
+                            Text(
+                              "No friends to invite",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16.sp,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            SizedBox(height: 8.h),
+                            Text(
+                              "Add some friends first to invite them to groups",
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.white54,
+                                fontSize: 14.sp,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Unified member list item builder
+  Widget _buildMemberListItem(UserProfile member, bool isCurrentMember) {
+    final bool isCurrentUser = member.uid == widget.currentUser.uid;
+    final bool isCreator = member.uid == widget.group.creatorId;
+    final bool canRemove = widget.group.isCreatedBy(widget.currentUser.uid) && 
+                          !isCurrentUser && !isCreator && isCurrentMember;
+    
+    return Container(
+      margin: EdgeInsets.only(bottom: 12.h),
+      child: GlassmorphicContainer(
+        width: double.infinity,
+        height: 70.h,
+        borderRadius: 16,
+        blur: 10,
+        alignment: Alignment.centerLeft,
+        border: 1,
+        linearGradient: LinearGradient(
+          colors: isCurrentUser
+              ? [
+                  const Color(0xFFE5A00D).withValues(alpha: 0.15),
+                  const Color(0xFFE5A00D).withValues(alpha: 0.05),
+                ]
+              : [
+                  Colors.white.withValues(alpha: 0.05),
+                  Colors.white.withValues(alpha: 0.02),
+                ],
+        ),
+        borderGradient: LinearGradient(
+          colors: isCurrentUser
+              ? [
+                  const Color(0xFFE5A00D).withValues(alpha: 0.6),
+                  const Color(0xFFE5A00D).withValues(alpha: 0.3),
+                ]
+              : [
+                  Colors.white.withValues(alpha: 0.1),
+                  Colors.white.withValues(alpha: 0.05),
+                ],
+        ),
+        child: Padding(
+          padding: EdgeInsets.all(16.w),
+          child: Row(
+            children: [
+              // Member avatar
+              Stack(
+                children: [
+                  Container(
+                    width: 40.w,
+                    height: 40.h,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: isCreator 
+                            ? [const Color(0xFFE5A00D), Colors.orange.shade600]
+                            : [Colors.blue.shade400, Colors.blue.shade600],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(20.r),
+                    ),
+                    child: Center(
+                      child: Text(
+                        member.name.isNotEmpty ? member.name[0].toUpperCase() : "?",
+                        style: TextStyle(
+                          fontSize: 16.sp,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Creator crown
+                  if (isCreator && isCurrentMember)
+                    Positioned(
+                      top: -2.h,
+                      right: -2.w,
+                      child: Container(
+                        padding: EdgeInsets.all(4.w),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE5A00D),
+                          borderRadius: BorderRadius.circular(8.r),
+                          border: Border.all(color: const Color(0xFF121212), width: 1.w),
+                        ),
+                        child: Icon(Icons.star, color: Colors.white, size: 10.sp),
+                      ),
+                    ),
+                ],
+              ),
+              
+              SizedBox(width: 12.w),
+              
+              // Member details
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            member.name.isEmpty ? 'Unknown User' : member.name,
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 14.sp,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        // Status badges
+                        if (isCurrentUser && isCurrentMember)
+                          Container(
+                            padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 2.h),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(8.r),
+                              border: Border.all(color: const Color(0xFFE5A00D).withValues(alpha: 0.3)),
+                            ),
+                            child: Text(
+                              "You",
+                              style: TextStyle(
+                                color: const Color(0xFFE5A00D),
+                                fontSize: 10.sp,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    
+                    SizedBox(height: 2.h),
+                    
+                    // Role indicator
+                    Text(
+                      isCurrentMember 
+                          ? (isCreator ? 'Group Creator' : 'Member')
+                          : 'Available to invite',
+                      style: TextStyle(
+                        color: isCurrentMember 
+                            ? (isCreator ? const Color(0xFFE5A00D) : Colors.white54)
+                            : Colors.green,
+                        fontSize: 11.sp,
+                        fontWeight: isCreator ? FontWeight.w600 : FontWeight.normal,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              
+              // Action button
+              if (canRemove)
+                GestureDetector(
+                  onTap: () => _showRemoveMemberDialog(member),
+                  child: Container(
+                    padding: EdgeInsets.all(8.w),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(8.r),
+                      border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+                    ),
+                    child: Icon(
+                      Icons.person_remove,
+                      color: Colors.red,
+                      size: 16.sp,
+                    ),
+                  ),
+                )
+              else if (!isCurrentMember)
+                GestureDetector(
+                  onTap: () => _inviteFriendToGroup(member),
+                  child: Container(
+                    padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          const Color(0xFFE5A00D),
+                          Colors.orange.shade600,
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(12.r),
+                    ),
+                    child: Text(
+                      "Invite",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12.sp,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -419,7 +795,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
         
         SizedBox(width: 16.w),
         
-        // Invite Members Button
+        // Manage Members Button (formerly Invite)
         Expanded(
           flex: 1,
           child: GlassmorphicContainer(
@@ -444,19 +820,19 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
             child: Material(
               color: Colors.transparent,
               child: InkWell(
-                onTap: _inviteMembers,
+                onTap: _showManageMembers,
                 borderRadius: BorderRadius.circular(16.r),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(
-                      Icons.person_add,
+                      Icons.group,
                       color: Colors.blue,
                       size: 20.sp,
                     ),
                     SizedBox(height: 2.h),
                     Text(
-                      "Invite",
+                      "Manage",
                       style: TextStyle(
                         color: Colors.blue,
                         fontSize: 12.sp,
@@ -795,10 +1171,9 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     );
   }
 
-  // Invite Members Bottom Sheet
-  Widget _buildInviteMembersSheet() {
+  Widget _buildManageMembersSheet() {
     return Container(
-      height: MediaQuery.of(context).size.height * 0.7,
+      height: MediaQuery.of(context).size.height * 0.85,
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
@@ -811,201 +1186,138 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
         ),
         borderRadius: BorderRadius.vertical(top: Radius.circular(24.r)),
       ),
-      child: Padding(
-        padding: EdgeInsets.all(24.w),
-        child: Column(
-          children: [
-            // Handle bar
-            Container(
-              width: 40.w,
-              height: 4.h,
-              decoration: BoxDecoration(
-                color: Colors.white30,
-                borderRadius: BorderRadius.circular(2.r),
-              ),
+      child: Column(
+        children: [
+          // Handle bar
+          Container(
+            margin: EdgeInsets.only(top: 12.h, bottom: 20.h),
+            width: 40.w,
+            height: 4.h,
+            decoration: BoxDecoration(
+              color: Colors.white30,
+              borderRadius: BorderRadius.circular(2.r),
             ),
-            
-            SizedBox(height: 20.h),
-            
-            // Header
-            Row(
+          ),
+          
+          // Header
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 24.w),
+            child: Row(
               children: [
-                Icon(Icons.person_add, color: Colors.blue, size: 24.sp),
+                Icon(Icons.group, color: Colors.blue, size: 24.sp),
                 SizedBox(width: 12.w),
                 Text(
-                  "Invite Members",
+                  "Manage Members",
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 20.sp,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
+                Spacer(),
+                Text(
+                  "${widget.group.members.length} members",
+                  style: TextStyle(
+                    color: Colors.white54,
+                    fontSize: 14.sp,
+                  ),
+                ),
               ],
             ),
-            
-            SizedBox(height: 20.h),
-            
-            // Share link option
-            GlassmorphicContainer(
+          ),
+          
+          SizedBox(height: 20.h),
+          
+          // Add Members Button
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 24.w),
+            child: GlassmorphicContainer(
               width: double.infinity,
-              height: 60.h,
+              height: 56.h,
               borderRadius: 16,
               blur: 10,
-              alignment: Alignment.centerLeft,
-              border: 1,
+              alignment: Alignment.center,
+              border: 2,
               linearGradient: LinearGradient(
                 colors: [
-                  Colors.blue.withValues(alpha: 0.1),
-                  Colors.blue.withValues(alpha: 0.05),
+                  const Color(0xFFE5A00D).withValues(alpha: 0.9),
+                  Colors.orange.shade600.withValues(alpha: 0.9),
                 ],
               ),
               borderGradient: LinearGradient(
                 colors: [
-                  Colors.blue.withValues(alpha: 0.3),
-                  Colors.blue.withValues(alpha: 0.1),
+                  const Color(0xFFE5A00D),
+                  Colors.orange.shade600,
                 ],
               ),
               child: Material(
                 color: Colors.transparent,
                 child: InkWell(
-                  onTap: () {
-                    // Share group invite link logic
-                    Navigator.pop(context);
-                    ThemedNotifications.showInfo(context, 'Invite link sharing coming soon!', icon: "🚧");
-                  },
+                  onTap: _showAddMembersDialog,
                   borderRadius: BorderRadius.circular(16.r),
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 16.w),
-                    child: Row(
-                      children: [
-                        Icon(Icons.share, color: Colors.blue, size: 24.sp),
-                        SizedBox(width: 16.w),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                "Share Invite Link",
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16.sp,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              Text(
-                                "Send group invitation to friends",
-                                style: TextStyle(
-                                  color: Colors.white60,
-                                  fontSize: 12.sp,
-                                ),
-                              ),
-                            ],
-                          ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.person_add,
+                        color: Colors.white,
+                        size: 20.sp,
+                      ),
+                      SizedBox(width: 8.w),
+                      Text(
+                        "Add Members",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16.sp,
+                          fontWeight: FontWeight.bold,
                         ),
-                        Icon(Icons.arrow_forward_ios, color: Colors.blue, size: 16.sp),
-                      ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          
+          SizedBox(height: 20.h),
+          
+          // Current Members List
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: 24.w),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Current Members",
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 14.sp,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                ),
-              ),
-            ),
-            
-            SizedBox(height: 16.h),
-            
-            // Direct invite option
-            GlassmorphicContainer(
-              width: double.infinity,
-              height: 60.h,
-              borderRadius: 16,
-              blur: 10,
-              alignment: Alignment.centerLeft,
-              border: 1,
-              linearGradient: LinearGradient(
-                colors: [
-                  Colors.green.withValues(alpha: 0.1),
-                  Colors.green.withValues(alpha: 0.05),
-                ],
-              ),
-              borderGradient: LinearGradient(
-                colors: [
-                  Colors.green.withValues(alpha: 0.3),
-                  Colors.green.withValues(alpha: 0.1),
-                ],
-              ),
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: () {
-                    // Direct friend invite logic
-                    Navigator.pop(context);
-                    ThemedNotifications.showInfo(context, 'Friend selection coming soon!', icon: "🚧");
-                  },
-                  borderRadius: BorderRadius.circular(16.r),
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 16.w),
-                    child: Row(
-                      children: [
-                        Icon(Icons.people, color: Colors.green, size: 24.sp),
-                        SizedBox(width: 16.w),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                "Invite Friends Directly",
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16.sp,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              Text(
-                                "Select friends from your list",
-                                style: TextStyle(
-                                  color: Colors.white60,
-                                  fontSize: 12.sp,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Icon(Icons.arrow_forward_ios, color: Colors.green, size: 16.sp),
-                      ],
+                  
+                  SizedBox(height: 16.h),
+                  
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: widget.group.members.length,
+                      itemBuilder: (context, index) {
+                        final member = widget.group.members[index];
+                        return _buildMemberListItem(member, true);
+                      },
                     ),
                   ),
-                ),
+                ],
               ),
             ),
-            
-            const Spacer(),
-            
-            // Cancel button
-            SizedBox(
-              width: double.infinity,
-              child: TextButton(
-                onPressed: () => Navigator.pop(context),
-                style: TextButton.styleFrom(
-                  padding: EdgeInsets.symmetric(vertical: 16.h),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12.r),
-                    side: BorderSide(color: Colors.white30),
-                  ),
-                ),
-                child: Text(
-                  "Cancel",
-                  style: TextStyle(color: Colors.white70, fontSize: 16.sp),
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  // Group Settings Bottom Sheet
+  // Group Settings Bottom Sheet (keeping existing implementation)
   Widget _buildGroupSettingsSheet() {
     final isCreator = widget.group.isCreatedBy(widget.currentUser.uid);
     
@@ -1072,20 +1384,6 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                         onTap: () {
                           Navigator.pop(context);
                           ThemedNotifications.showInfo(context, 'Edit group coming soon!', icon: "🚧");
-                        },
-                      ),
-                      
-                      SizedBox(height: 12.h),
-                      
-                      // Manage Members
-                      _buildSettingsOption(
-                        icon: Icons.people_outline,
-                        title: "Manage Members",
-                        subtitle: "View and remove group members",
-                        color: Colors.purple,
-                        onTap: () {
-                          Navigator.pop(context);
-                          _showManageMembersDialog();
                         },
                       ),
                       
@@ -1316,6 +1614,80 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     );
   }
 
+  void _inviteFriendToGroup(UserProfile friend) async {
+    try {
+      await GroupInvitationService().sendGroupInvitations(
+        groupId: widget.group.id,
+        groupName: widget.group.name,
+        groupDescription: widget.group.description,
+        groupImageUrl: widget.group.imageUrl,
+        creator: widget.currentUser,
+        invitees: [friend],
+      );
+      
+      Navigator.pop(context); // Close add members sheet
+      ThemedNotifications.showLike(context, 'Invitation sent to ${friend.name}!', icon: "📨");
+    } catch (e) {
+      ThemedNotifications.showDecline(context, 'Failed to send invitation: $e', icon: "❌");
+    }
+  }
+
+  void _showRemoveMemberDialog(UserProfile member) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1F1F1F),
+        title: Text(
+          "Remove Member?",
+          style: TextStyle(color: Colors.white, fontSize: 18.sp),
+        ),
+        content: Text(
+          "Are you sure you want to remove ${member.name} from this group?",
+          style: TextStyle(color: Colors.white70, fontSize: 14.sp),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              "Cancel",
+              style: TextStyle(color: Colors.white70),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context); // Close dialog
+              Navigator.pop(context); // Close manage members sheet
+              
+              try {
+                // Actually remove the member from the group
+                await GroupService().removeMemberFromGroup(
+                  groupId: widget.group.id,
+                  memberIdToRemove: member.uid,
+                );
+                
+                // Update the local UI by removing from the current group object
+                setState(() {
+                  widget.group.members.removeWhere((m) => m.uid == member.uid);
+                });
+                
+                ThemedNotifications.showDecline(context, '${member.name} removed from group', icon: "👋");
+              } catch (e) {
+                ThemedNotifications.showError(context, 'Failed to remove member: $e');
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+            ),
+            child: Text(
+              "Remove",
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showMemberOptions(UserProfile member) {
     showModalBottomSheet(
       context: context,
@@ -1387,29 +1759,6 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
               ),
           ],
         ),
-      ),
-    );
-  }
-
-  void _showManageMembersDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1F1F1F),
-        title: Text(
-          "Manage Members",
-          style: TextStyle(color: Colors.white),
-        ),
-        content: Text(
-          "Member management features coming soon!",
-          style: TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text("OK", style: TextStyle(color: const Color(0xFFE5A00D))),
-          ),
-        ],
       ),
     );
   }
@@ -1530,11 +1879,23 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
             ),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context); // Close dialog
-              Navigator.pop(context); // Go back to groups list
               
-              ThemedNotifications.showInfo(context, 'You left "${widget.group.name}"', icon: "🚪");
+              try {
+                await GroupService().leaveGroup(widget.group.id, widget.currentUser.uid);
+                
+                Navigator.pop(context); // Go back to friends screen
+                
+                // ✅ Call the refresh callback
+                if (widget.onGroupUpdated != null) {
+                  widget.onGroupUpdated!();
+                }
+                
+                ThemedNotifications.showInfo(context, 'You left "${widget.group.name}"', icon: "🚪");
+              } catch (e) {
+                ThemedNotifications.showError(context, 'Failed to leave group: $e');
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.orange,

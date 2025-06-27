@@ -4,22 +4,28 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 class NotificationBottomSheet extends StatefulWidget {
   final List<Map<String, dynamic>> sessionInvites;
   final List<Map<String, dynamic>> friendRequests;
+  final List<Map<String, dynamic>> groupInvitations; // ADD THIS
   final List<Map<String, dynamic>> regularNotifications;
   final Function(Map<String, dynamic>) onSessionAccept;
   final Function(Map<String, dynamic>) onSessionDecline;
   final Function(Map<String, dynamic>) onFriendAccept;
   final Function(Map<String, dynamic>) onFriendDecline;
+  final Function(Map<String, dynamic>) onGroupAccept; // ADD THIS
+  final Function(Map<String, dynamic>) onGroupDecline; // ADD THIS
   final VoidCallback onClearAll;
 
   const NotificationBottomSheet({
     super.key,
     required this.sessionInvites,
     required this.friendRequests,
+    required this.groupInvitations, // ADD THIS
     required this.regularNotifications,
     required this.onSessionAccept,
     required this.onSessionDecline,
     required this.onFriendAccept,
     required this.onFriendDecline,
+    required this.onGroupAccept, // ADD THIS
+    required this.onGroupDecline, // ADD THIS
     required this.onClearAll,
   });
 
@@ -61,6 +67,7 @@ class _NotificationBottomSheetState extends State<NotificationBottomSheet>
   Widget build(BuildContext context) {
     final totalNotifications = widget.sessionInvites.length + 
                               widget.friendRequests.length + 
+                              widget.groupInvitations.length +
                               widget.regularNotifications.length;
     
     return AnimatedBuilder(
@@ -237,6 +244,16 @@ class _NotificationBottomSheetState extends State<NotificationBottomSheet>
                   builder: _buildFriendRequestCard,
                   animationDelay: 0.2,
                 ),
+
+              if (widget.groupInvitations.isNotEmpty)
+                _buildNotificationSection(
+                  title: "🏠 Group Invitations", 
+                  subtitle: "${widget.groupInvitations.length} group invites",
+                  color: Colors.purple,
+                  notifications: widget.groupInvitations,
+                  builder: _buildGroupInviteCard,
+                  animationDelay: 0.3,
+                ),
               
               if (widget.regularNotifications.isNotEmpty)
                 _buildNotificationSection(
@@ -384,6 +401,7 @@ class _NotificationBottomSheetState extends State<NotificationBottomSheet>
   IconData _getSectionIcon(String title) {
     if (title.contains('Movie')) return Icons.movie_creation;
     if (title.contains('Friend')) return Icons.people_alt;
+    if (title.contains('Group')) return Icons.group;
     return Icons.notifications;
   }
 
@@ -531,6 +549,96 @@ class _NotificationBottomSheetState extends State<NotificationBottomSheet>
                 style: IconButton.styleFrom(
                   backgroundColor: Colors.blue,
                   minimumSize: Size(32.w, 32.h),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGroupInviteCard(Map<String, dynamic> invitation, int index) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 8.h),
+      padding: EdgeInsets.all(16.w),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.purple.withValues(alpha: 0.1),
+            const Color(0xFF2A2A2A),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(12.r),
+        border: Border.all(
+          color: Colors.purple.withValues(alpha: 0.3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "${invitation['fromUserName']} invited you to join a group!",
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 14.sp,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          SizedBox(height: 8.h),
+          Text(
+            "Group: ${invitation['groupName']}",
+            style: TextStyle(
+              color: Colors.purple,
+              fontSize: 13.sp,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          if (invitation['groupDescription']?.isNotEmpty == true) ...[
+            SizedBox(height: 4.h),
+            Text(
+              invitation['groupDescription'],
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 12.sp,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+          SizedBox(height: 12.h),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => widget.onGroupDecline(invitation),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white70,
+                    side: BorderSide(color: Colors.white24),
+                    minimumSize: Size(0, 36.h),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.r)),
+                  ),
+                  child: Text(
+                    "Decline",
+                    style: TextStyle(fontSize: 12.sp, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+              SizedBox(width: 8.w),
+              Expanded(
+                flex: 2,
+                child: ElevatedButton(
+                  onPressed: () => widget.onGroupAccept(invitation),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.purple,
+                    foregroundColor: Colors.white,
+                    minimumSize: Size(0, 36.h),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.r)),
+                  ),
+                  child: Text(
+                    "Join Group",
+                    style: TextStyle(fontSize: 12.sp, fontWeight: FontWeight.bold),
+                  ),
                 ),
               ),
             ],

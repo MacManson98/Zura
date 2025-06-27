@@ -334,6 +334,49 @@ class GroupService {
       print('Error syncing groups: $e');
     }
   }
+
+  Future<bool> removeMemberFromGroup({
+    required String groupId,
+    required String memberIdToRemove,
+  }) async {
+    try {
+      print("🔄 Removing member $memberIdToRemove from group $groupId");
+      
+      final group = await getGroupById(groupId);
+      if (group == null) {
+        throw Exception('Group not found');
+      }
+
+      // Check if the member exists in the group
+      if (!group.memberIds.contains(memberIdToRemove)) {
+        throw Exception('User is not a member of this group');
+      }
+
+      // Don't allow removing the creator
+      if (group.creatorId == memberIdToRemove) {
+        throw Exception('Cannot remove the group creator');
+      }
+
+      // Update the group by removing the member
+      final updatedMemberIds = group.memberIds.where((id) => id != memberIdToRemove).toList();
+      
+      // Update Firestore
+      await _groupsCollection.doc(groupId).update({
+        'memberIds': updatedMemberIds,
+        'memberCount': updatedMemberIds.length,
+        'lastActivityDate': FieldValue.serverTimestamp(),
+      });
+
+      // Remove group from the member's profile
+      await _removeGroupFromMembers(groupId, [memberIdToRemove]);
+
+      print("✅ Successfully removed member $memberIdToRemove from group $groupId");
+      return true;
+    } catch (e) {
+      print('❌ Error removing member from group: $e');
+      throw Exception('Failed to remove member: $e');
+    }
+  }
 }
 
 // Usage: Call this once when user logs in or app starts

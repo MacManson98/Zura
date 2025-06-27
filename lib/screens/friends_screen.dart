@@ -689,6 +689,7 @@ class _FriendsScreenState extends State<FriendsScreen> with SingleTickerProvider
                           group: group,
                           currentUser: widget.currentUser,
                           allMovies: widget.allMovies,
+                          onGroupUpdated: _refreshGroups,
                         ),
                       ),
                     ),
@@ -1160,5 +1161,8 @@ class _FriendsScreenState extends State<FriendsScreen> with SingleTickerProvider
         ),
       ),
     );
+  }
+  void _refreshGroups() {
+    _loadGroups(); // Call the async method without await
   }
 }

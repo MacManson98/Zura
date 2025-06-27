@@ -269,4 +269,6 @@ class ThemedNotifications {
       ),
     );
   }
+
+  static void showLike(BuildContext context, String s, {required String icon}) {}
 }

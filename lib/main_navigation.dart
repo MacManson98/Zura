@@ -315,14 +315,60 @@ class _MainNavigationState extends State<MainNavigation> {
       builder: (context) => NotificationBottomSheet(
         sessionInvites: sessionInvites,
         friendRequests: friendRequests,
-        regularNotifications: groupInvites,
+        groupInvitations: groupInvites,
+        regularNotifications: const [], // ADD THIS LINE (empty for now)
         onSessionAccept: (invitation) => _handleSessionAccept(invitation),
         onSessionDecline: (invitation) => _handleSessionDecline(invitation),
         onFriendAccept: (request) => _handleFriendAccept(request),
         onFriendDecline: (request) => _handleFriendDecline(request),
+        onGroupAccept: (invitation) => _handleGroupAccept(invitation), 
+        onGroupDecline: (invitation) => _handleGroupDecline(invitation),
         onClearAll: _clearAllNotifications,
       ),
     );
+  }
+
+  Future<void> _handleGroupAccept(Map<String, dynamic> invitation) async {
+    Navigator.pop(context);
+    
+    try {
+      await NotificationHelper.handleGroupInviteAction(
+        inviteData: invitation,
+        action: 'accept',
+        context: context,
+      );
+      
+      // ✅ ADD THIS: Refresh friends/groups data
+      await _loadFriends();
+      
+      // Navigate to friends screen to see the new group
+      setState(() {
+        _selectedIndex = 2;
+      });
+      
+    } catch (e) {
+      DebugLogger.log("❌ Error accepting group invitation: $e");
+      if (mounted) {
+        ThemedNotifications.showError(context, 'Failed to join group');
+      }
+    }
+  }
+
+  Future<void> _handleGroupDecline(Map<String, dynamic> invitation) async {
+    Navigator.pop(context);
+    
+    try {
+      await NotificationHelper.handleGroupInviteAction(
+        inviteData: invitation,
+        action: 'decline',
+        context: context,
+      );
+    } catch (e) {
+      DebugLogger.log("❌ Error declining group invitation: $e");
+      if (mounted) {
+        ThemedNotifications.showError(context, 'Failed to decline group invitation');
+      }
+    }
   }
 
   // ✅ RESTORED: Session handling with proper callback (based on your original code)
