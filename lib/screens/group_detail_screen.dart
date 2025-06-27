@@ -12,7 +12,6 @@ import '../utils/themed_notifications.dart';
 import '../services/friendship_service.dart';
 import '../services/group_invitation_service.dart';
 import '../services/group_service.dart';
-import '../models/session_models.dart';
 import 'movie_detail_screen.dart';
 import '../utils/movie_loader.dart';
 
@@ -1071,13 +1070,12 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
 
     try {
       final allMovies = await MovieDatabaseLoader.loadMovieDatabase();
-      final sessions = await _getGroupSessions();
+      final groupDoc = await FirebaseFirestore.instance
+          .collection('groups')
+          .doc(widget.group.id)
+          .get();
 
-      final Set<String> movieIds = {};
-
-      for (final session in sessions) {
-        movieIds.addAll(session.matches); // simple list of IDs
-      }
+      final movieIds = List<String>.from(groupDoc.data()?['matchMovieIds'] ?? []);
 
       final matchedMovies = allMovies
           .where((movie) => movieIds.contains(movie.id))
@@ -1094,7 +1092,6 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
       }
     }
   }
-
   // 4. Add this helper method to get group sessions:
   Future<List<SwipeSession>> _getGroupSessions() async {
     try {
@@ -1126,6 +1123,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
       return [];
     }
   }
+
 
   Widget _buildRecommendationsSection() {
     return Column(

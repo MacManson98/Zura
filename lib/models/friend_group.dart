@@ -18,6 +18,7 @@ class FriendGroup {
   final DateTime lastActivityDate;
   final int totalSessions;
   final int totalMatches;
+  final List<String> matchMovieIds;
   final DateTime? lastSessionDate;
   final bool isPrivate;
   final bool notificationsEnabled;
@@ -34,12 +35,14 @@ class FriendGroup {
     DateTime? lastActivityDate, // Make optional with default
     this.totalSessions = 0,
     this.totalMatches = 0,
+    List<String>? matchMovieIds,
     this.lastSessionDate,
     this.isPrivate = false,
     this.notificationsEnabled = true,
   }) : creatorId = creatorId ?? createdBy, // Use createdBy as fallback
        createdAt = createdAt ?? DateTime.now(),
-       lastActivityDate = lastActivityDate ?? DateTime.now();
+       lastActivityDate = lastActivityDate ?? DateTime.now(),
+       matchMovieIds = matchMovieIds ?? const [];
 
   // Factory for creating new groups
   factory FriendGroup.create({
@@ -63,6 +66,7 @@ class FriendGroup {
       imageUrl: imageUrl,
       createdAt: now,
       lastActivityDate: now,
+      matchMovieIds: const [],
       isPrivate: isPrivate,
       notificationsEnabled: notificationsEnabled,
     );
@@ -81,11 +85,12 @@ class FriendGroup {
       'lastActivityDate': Timestamp.fromDate(lastActivityDate),
       'totalSessions': totalSessions,
       'totalMatches': totalMatches,
-      'lastSessionDate': lastSessionDate != null 
+      'lastSessionDate': lastSessionDate != null
           ? Timestamp.fromDate(lastSessionDate!)
           : null,
       'isPrivate': isPrivate,
       'notificationsEnabled': notificationsEnabled,
+      'matchMovieIds': matchMovieIds,
     };
   }
 
@@ -107,6 +112,7 @@ class FriendGroup {
       lastActivityDate: (data['lastActivityDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
       totalSessions: data['totalSessions'] ?? 0,
       totalMatches: data['totalMatches'] ?? 0,
+      matchMovieIds: List<String>.from(data['matchMovieIds'] ?? []),
       lastSessionDate: (data['lastSessionDate'] as Timestamp?)?.toDate(),
       isPrivate: data['isPrivate'] ?? false,
       notificationsEnabled: data['notificationsEnabled'] ?? true,
@@ -127,6 +133,7 @@ class FriendGroup {
       'lastActivityDate': lastActivityDate.toIso8601String(),
       'totalSessions': totalSessions,
       'totalMatches': totalMatches,
+      'matchMovieIds': matchMovieIds,
       'lastSessionDate': lastSessionDate?.toIso8601String(),
       'isPrivate': isPrivate,
       'notificationsEnabled': notificationsEnabled,
@@ -147,6 +154,7 @@ class FriendGroup {
       lastActivityDate: json['lastActivityDate'] != null ? DateTime.parse(json['lastActivityDate']) : DateTime.now(),
       totalSessions: json['totalSessions'] ?? 0,
       totalMatches: json['totalMatches'] ?? 0,
+      matchMovieIds: List<String>.from(json['matchMovieIds'] ?? []),
       lastSessionDate: json['lastSessionDate'] != null ? DateTime.parse(json['lastSessionDate']) : null,
       isPrivate: json['isPrivate'] ?? false,
       notificationsEnabled: json['notificationsEnabled'] ?? true,
@@ -206,6 +214,7 @@ class FriendGroup {
     DateTime? lastActivityDate,
     int? totalSessions,
     int? totalMatches,
+    List<String>? matchMovieIds,
     DateTime? lastSessionDate,
     bool? isPrivate,
     bool? notificationsEnabled,
@@ -222,6 +231,7 @@ class FriendGroup {
       lastActivityDate: lastActivityDate ?? this.lastActivityDate,
       totalSessions: totalSessions ?? this.totalSessions,
       totalMatches: totalMatches ?? this.totalMatches,
+      matchMovieIds: matchMovieIds ?? this.matchMovieIds,
       lastSessionDate: lastSessionDate ?? this.lastSessionDate,
       isPrivate: isPrivate ?? this.isPrivate,
       notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
