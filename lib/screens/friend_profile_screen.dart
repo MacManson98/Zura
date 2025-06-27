@@ -10,6 +10,7 @@ import '../services/recommendation_service.dart';
 import '../utils/movie_loader.dart';
 import 'matcher_screen.dart';
 import '../utils/themed_notifications.dart';
+import 'movie_detail_screen.dart';
 
 class FriendProfileScreen extends StatefulWidget {
   final UserProfile currentUser;
@@ -215,30 +216,45 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
       
       print("📊 Found ${sessionsQuery.docs.length} total sessions for current user");
       
-      // Filter for sessions that include both users (friend sessions only)
+      // ✅ FIXED: Filter for FRIEND sessions only (exactly 2 participants)
       final friendSessions = sessionsQuery.docs.where((doc) {
         final data = doc.data();
         final participantIds = List<String>.from(data['participantIds'] ?? []);
+        final sessionType = data['type'] ?? data['inviteType']; // Check both possible fields
         
-        // Must have exactly 2 participants and include both users
-        return participantIds.length == 2 && 
-              participantIds.contains(widget.currentUser.uid) && 
-              participantIds.contains(widget.friend.uid);
+        // Must meet ALL these criteria:
+        // 1. Exactly 2 participants (friend session, not group)
+        // 2. Include both users
+        // 3. Be explicitly marked as friend type (optional extra check)
+        final isExactlyTwoParticipants = participantIds.length == 2;
+        final includesBothUsers = participantIds.contains(widget.currentUser.uid) && 
+                                participantIds.contains(widget.friend.uid);
+        final isFriendSession = sessionType == 'friend' || sessionType == null; // null for older sessions
+        
+        final qualifies = isExactlyTwoParticipants && includesBothUsers && isFriendSession;
+        
+        if (qualifies) {
+          print("✅ Valid friend session: ${doc.id} with ${participantIds.length} participants");
+        } else {
+          print("❌ Filtered out session: ${doc.id} - participants: ${participantIds.length}, type: $sessionType");
+        }
+        
+        return qualifies;
       }).toList();
       
-      print("🤝 Found ${friendSessions.length} friend sessions together");
+      print("🤝 Found ${friendSessions.length} friend-only sessions together");
       
-      // Extract all matched movie IDs from these sessions
+      // Extract all matched movie IDs from these friend sessions
       final Set<String> allMatchedMovieIds = {};
       for (final sessionDoc in friendSessions) {
         final data = sessionDoc.data();
         final matches = List<String>.from(data['matches'] ?? []);
         allMatchedMovieIds.addAll(matches);
-        print("📽️ Session ${sessionDoc.id}: ${matches.length} matches");
+        print("📽️ Friend session ${sessionDoc.id}: ${matches.length} matches");
       }
       
       _matchesCount = allMatchedMovieIds.length;
-      print("🎬 Total unique matched movies: $_matchesCount");
+      print("🎬 Total unique friend matches: $_matchesCount");
       
       // Load movie details from local database
       if (allMatchedMovieIds.isNotEmpty) {
@@ -261,20 +277,20 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
           
           if (movie.id != '-1') {
             _matchedMovies.add(movie);
-            print("✅ Loaded movie: ${movie.title}");
+            print("✅ Loaded friend match movie: ${movie.title}");
           } else {
             print("❌ Could not find movie with ID: $movieId");
           }
         }
         
-        print("📊 Successfully loaded ${_matchedMovies.length} movie objects");
+        print("📊 Successfully loaded ${_matchedMovies.length} friend match movie objects");
       } else {
         _matchedMovies = [];
-        print("ℹ️ No matches found between users");
+        print("ℹ️ No friend matches found between users");
       }
       
     } catch (e) {
-      print("❌ Error loading match history: $e");
+      print("❌ Error loading friend match history: $e");
       _matchedMovies = [];
       _matchesCount = 0;
     }
@@ -1449,106 +1465,12 @@ class _FriendProfileScreenState extends State<FriendProfileScreen> {
   }
 
   void _showMovieDetails(Movie movie) {
-    showModalBottomSheet(
+    showMovieDetails(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.6,
-        minChildSize: 0.4,
-        maxChildSize: 0.9,
-        builder: (context, scrollController) => Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                const Color(0xFF2A2A2A),
-                const Color(0xFF1F1F1F),
-              ],
-            ),
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20.r)),
-            border: Border.all(
-              color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
-              width: 1.w,
-            ),
-          ),
-          child: Column(
-            children: [
-              // Handle bar
-              Container(
-                margin: EdgeInsets.symmetric(vertical: 8.h),
-                width: 40.w,
-                height: 4.h,
-                decoration: BoxDecoration(
-                  color: Colors.white30,
-                  borderRadius: BorderRadius.circular(2.r),
-                ),
-              ),
-              
-              // Movie details content
-              Expanded(
-                child: SingleChildScrollView(
-                  controller: scrollController,
-                  padding: EdgeInsets.all(16.w),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        movie.title,
-                        style: TextStyle(
-                          fontSize: 22.sp,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      SizedBox(height: 8.h),
-                      Text(
-                        movie.genres.join(' • '),
-                        style: TextStyle(
-                          fontSize: 14.sp,
-                          color: const Color(0xFFE5A00D),
-                        ),
-                      ),
-                      SizedBox(height: 16.h),
-                      if (movie.tags.isNotEmpty) ...[
-                        Text(
-                          'Vibes',
-                          style: TextStyle(
-                            fontSize: 16.sp,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                        SizedBox(height: 8.h),
-                        Wrap(
-                          spacing: 8.w,
-                          runSpacing: 4.h,
-                          children: movie.tags.map((tag) => Container(
-                            padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
-                            decoration: BoxDecoration(
-                              color: Colors.purple.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(12.r),
-                              border: Border.all(color: Colors.purple.withValues(alpha: 0.5), width: 1.w),
-                            ),
-                            child: Text(
-                              tag,
-                              style: TextStyle(
-                                color: Colors.purple,
-                                fontSize: 12.sp,
-                              ),
-                            ),
-                          )).toList(),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+      movie: movie,
+      currentUser: widget.currentUser,
+      // ✅ No action parameters = no action buttons
+      // This will show just the movie information without any buttons
     );
   }
 

@@ -49,36 +49,275 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     _loadGroupMatches();
   }
 
-  void _loadGroupRecommendations() {
+  Future<void> _loadGroupRecommendations() async {
     setState(() {
       _isLoading = true;
     });
 
-    // Simple mock implementation
-    Future.delayed(const Duration(milliseconds: 1200), () {
-      // Find movies based on members' liked movies
-      Set<String> allLikedMovieIds = {};
+    try {
+      print("🎯 Loading group recommendations for: ${widget.group.name}");
+      print("👥 Group members: ${widget.group.members.length}");
+      
+      // Analyze what the group collectively likes
+      final Map<String, int> movieLikeCount = {};
+      final Set<String> allSeenMovies = {};
+      final Map<String, int> genrePreferences = {};
+      final Map<String, int> vibePreferences = {};
       
       for (final member in widget.group.members) {
-        allLikedMovieIds.addAll(member.likedMovieIds);
+        print("📊 Analyzing member: ${member.name}");
+        print("   Liked movies: ${member.likedMovieIds.length}");
+        print("   Preferred genres: ${member.preferredGenres}");
+        print("   Preferred vibes: ${member.preferredVibes}");
+        
+        // Count movie likes
+        for (final movieId in member.likedMovieIds) {
+          movieLikeCount[movieId] = (movieLikeCount[movieId] ?? 0) + 1;
+        }
+        
+        // Track all seen movies (liked + passed)
+        allSeenMovies.addAll(member.likedMovieIds);
+        allSeenMovies.addAll(member.passedMovieIds);
+        
+        // Count genre preferences
+        for (final genre in member.preferredGenres) {
+          genrePreferences[genre] = (genrePreferences[genre] ?? 0) + 1;
+        }
+        
+        // Count vibe preferences
+        for (final vibe in member.preferredVibes) {
+          vibePreferences[vibe] = (vibePreferences[vibe] ?? 0) + 1;
+        }
       }
       
-      // Get actual movie objects for liked movies
-      _recommendedMovies = widget.allMovies
-          .where((movie) => allLikedMovieIds.contains(movie.id))
-          .toSet();
+      print("🎬 Total unique movies seen by group: ${allSeenMovies.length}");
+      print("📈 Top genres: ${genrePreferences.entries.where((e) => e.value >= 2).map((e) => '${e.key} (${e.value})').join(', ')}");
       
-      // Limit to 6 for display
-      if (_recommendedMovies.length > 6) {
-        _recommendedMovies = _recommendedMovies.take(6).toSet();
+      // Find movies liked by multiple group members (group favorites)
+      final groupFavorites = widget.allMovies.where((movie) {
+        final likeCount = movieLikeCount[movie.id] ?? 0;
+        return likeCount >= 2; // Liked by at least 2 people
+      }).toList();
+      
+      print("⭐ Group favorites: ${groupFavorites.length} movies");
+      
+      // Generate smart recommendations
+      final recommendations = <Movie, double>{};
+      
+      // Strategy 1: Find movies similar to group favorites
+      for (final favoriteMovie in groupFavorites) {
+        final similarMovies = _findSimilarMovies(favoriteMovie, widget.allMovies, allSeenMovies);
+        
+        for (final similarMovie in similarMovies) {
+          final score = _calculateSimilarityScore(
+            favoriteMovie, 
+            similarMovie, 
+            genrePreferences,
+            vibePreferences,
+            movieLikeCount[favoriteMovie.id] ?? 1,
+          );
+          
+          // Keep the highest score for each movie
+          if (!recommendations.containsKey(similarMovie) || 
+              recommendations[similarMovie]! < score) {
+            recommendations[similarMovie] = score;
+          }
+        }
       }
-
+      
+      print("🔍 Found ${recommendations.length} similar movie recommendations");
+      
+      // Strategy 2: Add high-rated movies in preferred genres/vibes
+      if (recommendations.length < 12) {
+        final additionalMovies = _findHighRatedInPreferences(
+          widget.allMovies, 
+          genrePreferences, 
+          vibePreferences,
+          allSeenMovies,
+          12 - recommendations.length,
+        );
+        
+        for (final movie in additionalMovies) {
+          if (!recommendations.containsKey(movie)) {
+            recommendations[movie] = _calculateGenreVibeScore(movie, genrePreferences, vibePreferences);
+          }
+        }
+        
+        print("➕ Added ${additionalMovies.length} genre/vibe-based recommendations");
+      }
+      
+      // Strategy 3: If still not enough, add universally acclaimed movies
+      if (recommendations.length < 8) {
+        final acclaimedMovies = widget.allMovies.where((movie) {
+          if (allSeenMovies.contains(movie.id)) return false;
+          final rating = movie.rating ?? 0.0;
+          return rating >= 8.0; // Highly rated movies
+        }).toList()..sort((a, b) => (b.rating ?? 0.0).compareTo(a.rating ?? 0.0));
+        
+        for (final movie in acclaimedMovies.take(8 - recommendations.length)) {
+          if (!recommendations.containsKey(movie)) {
+            recommendations[movie] = (movie.rating ?? 0.0) * 2; // Base score on rating
+          }
+        }
+        
+        print("🏆 Added ${acclaimedMovies.take(8 - recommendations.length).length} acclaimed movies");
+      }
+      
+      // Sort by score and get top recommendations
+      final sortedRecommendations = recommendations.entries.toList()
+        ..sort((a, b) => b.value.compareTo(a.value));
+      
+      final finalRecommendations = sortedRecommendations
+          .take(12)
+          .map((entry) => entry.key)
+          .toList();
+      
+      print("✅ Final recommendations: ${finalRecommendations.length} movies");
+      
       if (mounted) {
         setState(() {
+          _recommendedMovies = finalRecommendations.take(10).toSet(); // Limit to 10 for UI
           _isLoading = false;
         });
       }
+      
+    } catch (e) {
+      print("❌ Error loading group recommendations: $e");
+      if (mounted) {
+        setState(() {
+          _recommendedMovies = {};
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  // Helper method: Find movies similar to a favorite
+  List<Movie> _findSimilarMovies(
+    Movie favoriteMovie, 
+    List<Movie> allMovies, 
+    Set<String> seenMovies,
+  ) {
+    return allMovies.where((movie) {
+      // Skip if already seen
+      if (seenMovies.contains(movie.id) || movie.id == favoriteMovie.id) {
+        return false;
+      }
+      
+      // Must be decent quality
+      final movieRating = movie.rating ?? 0.0;
+      if (movieRating < 6.5) return false;
+      
+      // Must share at least one genre
+      final sharedGenres = movie.genres.toSet().intersection(favoriteMovie.genres.toSet());
+      if (sharedGenres.isEmpty) return false;
+      return true;
+    }).toList();
+  }
+
+  // Helper method: Calculate similarity score
+  double _calculateSimilarityScore(
+    Movie favoriteMovie,
+    Movie candidateMovie,
+    Map<String, int> genrePreferences,
+    Map<String, int> vibePreferences,
+    int favoriteMovieLikes,
+  ) {
+    double score = 0;
+    
+    // Base score from rating
+    final candidateRating = candidateMovie.rating ?? 7.0;
+    score += candidateRating * 2;
+    
+    // Bonus for shared genres
+    final sharedGenres = candidateMovie.genres.toSet().intersection(favoriteMovie.genres.toSet());
+    score += sharedGenres.length * 5;
+    
+    // Bonus for shared vibes/tags
+    final sharedVibes = candidateMovie.tags.toSet().intersection(favoriteMovie.tags.toSet());
+    score += sharedVibes.length * 3;
+    
+    // Bonus for popular genres in the group
+    for (final genre in candidateMovie.genres) {
+      final genrePopularity = genrePreferences[genre] ?? 0;
+      score += genrePopularity * 2;
+    }
+    
+    // Bonus for popular vibes in the group
+    for (final vibe in candidateMovie.tags) {
+      final vibePopularity = vibePreferences[vibe] ?? 0;
+      score += vibePopularity * 1.5;
+    }
+    
+    // Bonus based on how much the group liked the reference movie
+    score += favoriteMovieLikes * 3;
+    
+    return score;
+  }
+
+  // Helper method: Find high-rated movies in preferred genres/vibes
+  List<Movie> _findHighRatedInPreferences(
+    List<Movie> allMovies,
+    Map<String, int> genrePreferences,
+    Map<String, int> vibePreferences,
+    Set<String> seenMovies,
+    int count,
+  ) {
+    // Get popular preferences
+    final popularGenres = genrePreferences.entries
+        .where((entry) => entry.value >= 2)
+        .map((entry) => entry.key)
+        .toSet();
+        
+    final popularVibes = vibePreferences.entries
+        .where((entry) => entry.value >= 2)
+        .map((entry) => entry.key)
+        .toSet();
+    
+    if (popularGenres.isEmpty && popularVibes.isEmpty) return [];
+    
+    final candidates = allMovies.where((movie) {
+      if (seenMovies.contains(movie.id)) return false;
+      
+      final movieRating = movie.rating ?? 0.0;
+      if (movieRating < 7.0) return false; // Good quality only
+      
+      final hasPreferredGenre = movie.genres.any((genre) => popularGenres.contains(genre));
+      final hasPreferredVibe = movie.tags.any((vibe) => popularVibes.contains(vibe));
+      
+      return hasPreferredGenre || hasPreferredVibe;
+    }).toList();
+    
+    // Sort by rating
+    candidates.sort((a, b) {
+      final aRating = a.rating ?? 0.0;
+      final bRating = b.rating ?? 0.0;
+      return bRating.compareTo(aRating);
     });
+    
+    return candidates.take(count).toList();
+  }
+
+  // Helper method: Calculate score based on genre/vibe preferences
+  double _calculateGenreVibeScore(
+    Movie movie, 
+    Map<String, int> genrePreferences,
+    Map<String, int> vibePreferences
+  ) {
+    final movieRating = movie.rating ?? 7.0;
+    double score = movieRating * 2;
+    
+    for (final genre in movie.genres) {
+      final genrePopularity = genrePreferences[genre] ?? 0;
+      score += genrePopularity * 3;
+    }
+    
+    for (final vibe in movie.tags) {
+      final vibePopularity = vibePreferences[vibe] ?? 0;
+      score += vibePopularity * 2;
+    }
+    
+    return score;
   }
 
   void _startGroupMatching() {
@@ -1066,32 +1305,105 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
   }
 
   Future<void> _loadGroupMatches() async {
-    setState(() => _isLoadingMatches = true);
+    setState(() {
+      _isLoadingMatches = true;
+    });
 
     try {
-      final allMovies = await MovieDatabaseLoader.loadMovieDatabase();
-      final groupDoc = await FirebaseFirestore.instance
-          .collection('groups')
-          .doc(widget.group.id)
+      print("📅 Loading group matches for: ${widget.group.name}");
+      
+      // Get all group member UIDs
+      final groupMemberIds = widget.group.members.map((member) => member.uid).toList();
+      print("👥 Group members: ${groupMemberIds.length} (${groupMemberIds})");
+      
+      // Query swipeSessions collection for group sessions with these members
+      final sessionsQuery = await FirebaseFirestore.instance
+          .collection('swipeSessions')
+          .where('status', isEqualTo: 'completed')
           .get();
-
-      final movieIds = List<String>.from(groupDoc.data()?['matchMovieIds'] ?? []);
-
-      final matchedMovies = allMovies
-          .where((movie) => movieIds.contains(movie.id))
-          .toList();
-
-      setState(() {
-        _groupMatches = matchedMovies;
-      });
+      
+      print("📊 Found ${sessionsQuery.docs.length} total completed sessions");
+      
+      // Filter for sessions that are GROUP sessions with these specific members
+      final groupSessions = sessionsQuery.docs.where((doc) {
+        final data = doc.data();
+        final participantIds = List<String>.from(data['participantIds'] ?? []);
+        final sessionType = data['type'] ?? data['inviteType'];
+        final sessionGroupId = data['groupId'];
+        
+        // Must meet these criteria:
+        // 1. Be a group session (3+ participants OR explicitly marked as group type)
+        // 2. Include members from this group
+        // 3. Optionally match the groupId if available
+        
+        final isGroupSession = sessionType == 'group' || participantIds.length >= 3;
+        final hasGroupMembers = participantIds.any((id) => groupMemberIds.contains(id));
+        final matchesGroupId = sessionGroupId == null || sessionGroupId == widget.group.id;
+        
+        // For now, we'll include any group session that has members from this group
+        // This is a bit loose, but should work for most cases
+        final qualifies = isGroupSession && hasGroupMembers && matchesGroupId;
+        
+        if (qualifies) {
+          print("✅ Valid group session: ${doc.id}");
+          print("   Participants: ${participantIds.length} (${participantIds})");
+          print("   Type: $sessionType, GroupId: $sessionGroupId");
+        }
+        
+        return qualifies;
+      }).toList();
+      
+      print("🎬 Found ${groupSessions.length} group sessions");
+      
+      // Extract all matched movie IDs from these group sessions
+      final Set<String> allMatchedMovieIds = {};
+      for (final sessionDoc in groupSessions) {
+        final data = sessionDoc.data();
+        final matches = List<String>.from(data['matches'] ?? []);
+        allMatchedMovieIds.addAll(matches);
+        print("📽️ Group session ${sessionDoc.id}: ${matches.length} matches");
+      }
+      
+      print("🎬 Total unique group matches: ${allMatchedMovieIds.length}");
+      
+      // Load movie details from local database
+      if (allMatchedMovieIds.isNotEmpty) {
+        final fullMovieDatabase = await MovieDatabaseLoader.loadMovieDatabase();
+        final loadedMovies = <Movie>[];
+        
+        for (final movieId in allMatchedMovieIds) {
+          try {
+            final movie = fullMovieDatabase.firstWhere((m) => m.id == movieId);
+            loadedMovies.add(movie);
+            print("✅ Loaded group match movie: ${movie.title}");
+          } catch (e) {
+            print("❌ Could not find movie with ID: $movieId");
+          }
+        }
+        
+        setState(() {
+          _groupMatches = loadedMovies;
+          _isLoadingMatches = false;
+        });
+        
+        print("📊 Successfully loaded ${loadedMovies.length} group match movie objects");
+      } else {
+        setState(() {
+          _groupMatches = [];
+          _isLoadingMatches = false;
+        });
+        print("ℹ️ No group matches found");
+      }
+      
     } catch (e) {
       print("❌ Error loading group matches: $e");
-    } finally {
-      if (mounted) {
-        setState(() => _isLoadingMatches = false);
-      }
+      setState(() {
+        _groupMatches = [];
+        _isLoadingMatches = false;
+      });
     }
   }
+
 
 
   Widget _buildRecommendationsSection() {
