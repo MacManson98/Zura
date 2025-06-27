@@ -1009,7 +1009,6 @@ void initState() {
           likedMovieIds: SessionManager.currentSession!.likedMovieIds, // ✅ Session-specific likes
           matchedMovieIds: [...SessionManager.currentSession!.matchedMovieIds, movie.id], // Add this match
           mood: selectedMoods.isNotEmpty ? selectedMoods.first.displayName : null,
-          totalSwipes: SessionManager.currentSession!.totalSwipes,
         );
 
         widget.currentUser.sessionHistory.add(currentSessionSnapshot);

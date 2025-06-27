@@ -626,7 +626,6 @@ class _SessionDetailScreenState extends State<SessionDetailScreen>
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
                     _buildStatItem("Duration", _formatDuration(widget.session.duration)),
-                    _buildStatItem("Total Swipes", "${widget.session.totalSwipes}"),
                     _buildStatItem(
                       widget.session.type == SessionType.solo ? "Liked" : "Matches", 
                       "${widget.session.type == SessionType.solo ? widget.session.likedMovieIds.length : widget.session.matchedMovieIds.length}",
