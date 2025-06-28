@@ -27,6 +27,7 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   late UserProfile _profile;
+  int _actualMatchCount = 0;
 
   @override
   void initState() {
@@ -52,7 +53,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       
       if (mounted) {
         setState(() {
-          // Trigger UI update to reflect correct count
+          _actualMatchCount = totalMatches; // Add this line
         });
       }
     } catch (e) {
@@ -260,17 +261,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildStatsSection() {
-    // Calculate genre stats
-    final Map<String, int> genreCount = {};
-    for (final movie in _profile.likedMovies) {
-      for (final genre in movie.genres) {
-        genreCount[genre] = (genreCount[genre] ?? 0) + 1;
-      }
-    }
-    final topGenre = genreCount.entries.isNotEmpty 
-        ? genreCount.entries.reduce((a, b) => a.value > b.value ? a : b).key
-        : 'None';
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -301,36 +291,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Expanded(
               child: _buildStatCard(
                 'Matches',
-                '${_profile.totalMatches}',
+                '$_actualMatchCount',
                 Icons.movie_filter,
                 Colors.green,
                 _navigateToMatches,
-              ),
-            ),
-          ],
-        ),
-        
-        SizedBox(height: 12.h),
-        
-        Row(
-          children: [
-            Expanded(
-              child: _buildStatCard(
-                'Top Genre',
-                topGenre,
-                Icons.category,
-                const Color(0xFFE5A00D),
-                () => _showGenreAnalytics(genreCount),
-              ),
-            ),
-            SizedBox(width: 12.w),
-            Expanded(
-              child: _buildStatCard(
-                'Sessions',
-                _profile.totalSessions.toString(),
-                Icons.history,
-                Colors.purple,
-                () => _showSessionHistory(),
               ),
             ),
           ],
@@ -945,112 +909,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.r)),
             ),
             child: Text('Sign Out', style: TextStyle(color: Colors.white, fontSize: 14.sp)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Simple popup methods for stats
-  void _showGenreAnalytics(Map<String, int> genreCount) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF2A2A2A),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
-        title: Text('Your Top Genres', style: TextStyle(color: Colors.white, fontSize: 18.sp)),
-        content: genreCount.isEmpty
-            ? Text('Like some movies to see your genre preferences!', 
-                style: TextStyle(color: Colors.white70, fontSize: 14.sp))
-            : Column(
-                mainAxisSize: MainAxisSize.min,
-                children: () {
-                  final sortedEntries = genreCount.entries.toList();
-                  sortedEntries.sort((a, b) => b.value.compareTo(a.value));
-                  return sortedEntries
-                      .take(5)
-                      .map((entry) => Padding(
-                        padding: EdgeInsets.only(bottom: 8.h),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(entry.key, style: TextStyle(color: Colors.white, fontSize: 14.sp)),
-                            Text('${entry.value} movies', 
-                              style: TextStyle(color: const Color(0xFFE5A00D), fontSize: 14.sp)),
-                          ],
-                        ),
-                      ))
-                      .toList();
-                }(),
-              ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Close', style: TextStyle(color: const Color(0xFFE5A00D), fontSize: 14.sp)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showSessionHistory() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF2A2A2A),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
-        title: Text('Session History', style: TextStyle(color: Colors.white, fontSize: 18.sp)),
-        content: SizedBox(
-          width: double.maxFinite,
-          height: 200.h,
-          child: _profile.sessionHistory.isEmpty
-              ? Center(
-                  child: Text('No sessions yet. Start swiping to build your history!',
-                    style: TextStyle(color: Colors.white70, fontSize: 14.sp),
-                    textAlign: TextAlign.center,
-                  ),
-                )
-              : ListView.builder(
-                  itemCount: _profile.sessionHistory.length,
-                  itemBuilder: (context, index) {
-                    final session = _profile.sessionHistory[index];
-                    return Container(
-                      margin: EdgeInsets.only(bottom: 8.h),
-                      padding: EdgeInsets.all(12.w),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1F1F1F),
-                        borderRadius: BorderRadius.circular(8.r),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            session.type.name.toUpperCase(),
-                            style: TextStyle(
-                              color: const Color(0xFFE5A00D),
-                              fontSize: 12.sp,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          if (session.type != SessionType.solo)
-                            Text(
-                              'With: ${session.getOtherParticipantsDisplay(_profile.name)}',
-                              style: TextStyle(color: Colors.white, fontSize: 13.sp),
-                            ),
-                          Text(
-                            'Matches: ${session.matchedMovieIds.length}',
-                            style: TextStyle(color: Colors.white70, fontSize: 12.sp),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Close', style: TextStyle(color: const Color(0xFFE5A00D), fontSize: 14.sp)),
           ),
         ],
       ),
