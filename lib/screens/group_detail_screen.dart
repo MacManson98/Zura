@@ -34,6 +34,7 @@ class GroupDetailScreen extends StatefulWidget {
 }
 
 class _GroupDetailScreenState extends State<GroupDetailScreen> {
+  late FriendGroup _group;
   bool _isLoading = false;
   Set<Movie> _recommendedMovies = {};
   List<UserProfile> _userFriends = [];
@@ -44,6 +45,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
   @override
   void initState() {
     super.initState();
+    _group = widget.group;
     _loadGroupRecommendations();
     _loadUserFriends();
     _loadGroupMatches();
@@ -55,8 +57,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     });
 
     try {
-      print("🎯 Loading group recommendations for: ${widget.group.name}");
-      print("👥 Group members: ${widget.group.members.length}");
+      print("🎯 Loading group recommendations for: ${_group.name}");
+      print("👥 Group members: ${_group.members.length}");
       
       // Analyze what the group collectively likes
       final Map<String, int> movieLikeCount = {};
@@ -64,7 +66,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
       final Map<String, int> genrePreferences = {};
       final Map<String, int> vibePreferences = {};
       
-      for (final member in widget.group.members) {
+      for (final member in _group.members) {
         print("📊 Analyzing member: ${member.name}");
         print("   Liked movies: ${member.likedMovieIds.length}");
         print("   Preferred genres: ${member.preferredGenres}");
@@ -330,7 +332,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
           sessionId: sessionId,
           allMovies: widget.allMovies,
           currentUser: widget.currentUser,
-          friendIds: widget.group.members,
+          friendIds: _group.members,
         ),
       ),
     );
@@ -465,7 +467,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                         itemCount: _userFriends.length,
                         itemBuilder: (context, index) {
                           final friend = _userFriends[index];
-                          final isAlreadyMember = widget.group.members.any((member) => member.uid == friend.uid);
+                          final isAlreadyMember = _group.members.any((member) => member.uid == friend.uid);
                           
                           if (isAlreadyMember) return const SizedBox.shrink();
                           
@@ -520,8 +522,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
   // Unified member list item builder
   Widget _buildMemberListItem(UserProfile member, bool isCurrentMember) {
     final bool isCurrentUser = member.uid == widget.currentUser.uid;
-    final bool isCreator = member.uid == widget.group.creatorId;
-    final bool canRemove = widget.group.isCreatedBy(widget.currentUser.uid) && 
+    final bool isCreator = member.uid == _group.creatorId;
+    final bool canRemove = _group.isCreatedBy(widget.currentUser.uid) &&
                           !isCurrentUser && !isCreator && isCurrentMember;
     
     return Container(
@@ -724,14 +726,14 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isCreator = widget.group.isCreatedBy(widget.currentUser.uid);
+    final isCreator = _group.isCreatedBy(widget.currentUser.uid);
                     
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
       appBar: AppBar(
         backgroundColor: const Color(0xFF1F1F1F),
         title: Text(
-          widget.group.name,
+          _group.name,
           style: TextStyle(
             fontWeight: FontWeight.bold,
             fontSize: 18.sp,
@@ -846,11 +848,11 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                   ),
                 ],
               ),
-              child: widget.group.imageUrl.isNotEmpty
+              child: _group.imageUrl.isNotEmpty
                   ? ClipRRect(
                       borderRadius: BorderRadius.circular(16.r),
                       child: Image.network(
-                        widget.group.imageUrl,
+                        _group.imageUrl,
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) {
                           return const Icon(Icons.group, color: Colors.white, size: 40);
@@ -869,7 +871,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    widget.group.name,
+                    _group.name,
                     style: TextStyle(
                       fontSize: 20.sp,
                       fontWeight: FontWeight.bold,
@@ -881,7 +883,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                   SizedBox(height: 4.h),
                   
                   Text(
-                    "Created by ${widget.group.createdBy}",
+                    "Created by ${_group.createdBy}",
                     style: TextStyle(
                       fontSize: 12.sp,
                       color: Colors.white60,
@@ -894,13 +896,13 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                   Row(
                     children: [
                       _buildStatChip(
-                        "${widget.group.members.length}",
+                        "${_group.members.length}",
                         "Members",
                         Icons.people,
                       ),
                       SizedBox(width: 12.w),
                       _buildStatChip(
-                        "${widget.group.totalSessions}",
+                        "${_group.totalSessions}",
                         "Sessions",
                         Icons.movie_filter,
                       ),
@@ -913,12 +915,12 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                   Container(
                     padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
                     decoration: BoxDecoration(
-                      color: widget.group.isPrivate 
+                      color: _group.isPrivate
                           ? Colors.red.withValues(alpha: 0.2)
                           : Colors.green.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(12.r),
                       border: Border.all(
-                        color: widget.group.isPrivate 
+                        color: _group.isPrivate
                             ? Colors.red.withValues(alpha: 0.3)
                             : Colors.green.withValues(alpha: 0.3),
                       ),
@@ -927,16 +929,16 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          widget.group.isPrivate ? Icons.lock : Icons.public,
+                          _group.isPrivate ? Icons.lock : Icons.public,
                           size: 12.sp,
-                          color: widget.group.isPrivate ? Colors.red : Colors.green,
+                          color: _group.isPrivate ? Colors.red : Colors.green,
                         ),
                         SizedBox(width: 4.w),
                         Text(
-                          widget.group.isPrivate ? "Private" : "Public",
+                          _group.isPrivate ? "Private" : "Public",
                           style: TextStyle(
                             fontSize: 10.sp,
-                            color: widget.group.isPrivate ? Colors.red : Colors.green,
+                            color: _group.isPrivate ? Colors.red : Colors.green,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -1115,7 +1117,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
               ),
             ),
             Text(
-              "${widget.group.members.length} people",
+              "${_group.members.length} people",
               style: TextStyle(
                 color: Colors.white54,
                 fontSize: 14.sp,
@@ -1254,10 +1256,10 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     });
 
     try {
-      print("📅 Loading group matches for: ${widget.group.name}");
+      print("📅 Loading group matches for: ${_group.name}");
       
       // Get all group member UIDs
-      final groupMemberIds = widget.group.members.map((member) => member.uid).toList();
+      final groupMemberIds = _group.members.map((member) => member.uid).toList();
       print("👥 Group members: ${groupMemberIds.length} (${groupMemberIds})");
       
       // Query swipeSessions collection for group sessions with these members
@@ -1282,7 +1284,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
         
         final isGroupSession = sessionType == 'group' || participantIds.length >= 3;
         final hasGroupMembers = participantIds.any((id) => groupMemberIds.contains(id));
-        final matchesGroupId = sessionGroupId == null || sessionGroupId == widget.group.id;
+        final matchesGroupId = sessionGroupId == null || sessionGroupId == _group.id;
         
         // For now, we'll include any group session that has members from this group
         // This is a bit loose, but should work for most cases
@@ -1529,9 +1531,9 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
 
   Widget _buildEnhancedMembersList() {
     return Column(
-      children: widget.group.members.map((member) {
+      children: _group.members.map((member) {
         final bool isCurrentUser = member.uid == widget.currentUser.uid;
-        final bool isCreator = member.uid == widget.group.creatorId;
+        final bool isCreator = member.uid == _group.creatorId;
         
         return Container(
           margin: EdgeInsets.only(bottom: 12.h),
@@ -1670,7 +1672,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                   ),
                   
                   // Member actions for non-current users
-                  if (!isCurrentUser && widget.group.isCreatedBy(widget.currentUser.uid))
+                  if (!isCurrentUser && _group.isCreatedBy(widget.currentUser.uid))
                     GestureDetector(
                       onTap: () => _showMemberOptions(member),
                       child: Container(
@@ -1782,7 +1784,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                 ),
                 Spacer(),
                 Text(
-                  "${widget.group.members.length} members",
+                  "${_group.members.length} members",
                   style: TextStyle(
                     color: Colors.white54,
                     fontSize: 14.sp,
@@ -1867,9 +1869,9 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                   
                   Expanded(
                     child: ListView.builder(
-                      itemCount: widget.group.members.length,
+                      itemCount: _group.members.length,
                       itemBuilder: (context, index) {
-                        final member = widget.group.members[index];
+                        final member = _group.members[index];
                         return _buildMemberListItem(member, true);
                       },
                     ),
@@ -1885,7 +1887,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
 
   // Group Settings Bottom Sheet (keeping existing implementation)
   Widget _buildGroupSettingsSheet() {
-    final isCreator = widget.group.isCreatedBy(widget.currentUser.uid);
+    final isCreator = _group.isCreatedBy(widget.currentUser.uid);
     
     return Container(
       height: MediaQuery.of(context).size.height * 0.8,
@@ -1949,7 +1951,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                         color: Colors.blue,
                         onTap: () {
                           Navigator.pop(context);
-                          ThemedNotifications.showInfo(context, 'Edit group coming soon!', icon: "🚧");
+                          _showEditGroupInfoDialog();
                         },
                       ),
                       
@@ -1957,12 +1959,12 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                       
                       // Group Privacy
                       _buildSettingsOption(
-                        icon: widget.group.isPrivate ? Icons.lock : Icons.public,
-                        title: widget.group.isPrivate ? "Make Public" : "Make Private",
-                        subtitle: widget.group.isPrivate 
+                        icon: _group.isPrivate ? Icons.lock : Icons.public,
+                        title: _group.isPrivate ? "Make Public" : "Make Private",
+                        subtitle: _group.isPrivate
                             ? "Allow anyone to discover and join"
                             : "Require invitations to join",
-                        color: widget.group.isPrivate ? Colors.green : Colors.orange,
+                        color: _group.isPrivate ? Colors.green : Colors.orange,
                         onTap: () {
                           Navigator.pop(context);
                           _toggleGroupPrivacy();
@@ -2183,10 +2185,10 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
   void _inviteFriendToGroup(UserProfile friend) async {
     try {
       await GroupInvitationService().sendGroupInvitations(
-        groupId: widget.group.id,
-        groupName: widget.group.name,
-        groupDescription: widget.group.description,
-        groupImageUrl: widget.group.imageUrl,
+        groupId: _group.id,
+        groupName: _group.name,
+        groupDescription: _group.description,
+        groupImageUrl: _group.imageUrl,
         creator: widget.currentUser,
         invitees: [friend],
       );
@@ -2227,13 +2229,13 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
               try {
                 // ✅ FIXED: Actually remove the member from the group
                 await GroupService().removeMemberFromGroup(
-                  groupId: widget.group.id,
+                  groupId: _group.id,
                   memberIdToRemove: member.uid,
                 );
                 
                 // ✅ FIXED: Update the local UI by removing from the current group object
                 setState(() {
-                  widget.group.members.removeWhere((m) => m.uid == member.uid);
+                  _group.members.removeWhere((m) => m.uid == member.uid);
                 });
                 
                 // ✅ FIXED: Call the refresh callback
@@ -2319,7 +2321,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
               },
             ),
             
-            if (widget.group.isCreatedBy(widget.currentUser.uid))
+            if (_group.isCreatedBy(widget.currentUser.uid))
               ListTile(
                 leading: Icon(Icons.remove_circle, color: Colors.red),
                 title: Text("Remove from Group", style: TextStyle(color: Colors.red)),
@@ -2334,27 +2336,241 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     );
   }
 
+  void _showEditGroupInfoDialog() {
+    final nameController = TextEditingController(text: _group.name);
+    final descriptionController =
+        TextEditingController(text: _group.description);
+    bool isPrivate = _group.isPrivate;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setStateDialog) {
+          return Padding(
+            padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom),
+            child: Container(
+              padding: EdgeInsets.all(24.w),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Color(0xFF1F1F1F),
+                    Color(0xFF161616),
+                    Color(0xFF121212),
+                  ],
+                ),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24.r)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 40.w,
+                    height: 4.h,
+                    decoration: BoxDecoration(
+                      color: Colors.white30,
+                      borderRadius: BorderRadius.circular(2.r),
+                    ),
+                  ),
+                  SizedBox(height: 20.h),
+                  Row(
+                    children: [
+                      Icon(Icons.edit, color: Colors.white, size: 24.sp),
+                      SizedBox(width: 12.w),
+                      Text(
+                        'Edit Group Info',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 20.sp,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 20.h),
+                  TextField(
+                    controller: nameController,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      labelText: 'Group Name',
+                      labelStyle: const TextStyle(color: Colors.white70),
+                      filled: true,
+                      fillColor: const Color(0xFF1F1F1F),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12.r),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 12.h),
+                  TextField(
+                    controller: descriptionController,
+                    maxLines: 2,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      labelText: 'Description',
+                      labelStyle: const TextStyle(color: Colors.white70),
+                      filled: true,
+                      fillColor: const Color(0xFF1F1F1F),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12.r),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 12.h),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            isPrivate ? Icons.lock : Icons.public,
+                            color: Colors.white70,
+                            size: 20.sp,
+                          ),
+                          SizedBox(width: 8.w),
+                          Text(
+                            isPrivate ? 'Private Group' : 'Public Group',
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                        ],
+                      ),
+                      Switch(
+                        value: isPrivate,
+                        onChanged: (val) => setStateDialog(() {
+                          isPrivate = val;
+                        }),
+                        activeColor: const Color(0xFFE5A00D),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 24.h),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          style: TextButton.styleFrom(
+                            padding: EdgeInsets.symmetric(vertical: 14.h),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12.r),
+                              side: const BorderSide(color: Colors.white30),
+                            ),
+                          ),
+                          child: const Text('Cancel',
+                              style: TextStyle(color: Colors.white70)),
+                        ),
+                      ),
+                      SizedBox(width: 12.w),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () async {
+                            final newName = nameController.text.trim();
+                            final newDesc = descriptionController.text.trim();
+                            if (newName.isEmpty) return;
+
+                            try {
+                              final updatedGroup = _group.copyWith(
+                                name: newName,
+                                description: newDesc,
+                                isPrivate: isPrivate,
+                              );
+                              await GroupService().updateGroup(updatedGroup);
+                              setState(() {
+                                _group = updatedGroup;
+                              });
+                              widget.onGroupUpdated?.call();
+                              if (mounted) Navigator.pop(context);
+                              ThemedNotifications.showSuccess(
+                                context,
+                                'Group info updated',
+                                icon: '✏️',
+                              );
+                            } catch (e) {
+                              ThemedNotifications.showError(
+                                  context, 'Failed to update group: $e');
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFE5A00D),
+                            padding: EdgeInsets.symmetric(vertical: 14.h),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12.r),
+                            ),
+                          ),
+                          child: const Text('Save',
+                              style: TextStyle(color: Colors.white)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   void _toggleGroupPrivacy() {
-    showDialog(
+    final newPrivacy = !_group.isPrivate;
+
+    showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1F1F1F),
         title: Text(
-          "Change Group Privacy",
-          style: TextStyle(color: Colors.white),
+          newPrivacy ? 'Make Group Private?' : 'Make Group Public?',
+          style: const TextStyle(color: Colors.white),
         ),
         content: Text(
-          "Privacy settings will be available soon!",
-          style: TextStyle(color: Colors.white70),
+          newPrivacy
+              ? 'Only invited members will be able to join.'
+              : 'Anyone will be able to discover and join.',
+          style: const TextStyle(color: Colors.white70),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text("OK", style: TextStyle(color: const Color(0xFFE5A00D))),
+            onPressed: () => Navigator.pop(context, false),
+            child:
+                const Text('Cancel', style: TextStyle(color: Colors.white70)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFE5A00D),
+            ),
+            child: const Text('Confirm', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
-    );
+    ).then((confirmed) async {
+      if (confirmed != true) return;
+      try {
+        final updatedGroup = _group.copyWith(isPrivate: newPrivacy);
+        await GroupService().updateGroup(updatedGroup);
+        setState(() {
+          _group = updatedGroup;
+        });
+        widget.onGroupUpdated?.call();
+        ThemedNotifications.showSuccess(
+          context,
+          newPrivacy ? 'Group is now private' : 'Group is now public',
+          icon: newPrivacy ? '🔒' : '🌐',
+        );
+      } catch (e) {
+        ThemedNotifications.showError(
+          context,
+          'Failed to update privacy: $e',
+        );
+      }
+    });
   }
 
   void _confirmDeleteGroup() {
@@ -2370,7 +2586,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              "This will permanently delete \"${widget.group.name}\" and remove all members.",
+              "This will permanently delete \"${_group.name}\" and remove all members.",
               style: TextStyle(color: Colors.white70, fontSize: 14.sp),
             ),
             SizedBox(height: 16.h),
@@ -2414,7 +2630,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
               
               try {
                 // ✅ FIXED: Actually delete the group from backend
-                await GroupService().deleteGroup(widget.group.id, widget.currentUser.uid);
+                await GroupService().deleteGroup(_group.id, widget.currentUser.uid);
                 
                 Navigator.pop(context); // Go back to groups list
                 
@@ -2423,7 +2639,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                   widget.onGroupUpdated!();
                 }
                 
-                ThemedNotifications.showDecline(context, 'Group "${widget.group.name}" deleted', icon: "🗑️");
+                ThemedNotifications.showDecline(context, 'Group "${_group.name}" deleted', icon: "🗑️");
               } catch (e) {
                 ThemedNotifications.showError(context, 'Failed to delete group: $e');
               }
@@ -2451,7 +2667,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
           style: TextStyle(color: Colors.white, fontSize: 18.sp),
         ),
         content: Text(
-          "Are you sure you want to leave \"${widget.group.name}\"? You can be re-invited by the group creator.",
+          "Are you sure you want to leave \"${_group.name}\"? You can be re-invited by the group creator.",
           style: TextStyle(color: Colors.white70, fontSize: 14.sp),
         ),
         actions: [
@@ -2467,7 +2683,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
               Navigator.pop(context); // Close dialog
               
               try {
-                await GroupService().leaveGroup(widget.group.id, widget.currentUser.uid);
+                await GroupService().leaveGroup(_group.id, widget.currentUser.uid);
                 
                 Navigator.pop(context); // Go back to friends screen
                 
@@ -2476,7 +2692,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                   widget.onGroupUpdated!();
                 }
                 
-                ThemedNotifications.showInfo(context, 'You left "${widget.group.name}"', icon: "🚪");
+                ThemedNotifications.showInfo(context, 'You left "${_group.name}"', icon: "🚪");
               } catch (e) {
                 ThemedNotifications.showError(context, 'Failed to leave group: $e');
               }
@@ -2522,13 +2738,13 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
               try {
                 // ✅ FIXED: Actually remove the member from the group backend
                 await GroupService().removeMemberFromGroup(
-                  groupId: widget.group.id,
+                  groupId: _group.id,
                   memberIdToRemove: member.uid,
                 );
                 
                 // ✅ FIXED: Update the local UI by removing from the current group object
                 setState(() {
-                  widget.group.members.removeWhere((m) => m.uid == member.uid);
+                  _group.members.removeWhere((m) => m.uid == member.uid);
                 });
                 
                 // ✅ FIXED: Call the refresh callback
