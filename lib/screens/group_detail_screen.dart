@@ -801,7 +801,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
   Widget _buildGroupHeaderCard(bool isCreator) {
     return GlassmorphicContainer(
       width: double.infinity,
-      height: 150.h,
+      height: 180.h,
       borderRadius: 20,
       blur: 15,
       alignment: Alignment.centerLeft,

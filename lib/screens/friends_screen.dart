@@ -412,85 +412,92 @@ class _FriendsScreenState extends State<FriendsScreen> with SingleTickerProvider
   Widget _buildGroupsContent() {
     return Column(
       children: [
-        // ✅ NEW: Create Group button (similar to Add Friends button)
+        // ✅ Create Group Button
         Container(
-          margin: EdgeInsets.all(16.w),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
+          margin: EdgeInsets.fromLTRB(16.w, 0, 16.w, 16.h),
+          child: GlassmorphicContainer(
+            width: double.infinity,
+            height: 60.h,
+            borderRadius: 16,
+            blur: 15,
+            alignment: Alignment.center,
+            border: 1,
+            linearGradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                const Color(0xFFE5A00D).withValues(alpha: 0.9),
-                Colors.orange.shade600.withValues(alpha: 0.8),
+                const Color(0xFFE5A00D).withValues(alpha: 0.3),
+                Colors.orange.withValues(alpha: 0.25),
+                Colors.orange.shade600.withValues(alpha: 0.2),
               ],
             ),
-            borderRadius: BorderRadius.circular(16.r),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFFE5A00D).withValues(alpha: 0.3),
-                blurRadius: 8.r,
-                offset: Offset(0, 4.h),
-              ),
-            ],
-          ),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: _createNewGroup,
-              borderRadius: BorderRadius.circular(16.r),
-              child: Padding(
-                padding: EdgeInsets.all(16.w),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: EdgeInsets.all(12.w),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(12.r),
+            borderGradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                const Color(0xFFE5A00D).withValues(alpha: 0.6),
+                Colors.orange.withValues(alpha: 0.4),
+                Colors.white.withValues(alpha: 0.2),
+              ],
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: _createNewGroup,
+                borderRadius: BorderRadius.circular(16.r),
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 20.w),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: EdgeInsets.all(12.w),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(12.r),
+                        ),
+                        child: Icon(
+                          Icons.group_add,
+                          color: Colors.white,
+                          size: 24.sp,
+                        ),
                       ),
-                      child: Icon(
-                        Icons.group_add,
-                        color: Colors.white,
-                        size: 24.sp,
-                      ),
-                    ),
-                    SizedBox(width: 16.w),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Create Group',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 18.sp,
-                              fontWeight: FontWeight.bold,
+                      SizedBox(width: 16.w),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Create Group',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 18.sp,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
-                          ),
-                          SizedBox(height: 2.h),
-                          Text(
-                            'Start a movie group with friends',
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.8),
-                              fontSize: 14.sp,
+                            SizedBox(height: 2.h),
+                            Text(
+                              'Start a movie group with friends',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.8),
+                                fontSize: 14.sp,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                    Icon(
-                      Icons.arrow_forward_ios,
-                      color: Colors.white.withValues(alpha: 0.8),
-                      size: 16.sp,
-                    ),
-                  ],
+                      Icon(
+                        Icons.arrow_forward_ios,
+                        color: Colors.white.withValues(alpha: 0.8),
+                        size: 16.sp,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
         ),
-        
-        // ✅ EXISTING: Groups list content
+        // ✅ Group List Below
         Expanded(
           child: _isLoadingGroups
               ? _buildLoadingState()
@@ -513,6 +520,7 @@ class _FriendsScreenState extends State<FriendsScreen> with SingleTickerProvider
       ],
     );
   }
+
 
   Widget _buildCleanFriendCard(UserProfile friend, int index) {
     final sharedGenres = friend.preferredGenres.intersection(widget.currentUser.preferredGenres);
