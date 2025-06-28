@@ -110,289 +110,273 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
         backgroundColor: const Color(0xFF1F1F1F),
         title: const Text('Create Group'),
       ),
-      body: SafeArea(
-      child: GestureDetector(
+      body: GestureDetector(
         onTap: () => FocusScope.of(context).unfocus(),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return SingleChildScrollView(
-              padding: const EdgeInsets.only(bottom: 100), // to make room for bottom bar
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                child: IntrinsicHeight(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // ⬇️ Everything below here is untouched from your original Column
-                      
-                      // Group details section
-                      Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'GROUP DETAILS',
-                              style: TextStyle(
-                                color: Colors.white70, 
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            
-                            // Group image placeholder
-                            Center(
-                              child: Stack(
-                                children: [
-                                  CircleAvatar(
-                                    radius: 50,
-                                    backgroundColor: Colors.grey[800],
-                                    child: const Icon(
-                                      Icons.group,
-                                      size: 50,
-                                      color: Colors.white54,
-                                    ),
-                                  ),
-                                  Positioned(
-                                    bottom: 0,
-                                    right: 0,
-                                    child: CircleAvatar(
-                                      radius: 18,
-                                      backgroundColor: const Color(0xFFE5A00D),
-                                      child: IconButton(
-                                        icon: const Icon(
-                                          Icons.camera_alt,
-                                          size: 18,
-                                          color: Colors.white,
-                                        ),
-                                        onPressed: () {
-                                          ThemedNotifications.showInfo(
-                                            context,
-                                            'Group image upload coming soon!',
-                                            icon: "🚧",
-                                          );
-                                        },
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            
-                            const SizedBox(height: 24),
-                            
-                            // Group name input
-                            TextField(
-                              controller: _groupNameController,
-                              decoration: InputDecoration(
-                                labelText: 'Group Name *',
-                                labelStyle: const TextStyle(color: Colors.white70),
-                                hintText: 'Enter a name for your group',
-                                hintStyle: const TextStyle(color: Colors.white30),
-                                filled: true,
-                                fillColor: const Color(0xFF1F1F1F),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide.none,
-                                ),
-                                prefixIcon: const Icon(Icons.group, color: Colors.white70),
-                                counterText: '${_groupNameController.text.length}/50',
-                                counterStyle: const TextStyle(color: Colors.white54),
-                              ),
-                              style: const TextStyle(color: Colors.white),
-                              maxLength: 50,
-                              onChanged: (_) => setState(() {}),
-                            ),
-                            
-                            const SizedBox(height: 16),
-                            
-                            // Group description input
-                            TextField(
-                              controller: _groupDescriptionController,
-                              decoration: InputDecoration(
-                                labelText: 'Description (Optional)',
-                                labelStyle: const TextStyle(color: Colors.white70),
-                                hintText: 'What kind of movies does this group like?',
-                                hintStyle: const TextStyle(color: Colors.white30),
-                                filled: true,
-                                fillColor: const Color(0xFF1F1F1F),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide.none,
-                                ),
-                                prefixIcon: const Icon(Icons.description, color: Colors.white70),
-                                counterText: '${_groupDescriptionController.text.length}/200',
-                                counterStyle: const TextStyle(color: Colors.white54),
-                              ),
-                              style: const TextStyle(color: Colors.white),
-                              maxLines: 3,
-                              maxLength: 200,
-                              onChanged: (_) => setState(() {}),
-                            ),
-                            
-                            const SizedBox(height: 24),
-                            
-                            // Group privacy settings
-                            const Text(
-                              'PRIVACY & SETTINGS',
-                              style: TextStyle(
-                                color: Colors.white70, 
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            
-                            // Privacy toggle
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF1F1F1F),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Icon(
-                                        _isPrivate ? Icons.lock : Icons.public,
-                                        color: Colors.white70,
-                                        size: 20,
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            _isPrivate ? 'Private Group' : 'Public Group',
-                                            style: const TextStyle(color: Colors.white),
-                                          ),
-                                          Text(
-                                            _isPrivate 
-                                                ? 'Only invited members can join'
-                                                : 'Anyone can discover and join',
-                                            style: const TextStyle(color: Colors.white54, fontSize: 12),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                  Switch(
-                                    value: _isPrivate,
-                                    onChanged: (value) {
-                                      setState(() {
-                                        _isPrivate = value;
-                                      });
-                                    },
-                                    activeColor: const Color(0xFFE5A00D),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            
-                            const SizedBox(height: 12),
-                            
-                            // Notifications toggle
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF1F1F1F),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  const Row(
-                                    children: [
-                                      Icon(
-                                        Icons.notifications,
-                                        color: Colors.white70,
-                                        size: 20,
-                                      ),
-                                      SizedBox(width: 12),
-                                      Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            'Group Notifications',
-                                            style: TextStyle(color: Colors.white),
-                                          ),
-                                          Text(
-                                            'Get notified about matches and activities',
-                                            style: TextStyle(color: Colors.white54, fontSize: 12),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                  Switch(
-                                    value: _notificationsEnabled,
-                                    onChanged: (value) {
-                                      setState(() {
-                                        _notificationsEnabled = value;
-                                      });
-                                    },
-                                    activeColor: const Color(0xFFE5A00D),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Group details section
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'GROUP DETAILS',
+                      style: TextStyle(
+                        color: Colors.white70, 
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
                       ),
-                      
-                      const Divider(color: Colors.white12),
-
-                      // Friends selection section
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'INVITE FRIENDS * (${_selectedFriends.length}/${widget.friends.length})',
-                              style: const TextStyle(
-                                color: Colors.white70, 
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Group image placeholder
+                    Center(
+                      child: Stack(
+                        children: [
+                          CircleAvatar(
+                            radius: 50,
+                            backgroundColor: Colors.grey[800],
+                            child: const Icon(
+                              Icons.group,
+                              size: 50,
+                              color: Colors.white54,
                             ),
-                            if (widget.friends.isNotEmpty)
-                              TextButton.icon(
-                                onPressed: _selectAllFriends,
-                                icon: Icon(
-                                  _selectedFriends.length == widget.friends.length
-                                      ? Icons.deselect
-                                      : Icons.select_all,
-                                  color: const Color(0xFFE5A00D),
+                          ),
+                          Positioned(
+                            bottom: 0,
+                            right: 0,
+                            child: CircleAvatar(
+                              radius: 18,
+                              backgroundColor: const Color(0xFFE5A00D),
+                              child: IconButton(
+                                icon: const Icon(
+                                  Icons.camera_alt,
                                   size: 18,
+                                  color: Colors.white,
                                 ),
-                                label: Text(
-                                  _selectedFriends.length == widget.friends.length
-                                      ? 'Deselect All'
-                                      : 'Select All',
-                                  style: const TextStyle(
-                                    color: Color(0xFFE5A00D),
-                                    fontSize: 14,
-                                  ),
-                                ),
+                                onPressed: () {
+                                  ThemedNotifications.showInfo(context, 'Group image upload coming soon!', icon: "🚧");
+                                },
                               ),
-                          ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    
+                    const SizedBox(height: 24),
+                    
+                    // Group name input
+                    TextField(
+                      controller: _groupNameController,
+                      decoration: InputDecoration(
+                        labelText: 'Group Name *',
+                        labelStyle: const TextStyle(color: Colors.white70),
+                        hintText: 'Enter a name for your group',
+                        hintStyle: const TextStyle(color: Colors.white30),
+                        filled: true,
+                        fillColor: const Color(0xFF1F1F1F),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        prefixIcon: const Icon(Icons.group, color: Colors.white70),
+                        counterText: '${_groupNameController.text.length}/50',
+                        counterStyle: const TextStyle(color: Colors.white54),
+                      ),
+                      style: const TextStyle(color: Colors.white),
+                      maxLength: 50,
+                      onChanged: (_) => setState(() {}),
+                    ),
+                    
+                    const SizedBox(height: 16),
+                    
+                    // Group description input
+                    TextField(
+                      controller: _groupDescriptionController,
+                      decoration: InputDecoration(
+                        labelText: 'Description (Optional)',
+                        labelStyle: const TextStyle(color: Colors.white70),
+                        hintText: 'What kind of movies does this group like?',
+                        hintStyle: const TextStyle(color: Colors.white30),
+                        filled: true,
+                        fillColor: const Color(0xFF1F1F1F),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        prefixIcon: const Icon(Icons.description, color: Colors.white70),
+                        counterText: '${_groupDescriptionController.text.length}/200',
+                        counterStyle: const TextStyle(color: Colors.white54),
+                      ),
+                      style: const TextStyle(color: Colors.white),
+                      maxLines: 3,
+                      maxLength: 200,
+                      onChanged: (_) => setState(() {}),
+                    ),
+                    
+                    const SizedBox(height: 24),
+                    
+                    // Group privacy settings
+                    const Text(
+                      'PRIVACY & SETTINGS',
+                      style: TextStyle(
+                        color: Colors.white70, 
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    
+                    // Privacy toggle
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1F1F1F),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                _isPrivate ? Icons.lock : Icons.public,
+                                color: Colors.white70,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 12),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _isPrivate ? 'Private Group' : 'Public Group',
+                                    style: const TextStyle(color: Colors.white),
+                                  ),
+                                  Text(
+                                    _isPrivate 
+                                        ? 'Only invited members can join'
+                                        : 'Anyone can discover and join',
+                                    style: const TextStyle(color: Colors.white54, fontSize: 12),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          Switch(
+                            value: _isPrivate,
+                            onChanged: (value) {
+                              setState(() {
+                                _isPrivate = value;
+                              });
+                            },
+                            activeColor: const Color(0xFFE5A00D),
+                          ),
+                        ],
+                      ),
+                    ),
+                    
+                    const SizedBox(height: 12),
+                    
+                    // Notifications toggle
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1F1F1F),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(
+                                Icons.notifications,
+                                color: Colors.white70,
+                                size: 20,
+                              ),
+                              SizedBox(width: 12),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Group Notifications',
+                                    style: TextStyle(color: Colors.white),
+                                  ),
+                                  Text(
+                                    'Get notified about matches and activities',
+                                    style: TextStyle(color: Colors.white54, fontSize: 12),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          Switch(
+                            value: _notificationsEnabled,
+                            onChanged: (value) {
+                              setState(() {
+                                _notificationsEnabled = value;
+                              });
+                            },
+                            activeColor: const Color(0xFFE5A00D),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              
+              const Divider(color: Colors.white12),
+
+              // Friends selection section
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'INVITE FRIENDS * (${_selectedFriends.length}/${widget.friends.length})', // ✅ Updated text
+                      style: const TextStyle(
+                        color: Colors.white70, 
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    if (widget.friends.isNotEmpty)
+                      TextButton.icon(
+                        onPressed: _selectAllFriends,
+                        icon: Icon(
+                          _selectedFriends.length == widget.friends.length
+                              ? Icons.deselect
+                              : Icons.select_all,
+                          color: const Color(0xFFE5A00D),
+                          size: 18,
+                        ),
+                        label: Text(
+                          _selectedFriends.length == widget.friends.length
+                              ? 'Deselect All'
+                              : 'Select All',
+                          style: const TextStyle(
+                            color: Color(0xFFE5A00D),
+                            fontSize: 14,
+                          ),
                         ),
                       ),
-                      widget.friends.isEmpty
-                          ? _buildEmptyFriendsState()
-                          : _buildFriendsList(),
-
-                      const SizedBox(height: 100), // for bottom button space
-                    ],
-                  ),
+                  ],
                 ),
-                )
-              );
-            },
+              ),
+
+              // Friends list or empty state
+              widget.friends.isEmpty
+                  ? _buildEmptyFriendsState()
+                  : _buildFriendsList(),
+              
+              const SizedBox(height: 100), // Space for bottom button
+            ],
           ),
         ),
       ),

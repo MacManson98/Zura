@@ -133,6 +133,34 @@ class GroupService {
     }
   }
 
+    Future<List<FriendGroup>> searchPublicGroups(String query) async {
+      try {
+        print("Searching public groups for: $query");
+        final querySnapshot = await _groupsCollection
+            .where('isPrivate', isEqualTo: false)
+            .where('name', isGreaterThanOrEqualTo: query)
+            .where('name', isLessThanOrEqualTo: query + '\uf8ff')
+            .get();
+        print("Found ${querySnapshot.docs.length} matching groups");
+        final groups = <FriendGroup>[];
+        for (final doc in querySnapshot.docs) {
+          try {
+            final data = doc.data() as Map<String, dynamic>;
+            final memberIds = List<String>.from(data['memberIds'] ?? []);
+            final memberProfiles = await _loadMemberProfiles(memberIds);
+            groups.add(FriendGroup.fromFirestore(doc.id, data, memberProfiles));
+          } catch (e) {
+            print('Error processing group ${doc.id}: $e');
+          }
+        }
+        return groups;
+      } catch (e) {
+        print('Error searching public groups: $e');
+        return [];
+      }
+    }
+
+
   // ============================================================================
   // UPDATE
   // ============================================================================
