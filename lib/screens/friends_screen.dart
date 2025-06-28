@@ -8,6 +8,7 @@ import 'friend_profile_screen.dart';
 import 'add_friend_screen.dart';
 import 'create_group_screen.dart';
 import 'group_detail_screen.dart';
+import 'find_group_screen.dart';
 import '../services/friendship_service.dart';
 import '../services/group_service.dart';
 import '../utils/debug_loader.dart';
@@ -477,6 +478,100 @@ class _FriendsScreenState extends State<FriendsScreen> with SingleTickerProvider
                             SizedBox(height: 2.h),
                             Text(
                               'Start a movie group with friends',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.8),
+                                fontSize: 14.sp,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Icon(
+                        Icons.arrow_forward_ios,
+                        color: Colors.white.withValues(alpha: 0.8),
+                        size: 16.sp,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+
+        // Find Groups Button
+        Container(
+          margin: EdgeInsets.fromLTRB(16.w, 0, 16.w, 16.h),
+          child: GlassmorphicContainer(
+            width: double.infinity,
+            height: 60.h,
+            borderRadius: 16,
+            blur: 15,
+            alignment: Alignment.center,
+            border: 1,
+            linearGradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                const Color(0xFFE5A00D).withValues(alpha: 0.3),
+                Colors.orange.withValues(alpha: 0.25),
+                Colors.orange.shade600.withValues(alpha: 0.2),
+              ],
+            ),
+            borderGradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                const Color(0xFFE5A00D).withValues(alpha: 0.6),
+                Colors.orange.withValues(alpha: 0.4),
+                Colors.white.withValues(alpha: 0.2),
+              ],
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => FindGroupScreen(
+                      currentUser: widget.currentUser,
+                      allMovies: widget.allMovies,
+                    ),
+                  ),
+                ),
+                borderRadius: BorderRadius.circular(16.r),
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 20.w),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: EdgeInsets.all(12.w),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(12.r),
+                        ),
+                        child: Icon(
+                          Icons.search,
+                          color: Colors.white,
+                          size: 24.sp,
+                        ),
+                      ),
+                      SizedBox(width: 16.w),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Find Groups',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 18.sp,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            SizedBox(height: 2.h),
+                            Text(
+                              'Discover public groups',
                               style: TextStyle(
                                 color: Colors.white.withValues(alpha: 0.8),
                                 fontSize: 14.sp,
