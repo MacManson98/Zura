@@ -1,15 +1,11 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:glassmorphism/glassmorphism.dart';
 import '../models/user_profile.dart';
+import '../utils/completed_session.dart';
 import '../utils/themed_notifications.dart';
 import '../utils/user_profile_storage.dart';
-import '../widgets/profile_reset_dialog.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../screens/auth/login_screen.dart';
-import 'package:flutter/foundation.dart';
-import '../services/session_service.dart';
 import '../utils/debug_loader.dart';
 import 'liked_movies_screen.dart';
 import 'matches_screen.dart';
@@ -35,12 +31,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void initState() {
     super.initState();
     _profile = widget.currentUser;
+    _loadSessionBasedMatches(); // Fix matches count on load
   }
 
-  void _refreshProfile() {
-    setState(() {
-      _profile = widget.currentUser;
-    });
+  // ✅ FIX: Load and count matches from all sessions properly
+  Future<void> _loadSessionBasedMatches() async {
+    try {
+      DebugLogger.log("🔍 Loading session-based matches...");
+      final allSessions = await _profile.getAllSessionsForDisplay();
+      
+      int totalMatches = 0;
+      for (final session in allSessions) {
+        if (session.type != SessionType.solo) {
+          totalMatches += session.matchedMovieIds.length;
+        }
+      }
+      
+      DebugLogger.log("📊 Total matches found across sessions: $totalMatches");
+      DebugLogger.log("📊 Profile.totalMatches getter returns: ${_profile.totalMatches}");
+      
+      if (mounted) {
+        setState(() {
+          // Trigger UI update to reflect correct count
+        });
+      }
+    } catch (e) {
+      DebugLogger.log("❌ Error loading session matches: $e");
+    }
   }
 
   Future<void> _updateProfile(UserProfile updatedProfile) async {
@@ -77,40 +94,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Column(
               children: [
                 // Header Section
-                _buildHeaderSection(),
+                _buildProfileHeader(),
                 
-                // Content
+                SizedBox(height: 24.h),
+                
+                // Stats Section with enhanced details
                 Padding(
-                  padding: EdgeInsets.all(16.w),
-                  child: Column(
-                    children: [
-                      // Stats Cards
-                      _buildStatsSection(),
-                      
-                      SizedBox(height: 24.h),
-                      
-                      // Movie Preferences
-                      _buildPreferencesSection(),
-                      
-                      SizedBox(height: 24.h),
-                      
-                      // Account Settings
-                      _buildAccountSection(),
-                      
-                      SizedBox(height: 24.h),
-                      
-                      // App Settings
-                      _buildAppSection(),
-                      
-                      SizedBox(height: 24.h),
-                      
-                      // Debug section
-                      if (kDebugMode) _buildDebugSection(),
-                      
-                      SizedBox(height: 80.h), // Bottom padding for nav
-                    ],
-                  ),
+                  padding: EdgeInsets.symmetric(horizontal: 20.w),
+                  child: _buildStatsSection(),
                 ),
+                
+                SizedBox(height: 32.h),
+                
+                // Customization Section
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 20.w),
+                  child: _buildCustomizationSection(),
+                ),
+                
+                SizedBox(height: 32.h),
+                
+                // Account Section
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 20.w),
+                  child: _buildAccountSection(),
+                ),
+                
+                SizedBox(height: 32.h),
+                
+                // App Section
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 20.w),
+                  child: _buildAppSection(),
+                ),
+                
+                SizedBox(height: 32.h),
               ],
             ),
           ),
@@ -119,10 +137,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildHeaderSection() {
+  Widget _buildProfileHeader() {
     return Container(
       width: double.infinity,
       padding: EdgeInsets.all(24.w),
+      margin: EdgeInsets.all(20.w),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -194,30 +213,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
-                _profile.name.isNotEmpty ? _profile.name : 'Your Name',
+                _profile.name.isNotEmpty ? _profile.name : 'No Name Set',
                 style: TextStyle(
                   fontSize: 24.sp,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
-                  letterSpacing: 0.3,
+                  letterSpacing: 0.5,
                 ),
               ),
-              SizedBox(width: 8.w),
-              Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(8.r),
-                  border: Border.all(
-                    color: const Color(0xFFE5A00D).withValues(alpha: 0.4),
-                    width: 1.w,
+              SizedBox(width: 12.w),
+              GestureDetector(
+                onTap: _showEditNameDialog,
+                child: Container(
+                  padding: EdgeInsets.all(8.w),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(8.r),
+                    border: Border.all(
+                      color: const Color(0xFFE5A00D).withValues(alpha: 0.3),
+                      width: 1.w,
+                    ),
                   ),
-                ),
-                child: IconButton(
-                  onPressed: _showEditNameDialog,
-                  icon: Icon(
+                  child: Icon(
                     Icons.edit,
                     color: const Color(0xFFE5A00D),
-                    size: 20.sp,
+                    size: 16.sp,
                   ),
                 ),
               ),
@@ -226,24 +246,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
           
           SizedBox(height: 8.h),
           
-          // Member Since with styling
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 4.h),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12.r),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.2),
-                width: 1.w,
-              ),
-            ),
-            child: Text(
-              'Member since January 2025',
-              style: TextStyle(
-                fontSize: 12.sp,
-                color: Colors.white70,
-                fontWeight: FontWeight.w500,
-              ),
+          Text(
+            _profile.email,
+            style: TextStyle(
+              fontSize: 16.sp,
+              color: Colors.white70,
             ),
           ),
         ],
@@ -252,6 +259,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildStatsSection() {
+    // ✅ FIX: Calculate genre stats properly
     final Map<String, int> genreCount = {};
     for (final movie in _profile.likedMovies) {
       for (final genre in movie.genres) {
@@ -292,10 +300,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Expanded(
               child: _buildInteractiveStatCard(
                 'Matches',
-                _profile.totalMatches.toString(),
+                '${_profile.totalMatches}', // ✅ FIX: Show session type info
                 Icons.movie_filter,
                 Colors.green,
                 _navigateToMatches,
+                subtitle: _getMatchesSubtitle(),
               ),
             ),
           ],
@@ -317,11 +326,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
             SizedBox(width: 12.w),
             Expanded(
               child: _buildInteractiveStatCard(
-                'Preferences',
-                _profile.preferredGenres.length.toString(),
-                Icons.tune,
+                'Sessions',
+                _profile.totalSessions.toString(),
+                Icons.history,
                 Colors.purple,
-                _showPreferencesEditor,
+                () => _showSessionHistory(),
               ),
             ),
           ],
@@ -330,106 +339,130 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildInteractiveStatCard(String title, String value, IconData icon, Color color, VoidCallback onTap) {
+  // ✅ NEW: Get subtitle for matches card showing session types
+  String _getMatchesSubtitle() {
+    final collaborativeSessions = _profile.sessionHistory
+        .where((s) => s.type != SessionType.solo && s.matchedMovieIds.isNotEmpty)
+        .toList();
+    
+    if (collaborativeSessions.isEmpty) return "Tap to find matches";
+    
+    final friendSessions = collaborativeSessions.where((s) => s.type == SessionType.friend).length;
+    final groupSessions = collaborativeSessions.where((s) => s.type == SessionType.group).length;
+    
+    if (friendSessions > 0 && groupSessions > 0) {
+      return "$friendSessions friend, $groupSessions group";
+    } else if (friendSessions > 0) {
+      return "$friendSessions friend session${friendSessions == 1 ? '' : 's'}";
+    } else if (groupSessions > 0) {
+      return "$groupSessions group session${groupSessions == 1 ? '' : 's'}";
+    }
+    
+    return "From collaborative sessions";
+  }
+
+  Widget _buildInteractiveStatCard(String title, String value, IconData icon, Color color, VoidCallback onTap, {String? subtitle}) {
     return GestureDetector(
       onTap: onTap,
       child: TweenAnimationBuilder<double>(
         duration: const Duration(milliseconds: 300),
         tween: Tween(begin: 0.0, end: 1.0),
         builder: (context, animationValue, child) {
-          return Transform.translate(
-            offset: Offset(0, 10.h * (1 - animationValue)),
-            child: Opacity(
-              opacity: animationValue,
-              child: Container(
-                padding: EdgeInsets.all(16.w),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      const Color(0xFF2A2A2A),
-                      const Color(0xFF1F1F1F),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(16.r),
-                  border: Border.all(
-                    color: color.withValues(alpha: 0.3),
-                    width: 1.w,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.3),
-                      blurRadius: 6.r,
-                      offset: Offset(0, 2.h),
-                    ),
-                    BoxShadow(
-                      color: color.withValues(alpha: 0.1),
-                      blurRadius: 12.r,
-                      offset: Offset(0, 4.h),
-                    ),
+          return Transform.scale(
+            scale: 0.95 + (animationValue * 0.05),
+            child: Container(
+              padding: EdgeInsets.all(16.w),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    color.withValues(alpha: 0.1),
+                    color.withValues(alpha: 0.05),
                   ],
                 ),
-                child: Column(
-                  children: [
-                    Container(
-                      padding: EdgeInsets.all(12.w),
-                      decoration: BoxDecoration(
-                        color: color.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(12.r),
-                        border: Border.all(
-                          color: color.withValues(alpha: 0.4),
-                          width: 1.w,
-                        ),
-                      ),
-                      child: Icon(
-                        icon,
-                        color: color,
-                        size: 24.sp,
-                      ),
+                borderRadius: BorderRadius.circular(16.r),
+                border: Border.all(
+                  color: color.withValues(alpha: 0.3),
+                  width: 1.w,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: color.withValues(alpha: 0.1),
+                    blurRadius: 8.r,
+                    offset: Offset(0, 2.h),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  Container(
+                    padding: EdgeInsets.all(12.w),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.2),
+                      shape: BoxShape.circle,
                     ),
-                    SizedBox(height: 12.h),
-                    Text(
-                      value,
-                      style: TextStyle(
-                        fontSize: 20.sp,
-                        fontWeight: FontWeight.bold,
-                        color: color,
-                      ),
+                    child: Icon(
+                      icon,
+                      color: color,
+                      size: 24.sp,
                     ),
+                  ),
+                  
+                  SizedBox(height: 12.h),
+                  
+                  Text(
+                    value,
+                    style: TextStyle(
+                      fontSize: 24.sp,
+                      fontWeight: FontWeight.bold,
+                      color: color,
+                    ),
+                  ),
+                  
+                  SizedBox(height: 4.h),
+                  
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 14.sp,
+                      color: Colors.white70,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+
+                  if (subtitle != null) ...[
                     SizedBox(height: 4.h),
                     Text(
-                      title,
+                      subtitle,
                       style: TextStyle(
-                        fontSize: 12.sp,
-                        color: Colors.white70,
-                        fontWeight: FontWeight.w500,
+                        fontSize: 11.sp,
+                        color: Colors.white54,
                       ),
                       textAlign: TextAlign.center,
                     ),
-                    SizedBox(height: 8.h),
-                    Container(
-                      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 3.h),
-                      decoration: BoxDecoration(
-                        color: color.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(10.r),
-                        border: Border.all(
-                          color: color.withValues(alpha: 0.4),
-                          width: 1.w,
-                        ),
-                      ),
-                      child: Text(
-                        'TAP TO VIEW',
-                        style: TextStyle(
-                          color: color,
-                          fontSize: 9.sp,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 0.5,
-                        ),
+                  ],
+                  
+                  SizedBox(height: 8.h),
+                  
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(12.r),
+                    ),
+                    child: Text(
+                      'TAP TO VIEW',
+                      style: TextStyle(
+                        fontSize: 10.sp,
+                        fontWeight: FontWeight.bold,
+                        color: color,
+                        letterSpacing: 0.5,
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           );
@@ -438,12 +471,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildPreferencesSection() {
+  // ✅ NEW: Enhanced customization section
+  Widget _buildCustomizationSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Quick Actions',
+          'Customize Your Experience',
           style: TextStyle(
             fontSize: 20.sp,
             fontWeight: FontWeight.bold,
@@ -455,11 +489,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
         SizedBox(height: 16.h),
         
         _buildSettingsTile(
-          title: 'Reset Preferences',
-          subtitle: 'Clear your genres and vibes to start fresh',
-          icon: Icons.refresh,
-          color: Colors.orange,
-          onTap: _showResetPreferencesDialog,
+          title: 'Movie Preferences',
+          subtitle: 'Set your favorite genres and vibes',
+          icon: Icons.tune,
+          color: const Color(0xFFE5A00D),
+          onTap: _showPreferencesEditor,
+        ),
+        
+        SizedBox(height: 8.h),
+        
+        _buildSettingsTile(
+          title: 'Notification Settings',
+          subtitle: 'Manage your app notifications',
+          icon: Icons.notifications,
+          color: Colors.blue,
+          onTap: _showNotificationSettings,
+        ),
+        
+        SizedBox(height: 8.h),
+        
+        _buildSettingsTile(
+          title: 'Display Options',
+          subtitle: 'Theme and appearance settings',
+          icon: Icons.palette,
+          color: Colors.purple,
+          onTap: _showDisplaySettings,
+        ),
+        
+        SizedBox(height: 8.h),
+        
+        _buildSettingsTile(
+          title: 'Privacy Settings',
+          subtitle: 'Control your data and visibility',
+          icon: Icons.privacy_tip,
+          color: Colors.teal,
+          onTap: _showPrivacySettings,
         ),
       ],
     );
@@ -480,9 +544,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
         
         SizedBox(height: 16.h),
-
-        _buildCreateTestUsersButton(),
-        SizedBox(height: 8.h),
         
         _buildSettingsTile(
           title: 'Profile Information',
@@ -492,12 +553,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
           onTap: _showEditNameDialog,
         ),
         
+        SizedBox(height: 8.h),
+        
         _buildSettingsTile(
-          title: 'Reset Profile',
-          subtitle: 'Reset your profile for testing',
-          icon: Icons.restore,
-          color: Colors.purple,
-          onTap: _showResetProfileDialog,
+          title: 'Friends & Groups',
+          subtitle: 'Manage your connections',
+          icon: Icons.group,
+          color: Colors.green,
+          onTap: _showFriendsAndGroups,
+        ),
+        
+        SizedBox(height: 8.h),
+        
+        _buildSettingsTile(
+          title: 'Data & Storage',
+          subtitle: 'Manage app data and cache',
+          icon: Icons.storage,
+          color: Colors.orange,
+          onTap: _showDataSettings,
         ),
       ],
     );
@@ -529,6 +602,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           },
         ),
         
+        SizedBox(height: 8.h),
+        
         _buildSettingsTile(
           title: 'About',
           subtitle: 'App version and information',
@@ -551,319 +626,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildDebugSection() {
-    return GlassmorphicContainer(
-      width: double.infinity,
-      height: 250.h,
-      borderRadius: 16,
-      blur: 15,
-      alignment: Alignment.center,
-      border: 1,
-      linearGradient: LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [
-          Colors.red.withValues(alpha: 0.2),
-          Colors.red.withValues(alpha: 0.1),
-        ],
-      ),
-      borderGradient: LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [
-          Colors.red.withValues(alpha: 0.6),
-          Colors.red.withValues(alpha: 0.3),
-        ],
-      ),
-      child: Padding(
-        padding: EdgeInsets.all(16.w),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.bug_report,
-                  color: Colors.red,
-                  size: 20.sp,
-                ),
-                SizedBox(width: 8.w),
-                Text(
-                  "🧹 DEBUG: Session Cleanup",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16.sp,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 12.h),
-            
-            Row(
-              children: [
-                Expanded(
-                  child: _buildDebugButton(
-                    'Test Cleanup',
-                    Colors.blue,
-                    () async {
-                      try {
-                        ThemedNotifications.showInfo(context, 'Testing cleanup... check console', icon: "🔍");
-                        
-                        DebugLogger.log("🔍 === MANUAL CLEANUP TEST STARTED ===");
-                        
-                        // Check current sessions
-                        final beforeSnapshot = await FirebaseFirestore.instance
-                            .collection('swipeSessions')
-                            .get();
-                        
-                        DebugLogger.log("📊 Found ${beforeSnapshot.docs.length} total sessions");
-                        
-                        // Show session details
-                        for (int i = 0; i < beforeSnapshot.docs.length && i < 5; i++) {
-                          final doc = beforeSnapshot.docs[i];
-                          final data = doc.data();
-                          DebugLogger.log("Session ${i+1}: ${doc.id}");
-                          DebugLogger.log("  Created: ${data['createdAt']}");
-                          DebugLogger.log("  Status: ${data['status']}");
-                          
-                          if (data['createdAt'] != null) {
-                            try {
-                              final created = DateTime.parse(data['createdAt']);
-                              final age = DateTime.now().difference(created);
-                              DebugLogger.log("  Age: ${age.inHours}h ${age.inMinutes % 60}m");
-                              DebugLogger.log("  Would delete (24h rule): ${age.inHours > 24}");
-                            } catch (e) {
-                              DebugLogger.log("  Error parsing date: $e");
-                            }
-                          }
-                        }
-                        
-                        // Run cleanup
-                        DebugLogger.log("🧹 Running SessionService.performMaintenanceCleanup()...");
-                        await SessionService.performMaintenanceCleanup();
-                        
-                        // Check results
-                        final afterSnapshot = await FirebaseFirestore.instance
-                            .collection('swipeSessions')
-                            .get();
-                        
-                        final deleted = beforeSnapshot.docs.length - afterSnapshot.docs.length;
-                        DebugLogger.log("✅ CLEANUP COMPLETE!");
-                        DebugLogger.log("📊 Before: ${beforeSnapshot.docs.length} sessions");
-                        DebugLogger.log("📊 After: ${afterSnapshot.docs.length} sessions");
-                        DebugLogger.log("🗑️ Deleted: $deleted sessions");
-                        DebugLogger.log("🔍 === CLEANUP TEST FINISHED ===");
-                        
-                        if (deleted > 0) {
-                          ThemedNotifications.showSuccess(context, 'Deleted $deleted sessions. Check console for details.', icon: "🗑️");
-                        } else {
-                          ThemedNotifications.showInfo(context, 'No sessions found to delete. Check console for details.', icon: "ℹ️");
-                        }
-
-                        
-                      } catch (e) {
-                        DebugLogger.log("❌ Cleanup test failed: $e");
-                        ThemedNotifications.showError(context, 'Error: $e');
-                      }
-                    },
-                  ),
-                ),
-                
-                SizedBox(width: 8.w),
-                
-                Expanded(
-                  child: _buildDebugButton(
-                    'Force Delete',
-                    Colors.red,
-                    () async {
-                      try {
-                        DebugLogger.log("🔥 === FORCE DELETE TEST STARTED ===");
-                        
-                        final now = DateTime.now();
-                        final cutoff = now.subtract(const Duration(hours: 1)); // 1 hour instead of 24
-                        
-                        final oldSessions = await FirebaseFirestore.instance
-                            .collection('swipeSessions')
-                            .where('createdAt', isLessThan: cutoff.toIso8601String())
-                            .get();
-                        
-                        DebugLogger.log("📊 Found ${oldSessions.docs.length} sessions older than 1 hour");
-                        
-                        if (oldSessions.docs.isNotEmpty) {
-                          final batch = FirebaseFirestore.instance.batch();
-                          
-                          for (final doc in oldSessions.docs) {
-                            DebugLogger.log("🗑️ Deleting: ${doc.id}");
-                            batch.delete(doc.reference);
-                          }
-                          
-                          await batch.commit();
-                          DebugLogger.log("✅ Force deleted ${oldSessions.docs.length} sessions!");
-                          
-                          ThemedNotifications.showSuccess(context, 'Force deleted ${oldSessions.docs.length} sessions!', icon: "💥");
-                        } else {
-                          DebugLogger.log("ℹ️ No sessions older than 1 hour found");
-                          ThemedNotifications.showInfo(context, 'No sessions old enough (1h+)', icon: "ℹ️");
-                        }
-                        
-                        DebugLogger.log("🔥 === FORCE DELETE TEST FINISHED ===");
-                        
-                      } catch (e) {
-                        DebugLogger.log("❌ Force delete failed: $e");
-                      }
-                    },
-                  ),
-                ),
-              ],
-            ),
-            
-            SizedBox(height: 8.h),
-            
-            // Nuclear option
-            SizedBox(
-              width: double.infinity,
-              child: _buildDebugButton(
-                '🚨 DELETE ALL SESSIONS',
-                Colors.purple,
-                () async {
-                  try {
-                    DebugLogger.log("💥 === DELETING ALL SESSIONS ===");
-                    
-                    final allSessions = await FirebaseFirestore.instance
-                        .collection('swipeSessions')
-                        .get();
-                    
-                    DebugLogger.log("📊 Found ${allSessions.docs.length} total sessions to delete");
-                    
-                    if (allSessions.docs.isNotEmpty) {
-                      final batch = FirebaseFirestore.instance.batch();
-                      
-                      for (final doc in allSessions.docs) {
-                        batch.delete(doc.reference);
-                      }
-                      
-                      await batch.commit();
-                      DebugLogger.log("💥 DELETED ALL ${allSessions.docs.length} SESSIONS!");
-                      
-                      ThemedNotifications.showError(context, 'DELETED ALL ${allSessions.docs.length} sessions!', icon: "💥");
-                    }
-                    
-                  } catch (e) {
-                    DebugLogger.log("❌ Delete all failed: $e");
-                  }
-                },
-              ),
-            ),
-
-            SizedBox(height: 8.h),
-            SizedBox(
-              width: double.infinity,
-              child: _buildDebugButton(
-                '🧪 Test Accept Invitation',
-                Colors.green,
-                () async {
-                  try {
-                    DebugLogger.log("🧪 === TESTING INVITATION FLOW ===");
-                    
-                    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
-                    if (currentUserId == null) {
-                      DebugLogger.log("❌ No current user");
-                      return;
-                    }
-                    
-                    final invitationsSnapshot = await FirebaseFirestore.instance
-                        .collection('users')
-                        .doc(currentUserId)
-                        .collection('pending_invitations')
-                        .get();
-                    
-                    DebugLogger.log("📨 Found ${invitationsSnapshot.docs.length} pending invitations");
-                    
-                    if (invitationsSnapshot.docs.isEmpty) {
-                      ThemedNotifications.showInfo(context, 'No pending invitations to test', icon: "📭");
-                      return;
-                    }
-                    
-                    final firstInvite = invitationsSnapshot.docs.first;
-                    final inviteData = firstInvite.data();
-                    
-                    DebugLogger.log("🎯 Testing invitation: ${firstInvite.id}");
-                    DebugLogger.log("   From: ${inviteData['fromUserName']}");
-                    DebugLogger.log("   Session: ${inviteData['sessionId']}");
-                    
-                    final session = await SessionService.acceptInvitation(
-                      inviteData['sessionId'],
-                      widget.currentUser.name,
-                    );
-                    
-                    if (session != null) {
-                      DebugLogger.log("✅ Successfully accepted invitation!");
-                      ThemedNotifications.showSuccess(context, '✅ Invitation test successful!');
-                    } else {
-                      DebugLogger.log("❌ Failed to accept invitation");
-                      ThemedNotifications.showError(context, '❌ Invitation test failed');
-                    }
-                    
-                  } catch (e) {
-                    DebugLogger.log("❌ Invitation test failed: $e");
-                    ThemedNotifications.showError(context, '❌ Test failed: $e');
-                  }
-                },
-              ),
-            ),
-
-            SizedBox(height: 8.h),
-            Text(
-              "⚠️ Debug only - check console for logs",
-              style: TextStyle(
-                color: Colors.white60,
-                fontSize: 10.sp,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDebugButton(String text, Color color, VoidCallback onPressed) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [color, color.withValues(alpha: 0.8)],
-        ),
-        borderRadius: BorderRadius.circular(8.r),
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.3),
-            blurRadius: 4.r,
-            offset: Offset(0, 2.h),
-          ),
-        ],
-      ),
-      child: ElevatedButton(
-        onPressed: onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.transparent,
-          shadowColor: Colors.transparent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8.r),
-          ),
-        ),
-        child: Text(
-          text,
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 11.sp,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildSettingsTile({
     required String title,
     required String subtitle,
@@ -872,190 +634,83 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required VoidCallback onTap,
     bool isDestructive = false,
   }) {
-    return Container(
-      margin: EdgeInsets.only(bottom: 8.h),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(16.r),
-          child: Container(
-            padding: EdgeInsets.all(16.w),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  const Color(0xFF2A2A2A),
-                  const Color(0xFF1F1F1F),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(16.r),
-              border: Border.all(
-                color: color.withValues(alpha: 0.3),
-                width: 1.w,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.3),
-                  blurRadius: 6.r,
-                  offset: Offset(0, 2.h),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 44.w,
-                  height: 44.w,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12.r),
-                    color: color.withValues(alpha: 0.2),
-                    border: Border.all(
-                      color: color.withValues(alpha: 0.4),
-                      width: 1.w,
-                    ),
-                  ),
-                  child: Icon(
-                    icon,
-                    color: color,
-                    size: 20.sp,
-                  ),
-                ),
-                
-                SizedBox(width: 16.w),
-                
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: TextStyle(
-                          fontSize: 16.sp,
-                          fontWeight: FontWeight.w600,
-                          color: isDestructive ? Colors.red : Colors.white,
-                          letterSpacing: 0.2,
-                        ),
-                      ),
-                      SizedBox(height: 2.h),
-                      Text(
-                        subtitle,
-                        style: TextStyle(
-                          fontSize: 12.sp,
-                          color: Colors.white60,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                
-                Icon(
-                  Icons.chevron_right,
-                  color: Colors.white30,
-                  size: 20.sp,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCreateTestUsersButton() {
-    return GlassmorphicContainer(
-      width: double.infinity,
-      height: 50.h,
-      borderRadius: 16,
-      blur: 15,
-      alignment: Alignment.center,
-      border: 1,
-      linearGradient: LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [
-          Colors.green.withValues(alpha: 0.2),
-          Colors.green.withValues(alpha: 0.1),
-        ],
-      ),
-      borderGradient: LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [
-          Colors.green.withValues(alpha: 0.6),
-          Colors.green.withValues(alpha: 0.3),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () async {
-            final testUsers = [
-              {
-                'uid': 'alice_demo_123',
-                'name': 'Alice Johnson',
-                'preferredGenres': ['Action', 'Comedy'],
-                'preferredVibes': ['Feel-good', 'Exciting'],
-                'likedMovieIds': ['movie1', 'movie2'],
-                'friendIds': [],
-                'hasCompletedOnboarding': true,
-                'genreScores': {'Action': 8.0, 'Comedy': 7.5},
-                'vibeScores': {'Feel-good': 9.0},
-              },
-              {
-                'uid': 'bob_demo_456',
-                'name': 'Bob Smith',
-                'preferredGenres': ['Drama', 'Thriller'],
-                'preferredVibes': ['Dark', 'Mysterious'],
-                'likedMovieIds': ['movie3', 'movie4'],
-                'friendIds': [],
-                'hasCompletedOnboarding': true,
-                'genreScores': {'Drama': 9.0, 'Thriller': 8.5},
-                'vibeScores': {'Dark': 8.0},
-              },
-              {
-                'uid': 'carol_demo_789',
-                'name': 'Carol Williams',
-                'preferredGenres': ['Romance', 'Comedy'],
-                'preferredVibes': ['Heartwarming', 'Feel-good'],
-                'likedMovieIds': ['movie5', 'movie6'],
-                'friendIds': [],
-                'hasCompletedOnboarding': true,
-                'genreScores': {'Romance': 9.5, 'Comedy': 8.0},
-                'vibeScores': {'Heartwarming': 9.0},
-              },
-            ];
-
-            for (final userData in testUsers) {
-              await FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(userData['uid'] as String)
-                  .set(userData);
-            }
-
-            ThemedNotifications.showSuccess(context, 'Test users created! You can now search for Alice, Bob, or Carol', icon: "👥");
-          },
-          borderRadius: BorderRadius.circular(16.r),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.group_add,
-                color: Colors.white,
-                size: 20.sp,
-              ),
-              SizedBox(width: 8.w),
-              Text(
-                'Create Test Users',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 14.sp,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: EdgeInsets.all(16.w),
+        margin: EdgeInsets.only(bottom: 4.h),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              const Color(0xFF2A2A2A),
+              const Color(0xFF1F1F1F),
             ],
           ),
+          borderRadius: BorderRadius.circular(12.r),
+          border: Border.all(
+            color: isDestructive 
+                ? Colors.red.withValues(alpha: 0.3)
+                : color.withValues(alpha: 0.2),
+            width: 1.w,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.2),
+              blurRadius: 4.r,
+              offset: Offset(0, 1.h),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: EdgeInsets.all(12.w),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(10.r),
+              ),
+              child: Icon(
+                icon,
+                color: color,
+                size: 20.sp,
+              ),
+            ),
+            
+            SizedBox(width: 16.w),
+            
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 16.sp,
+                      fontWeight: FontWeight.w600,
+                      color: isDestructive ? Colors.red : Colors.white,
+                    ),
+                  ),
+                  SizedBox(height: 2.h),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 13.sp,
+                      color: Colors.white60,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            
+            Icon(
+              Icons.chevron_right,
+              color: Colors.white.withValues(alpha: 0.4),
+              size: 20.sp,
+            ),
+          ],
         ),
       ),
     );
@@ -1095,390 +750,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _showPreferencesEditor() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.8,
-        minChildSize: 0.5,
-        maxChildSize: 0.9,
-        builder: (context, scrollController) => Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                const Color(0xFF2A2A2A),
-                const Color(0xFF1F1F1F),
-              ],
-            ),
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20.r)),
-            border: Border.all(
-              color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
-              width: 1.w,
-            ),
-          ),
-          child: Column(
-            children: [
-              // Handle bar
-              Container(
-                margin: EdgeInsets.symmetric(vertical: 8.h),
-                width: 40.w,
-                height: 4.h,
-                decoration: BoxDecoration(
-                  color: Colors.white30,
-                  borderRadius: BorderRadius.circular(2.r),
-                ),
-              ),
-              
-              // Header
-              Padding(
-                padding: EdgeInsets.all(16.w),
-                child: Row(
-                  children: [
-                    Text(
-                      'Movie Preferences',
-                      style: TextStyle(
-                        fontSize: 20.sp,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        letterSpacing: 0.3,
-                      ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: Icon(Icons.close, color: Colors.white, size: 24.sp),
-                    ),
-                  ],
-                ),
-              ),
-              
-              // Content
-              Expanded(
-                child: SingleChildScrollView(
-                  controller: scrollController,
-                  padding: EdgeInsets.symmetric(horizontal: 16.w),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Genres Section
-                      Text(
-                        'Favorite Genres',
-                        style: TextStyle(
-                          fontSize: 16.sp,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      SizedBox(height: 12.h),
-                      
-                      if (_profile.preferredGenres.isEmpty)
-                        Container(
-                          padding: EdgeInsets.all(16.w),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF2A2A2A),
-                            borderRadius: BorderRadius.circular(12.r),
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.1),
-                              width: 1.w,
-                            ),
-                          ),
-                          child: Text(
-                            'No genres selected yet. Complete onboarding to set your preferences.',
-                            style: TextStyle(color: Colors.white54, fontSize: 14.sp),
-                          ),
-                        )
-                      else
-                        Wrap(
-                          spacing: 8.w,
-                          runSpacing: 8.h,
-                          children: _profile.preferredGenres.map((genre) => Container(
-                            padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(20.r),
-                              border: Border.all(
-                                color: const Color(0xFFE5A00D).withValues(alpha: 0.5),
-                                width: 1.w,
-                              ),
-                            ),
-                            child: Text(
-                              genre,
-                              style: TextStyle(
-                                color: const Color(0xFFE5A00D),
-                                fontSize: 12.sp,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          )).toList(),
-                        ),
-                      
-                      SizedBox(height: 24.h),
-                      
-                      // Vibes Section
-                      Text(
-                        'Preferred Vibes',
-                        style: TextStyle(
-                          fontSize: 16.sp,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      SizedBox(height: 12.h),
-                      
-                      if (_profile.preferredVibes.isEmpty)
-                        Container(
-                          padding: EdgeInsets.all(16.w),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF2A2A2A),
-                            borderRadius: BorderRadius.circular(12.r),
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.1),
-                              width: 1.w,
-                            ),
-                          ),
-                          child: Text(
-                            'No vibes selected yet. Complete onboarding to set your preferences.',
-                            style: TextStyle(color: Colors.white54, fontSize: 14.sp),
-                          ),
-                        )
-                      else
-                        Wrap(
-                          spacing: 8.w,
-                          runSpacing: 8.h,
-                          children: _profile.preferredVibes.map((vibe) => Container(
-                            padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
-                            decoration: BoxDecoration(
-                              color: Colors.purple.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(20.r),
-                              border: Border.all(
-                                color: Colors.purple.withValues(alpha: 0.5),
-                                width: 1.w,
-                              ),
-                            ),
-                            child: Text(
-                              vibe,
-                              style: TextStyle(
-                                color: Colors.purple,
-                                fontSize: 12.sp,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          )).toList(),
-                        ),
-                      
-                      SizedBox(height: 32.h),
-                      
-                      // Action button with glassmorphic style
-                      GlassmorphicContainer(
-                        width: double.infinity,
-                        height: 50.h,
-                        borderRadius: 16,
-                        blur: 15,
-                        alignment: Alignment.center,
-                        border: 1,
-                        linearGradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            Colors.orange.withValues(alpha: 0.3),
-                            Colors.orange.withValues(alpha: 0.2),
-                          ],
-                        ),
-                        borderGradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            Colors.orange.withValues(alpha: 0.6),
-                            Colors.orange.withValues(alpha: 0.3),
-                          ],
-                        ),
-                        child: Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: _showResetPreferencesDialog,
-                            borderRadius: BorderRadius.circular(16.r),
-                            child: Center(
-                              child: Text(
-                                'Reset Preferences',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16.sp,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      
-                      SizedBox(height: 32.h),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showGenreAnalytics(Map<String, int> genreCount) {
-    if (genreCount.isEmpty) {
-      ThemedNotifications.showInfo(context, 'Like some movies first to see your genre breakdown!', icon: "📊");
-      return;
-    }
-
-    final sortedGenres = genreCount.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.7,
-        minChildSize: 0.5,
-        maxChildSize: 0.9,
-        builder: (context, scrollController) => Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                const Color(0xFF2A2A2A),
-                const Color(0xFF1F1F1F),
-              ],
-            ),
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20.r)),
-            border: Border.all(
-              color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
-              width: 1.w,
-            ),
-          ),
-          child: Column(
-            children: [
-              // Handle bar
-              Container(
-                margin: EdgeInsets.symmetric(vertical: 8.h),
-                width: 40.w,
-                height: 4.h,
-                decoration: BoxDecoration(
-                  color: Colors.white30,
-                  borderRadius: BorderRadius.circular(2.r),
-                ),
-              ),
-              
-              // Header
-              Padding(
-                padding: EdgeInsets.all(16.w),
-                child: Row(
-                  children: [
-                    Icon(Icons.bar_chart, color: const Color(0xFFE5A00D), size: 24.sp),
-                    SizedBox(width: 8.w),
-                    Text(
-                      'Your Genre Breakdown',
-                      style: TextStyle(
-                        fontSize: 20.sp,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        letterSpacing: 0.3,
-                      ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: Icon(Icons.close, color: Colors.white, size: 24.sp),
-                    ),
-                  ],
-                ),
-              ),
-              
-              // Genre bars
-              Expanded(
-                child: ListView.builder(
-                  controller: scrollController,
-                  padding: EdgeInsets.symmetric(horizontal: 16.w),
-                  itemCount: sortedGenres.length,
-                  itemBuilder: (context, index) {
-                    final entry = sortedGenres[index];
-                    final percentage = (entry.value / _profile.likedMovies.length * 100).round();
-                    final colors = [
-                      const Color(0xFFE5A00D), Colors.red, Colors.blue, Colors.green, 
-                      Colors.purple, Colors.orange, Colors.teal, Colors.pink,
-                    ];
-                    final color = colors[index % colors.length];
-                    
-                    return Container(
-                      margin: EdgeInsets.only(bottom: 16.h),
-                      padding: EdgeInsets.all(16.w),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF2A2A2A),
-                        borderRadius: BorderRadius.circular(12.r),
-                        border: Border.all(
-                          color: color.withValues(alpha: 0.3),
-                          width: 1.w,
-                        ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                entry.key,
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16.sp,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              Text(
-                                '${entry.value} movies ($percentage%)',
-                                style: TextStyle(
-                                  color: color,
-                                  fontSize: 14.sp,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                          SizedBox(height: 8.h),
-                          Container(
-                            height: 8.h,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(4.r),
-                            ),
-                            child: FractionallySizedBox(
-                              alignment: Alignment.centerLeft,
-                              widthFactor: percentage / 100,
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: color,
-                                  borderRadius: BorderRadius.circular(4.r),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showResetPreferencesDialog() {
+    // For now, show a placeholder dialog until preferences editor is implemented
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -1491,7 +763,498 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ),
         title: Text(
-          'Reset Preferences',
+          'Movie Preferences',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 18.sp,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Advanced preferences editor coming soon!',
+              style: TextStyle(color: Colors.white70, fontSize: 14.sp),
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: 16.h),
+            Text(
+              'For now, you can set preferences by going through the matcher screens.',
+              style: TextStyle(color: Colors.white60, fontSize: 12.sp),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Close', style: TextStyle(color: const Color(0xFFE5A00D), fontSize: 14.sp)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showGenreAnalytics(Map<String, int> genreCount) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF2A2A2A),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16.r),
+          side: BorderSide(
+            color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
+            width: 1.w,
+          ),
+        ),
+        title: Text(
+          'Your Genre Preferences',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 18.sp,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (genreCount.isEmpty)
+                Text(
+                  'No genre data available. Like some movies to see your preferences!',
+                  style: TextStyle(color: Colors.white70, fontSize: 14.sp),
+                  textAlign: TextAlign.center,
+                )
+              else
+                // Fix: Create the widget list first, then spread it
+                ..._buildGenreWidgets(genreCount)
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Close', style: TextStyle(color: const Color(0xFFE5A00D), fontSize: 14.sp)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Helper method to build genre widgets
+  List<Widget> _buildGenreWidgets(Map<String, int> genreCount) {
+    final sortedEntries = genreCount.entries.toList();
+    sortedEntries.sort((a, b) => b.value.compareTo(a.value));
+    
+    return sortedEntries.take(5).map((entry) => Padding(
+      padding: EdgeInsets.only(bottom: 8.h),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            entry.key,
+            style: TextStyle(color: Colors.white, fontSize: 14.sp),
+          ),
+          Text(
+            '${entry.value} movies',
+            style: TextStyle(color: const Color(0xFFE5A00D), fontSize: 14.sp),
+          ),
+        ],
+      ),
+    )).toList();
+  }
+
+  // ✅ NEW: Show session history
+  void _showSessionHistory() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF2A2A2A),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16.r),
+          side: BorderSide(
+            color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
+            width: 1.w,
+          ),
+        ),
+        title: Text(
+          'Your Session History',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 18.sp,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          height: 300.h,
+          child: _profile.sessionHistory.isEmpty
+              ? Center(
+                  child: Text(
+                    'No sessions yet. Start swiping to build your history!',
+                    style: TextStyle(color: Colors.white70, fontSize: 14.sp),
+                    textAlign: TextAlign.center,
+                  ),
+                )
+              : ListView.builder(
+                  itemCount: _profile.sessionHistory.length,
+                  itemBuilder: (context, index) {
+                    final session = _profile.sessionHistory[index];
+                    return Container(
+                      margin: EdgeInsets.only(bottom: 8.h),
+                      padding: EdgeInsets.all(12.w),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1F1F1F),
+                        borderRadius: BorderRadius.circular(8.r),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                session.type == SessionType.solo 
+                                    ? Icons.person 
+                                    : session.type == SessionType.friend 
+                                        ? Icons.people 
+                                        : Icons.group,
+                                color: const Color(0xFFE5A00D),
+                                size: 16.sp,
+                              ),
+                              SizedBox(width: 8.w),
+                              Text(
+                                session.type.name.toUpperCase(),
+                                style: TextStyle(
+                                  color: const Color(0xFFE5A00D),
+                                  fontSize: 12.sp,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: 4.h),
+                          if (session.type != SessionType.solo)
+                            Text(
+                              'With: ${session.getOtherParticipantsDisplay(_profile.name)}',
+                              style: TextStyle(color: Colors.white, fontSize: 13.sp),
+                            ),
+                          Text(
+                            'Matches: ${session.matchedMovieIds.length}',
+                            style: TextStyle(color: Colors.white70, fontSize: 12.sp),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Close', style: TextStyle(color: const Color(0xFFE5A00D), fontSize: 14.sp)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ✅ NEW: Customization methods
+  void _showNotificationSettings() {
+    ThemedNotifications.showInfo(context, 'Notification settings coming soon', icon: "🔔");
+  }
+
+  void _showDisplaySettings() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF2A2A2A),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16.r),
+          side: BorderSide(
+            color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
+            width: 1.w,
+          ),
+        ),
+        title: Text(
+          'Display Options',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 18.sp,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildToggleOption(
+              'Dark Mode',
+              'Use dark theme throughout the app',
+              true, // Always true for now
+              (value) {
+                ThemedNotifications.showInfo(context, 'Theme switching coming soon', icon: "🎨");
+              },
+            ),
+            SizedBox(height: 16.h),
+            _buildToggleOption(
+              'Show Animations',
+              'Enable smooth transitions and effects',
+              true,
+              (value) {
+                ThemedNotifications.showInfo(context, 'Animation controls coming soon', icon: "✨");
+              },
+            ),
+            SizedBox(height: 16.h),
+            _buildToggleOption(
+              'Compact View',
+              'Show more content in lists',
+              false,
+              (value) {
+                ThemedNotifications.showInfo(context, 'View options coming soon', icon: "📋");
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Close', style: TextStyle(color: const Color(0xFFE5A00D), fontSize: 14.sp)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showPrivacySettings() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF2A2A2A),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16.r),
+          side: BorderSide(
+            color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
+            width: 1.w,
+          ),
+        ),
+        title: Text(
+          'Privacy Settings',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 18.sp,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildToggleOption(
+              'Profile Visibility',
+              'Allow friends to see your profile',
+              true,
+              (value) {
+                ThemedNotifications.showInfo(context, 'Privacy controls coming soon', icon: "🔒");
+              },
+            ),
+            SizedBox(height: 16.h),
+            _buildToggleOption(
+              'Activity Status',
+              'Show when you\'re online',
+              false,
+              (value) {
+                ThemedNotifications.showInfo(context, 'Status controls coming soon', icon: "🟢");
+              },
+            ),
+            SizedBox(height: 16.h),
+            _buildToggleOption(
+              'Data Analytics',
+              'Help improve the app with usage data',
+              true,
+              (value) {
+                ThemedNotifications.showInfo(context, 'Analytics settings coming soon', icon: "📊");
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Close', style: TextStyle(color: const Color(0xFFE5A00D), fontSize: 14.sp)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showFriendsAndGroups() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF2A2A2A),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16.r),
+          side: BorderSide(
+            color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
+            width: 1.w,
+          ),
+        ),
+        title: Text(
+          'Friends & Groups',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 18.sp,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Friends: ${_profile.friendIds.length}',
+              style: TextStyle(color: Colors.white, fontSize: 16.sp),
+            ),
+            SizedBox(height: 8.h),
+            Text(
+              'Groups: ${_profile.groupIds.length}',
+              style: TextStyle(color: Colors.white, fontSize: 16.sp),
+            ),
+            SizedBox(height: 16.h),
+            Text(
+              'Friend and group management features are coming soon!',
+              style: TextStyle(color: Colors.white70, fontSize: 14.sp),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Close', style: TextStyle(color: const Color(0xFFE5A00D), fontSize: 14.sp)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDataSettings() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF2A2A2A),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16.r),
+          side: BorderSide(
+            color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
+            width: 1.w,
+          ),
+        ),
+        title: Text(
+          'Data & Storage',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 18.sp,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Cached Movies: ${_profile.likedMovies.length}',
+              style: TextStyle(color: Colors.white, fontSize: 14.sp),
+            ),
+            SizedBox(height: 8.h),
+            Text(
+              'Session History: ${_profile.sessionHistory.length} sessions',
+              style: TextStyle(color: Colors.white, fontSize: 14.sp),
+            ),
+            SizedBox(height: 16.h),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _showClearCacheConfirmation();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange.withValues(alpha: 0.2),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8.r),
+                    side: BorderSide(color: Colors.orange, width: 1.w),
+                  ),
+                ),
+                child: Text(
+                  'Clear Movie Cache',
+                  style: TextStyle(color: Colors.orange, fontSize: 14.sp),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Close', style: TextStyle(color: const Color(0xFFE5A00D), fontSize: 14.sp)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildToggleOption(String title, String subtitle, bool value, Function(bool) onChanged) {
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 14.sp,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              SizedBox(height: 2.h),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  color: Colors.white60,
+                  fontSize: 12.sp,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Switch(
+          value: value,
+          onChanged: onChanged,
+          activeColor: const Color(0xFFE5A00D),
+          inactiveThumbColor: Colors.grey,
+          inactiveTrackColor: Colors.grey.withValues(alpha: 0.3),
+        ),
+      ],
+    );
+  }
+
+  void _showClearCacheConfirmation() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF2A2A2A),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16.r),
+          side: BorderSide(
+            color: Colors.orange.withValues(alpha: 0.2),
+            width: 1.w,
+          ),
+        ),
+        title: Text(
+          'Clear Movie Cache',
           style: TextStyle(
             color: Colors.white,
             fontSize: 18.sp,
@@ -1499,7 +1262,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ),
         content: Text(
-          'This will clear all your genre and vibe preferences. You can set them again by going through onboarding or the matcher screen.',
+          'This will clear cached movie data but keep your likes and session history. The app will re-download movie details as needed.',
           style: TextStyle(color: Colors.white70, fontSize: 14.sp),
         ),
         actions: [
@@ -1516,19 +1279,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             child: ElevatedButton(
               onPressed: () async {
-                final updatedProfile = _profile.copyWith(
-                  preferredGenres: <String>{},
-                  preferredVibes: <String>{},
-                );
-                await _updateProfile(updatedProfile);
+                // Clear movie cache but keep IDs
+                final clearedProfile = _profile.copyWith();
+                // Reset cached movies but keep the IDs
+                clearedProfile.likedMovies = {};
+                
+                await _updateProfile(clearedProfile);
                 Navigator.pop(context);
+                ThemedNotifications.showSuccess(context, 'Movie cache cleared', icon: "🗑️");
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.transparent,
                 shadowColor: Colors.transparent,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.r)),
               ),
-              child: Text('Reset', style: TextStyle(color: Colors.white, fontSize: 14.sp)),
+              child: Text('Clear Cache', style: TextStyle(color: Colors.white, fontSize: 14.sp)),
             ),
           ),
         ],
@@ -1551,7 +1316,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ),
         title: Text(
-          'Edit Name',
+          'Edit Profile Name',
           style: TextStyle(
             color: Colors.white,
             fontSize: 18.sp,
@@ -1563,18 +1328,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
           style: TextStyle(color: Colors.white, fontSize: 16.sp),
           decoration: InputDecoration(
             hintText: 'Enter your name',
-            hintStyle: TextStyle(color: Colors.white30, fontSize: 16.sp),
-            filled: true,
-            fillColor: const Color(0xFF1F1F1F),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12.r),
-              borderSide: BorderSide.none,
+            hintStyle: TextStyle(color: Colors.white54, fontSize: 16.sp),
+            enabledBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: const Color(0xFFE5A00D).withValues(alpha: 0.3)),
             ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12.r),
-              borderSide: BorderSide(color: const Color(0xFFE5A00D), width: 2.w),
+            focusedBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: const Color(0xFFE5A00D)),
             ),
           ),
+          autofocus: true,
         ),
         actions: [
           TextButton(
@@ -1590,9 +1352,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             child: ElevatedButton(
               onPressed: () async {
-                final updatedProfile = _profile.copyWith(name: nameController.text.trim());
-                await _updateProfile(updatedProfile);
-                Navigator.pop(context);
+                final newName = nameController.text.trim();
+                if (newName.isNotEmpty) {
+                  final updatedProfile = _profile.copyWith(name: newName);
+                  await _updateProfile(updatedProfile);
+                  Navigator.pop(context);
+                }
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.transparent,
@@ -1603,16 +1368,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  void _showResetProfileDialog() {
-    showDialog(
-      context: context,
-      builder: (_) => ProfileResetDialog(
-        currentUser: _profile,
-        onProfileReset: _refreshProfile,
       ),
     );
   }
@@ -1650,23 +1405,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
               'Find movies to watch together with friends and family. Swipe, match, and discover your next favorite film!',
               style: TextStyle(color: Colors.white70, fontSize: 14.sp),
             ),
+            SizedBox(height: 16.h),
+            Text(
+              '© 2024 QueueTogether',
+              style: TextStyle(color: Colors.white54, fontSize: 12.sp),
+            ),
           ],
         ),
         actions: [
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [const Color(0xFFE5A00D), Colors.orange.shade600],
-              ),
-              borderRadius: BorderRadius.circular(8.r),
-            ),
-            child: TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(
-                'Close',
-                style: TextStyle(color: Colors.white, fontSize: 14.sp, fontWeight: FontWeight.bold),
-              ),
-            ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Close', style: TextStyle(color: const Color(0xFFE5A00D), fontSize: 14.sp)),
           ),
         ],
       ),
@@ -1681,12 +1430,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16.r),
           side: BorderSide(
-            color: Colors.red.withValues(alpha: 0.3),
+            color: Colors.red.withValues(alpha: 0.2),
             width: 1.w,
           ),
         ),
         title: Text(
-          "Sign Out",
+          'Sign Out',
           style: TextStyle(
             color: Colors.white,
             fontSize: 18.sp,
@@ -1694,16 +1443,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ),
         content: Text(
-          "Are you sure you want to sign out? You'll need to log back in to access your profile.",
+          'Are you sure you want to sign out?',
           style: TextStyle(color: Colors.white70, fontSize: 14.sp),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(
-              "Cancel",
-              style: TextStyle(color: Colors.white70, fontSize: 14.sp),
-            ),
+            child: Text('Cancel', style: TextStyle(color: Colors.white54, fontSize: 14.sp)),
           ),
           Container(
             decoration: BoxDecoration(
@@ -1714,16 +1460,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             child: ElevatedButton(
               onPressed: () async {
-                await FirebaseAuth.instance.signOut();
-
-                if (mounted) {
-                  Navigator.pushAndRemoveUntil(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const LoginScreen(),
-                    ),
-                    (route) => false,
-                  );
+                try {
+                  await FirebaseAuth.instance.signOut();
+                  if (mounted) {
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(builder: (context) => const LoginScreen()),
+                      (Route<dynamic> route) => false,
+                    );
+                  }
+                } catch (e) {
+                  ThemedNotifications.showError(context, 'Error signing out: $e');
                 }
               },
               style: ElevatedButton.styleFrom(
@@ -1731,10 +1477,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 shadowColor: Colors.transparent,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.r)),
               ),
-              child: Text(
-                "Sign Out",
-                style: TextStyle(color: Colors.white, fontSize: 14.sp, fontWeight: FontWeight.bold),
-              ),
+              child: Text('Sign Out', style: TextStyle(color: Colors.white, fontSize: 14.sp)),
             ),
           ),
         ],
