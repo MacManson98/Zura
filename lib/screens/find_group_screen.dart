@@ -150,12 +150,12 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
                   end: Alignment.bottomCenter,
                   colors: [
                     const Color(0xFF1F1F1F),
-                    const Color(0xFF1F1F1F).withOpacity(0.8),
+                    const Color(0xFF1F1F1F).withValues(alpha: 0.8),
                   ],
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.3),
+                    color: Colors.black.withValues(alpha: 0.3),
                     blurRadius: 8.r,
                     offset: Offset(0, 2.h),
                   ),
@@ -179,7 +179,7 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
                     Text(
                       'Search public groups to join',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.7),
+                        color: Colors.white.withValues(alpha: 0.7),
                         fontSize: 14.sp,
                       ),
                     ),
@@ -189,11 +189,11 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
                         borderRadius: BorderRadius.circular(16.r),
                         border: Border.all(
                           color:
-                              const Color(0xFFE5A00D).withOpacity(0.2),
+                              const Color(0xFFE5A00D).withValues(alpha: 0.2),
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.2),
+                            color: Colors.black.withValues(alpha: 0.2),
                             blurRadius: 8.r,
                             offset: Offset(0, 2.h),
                           ),
@@ -204,7 +204,7 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
                         decoration: InputDecoration(
                           hintText: 'Search for groups...',
                           hintStyle: TextStyle(
-                            color: Colors.white.withOpacity(0.5),
+                            color: Colors.white.withValues(alpha: 0.5),
                             fontSize: 16.sp,
                           ),
                           prefixIcon: Icon(
@@ -267,11 +267,11 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
                 ),
                 borderRadius: BorderRadius.circular(24.r),
                 border: Border.all(
-                  color: const Color(0xFFE5A00D).withOpacity(0.2),
+                  color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.3),
+                    color: Colors.black.withValues(alpha: 0.3),
                     blurRadius: 20.r,
                     offset: Offset(0, 8.h),
                   ),
@@ -280,7 +280,7 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
               child: Icon(
                 Icons.group,
                 size: 72.sp,
-                color: const Color(0xFFE5A00D).withOpacity(0.8),
+                color: const Color(0xFFE5A00D).withValues(alpha: 0.8),
               ),
             ),
             SizedBox(height: 32.h),
@@ -299,7 +299,7 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
               'Type a name above to search for public groups',
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: Colors.white.withOpacity(0.7),
+                color: Colors.white.withValues(alpha: 0.7),
                 fontSize: 16.sp,
                 height: 1.5,
               ),
@@ -350,10 +350,10 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
             Container(
               padding: EdgeInsets.all(24.w),
               decoration: BoxDecoration(
-                color: Colors.orange.withOpacity(0.1),
+                color: Colors.orange.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(20.r),
                 border: Border.all(
-                  color: Colors.orange.withOpacity(0.3),
+                  color: Colors.orange.withValues(alpha: 0.3),
                 ),
               ),
               child: Icon(
@@ -375,7 +375,7 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
             Text(
               'Try searching with a different name',
               style: TextStyle(
-                color: Colors.white.withOpacity(0.7),
+                color: Colors.white.withValues(alpha: 0.7),
                 fontSize: 16.sp,
               ),
               textAlign: TextAlign.center,
@@ -419,12 +419,12 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
                   ],
                 ),
                 border: Border.all(
-                  color: const Color(0xFFE5A00D).withOpacity(0.2),
+                  color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
                   width: 1.w,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.3),
+                    color: Colors.black.withValues(alpha: 0.3),
                     blurRadius: 8.r,
                     offset: Offset(0, 2.h),
                   ),
@@ -468,7 +468,7 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
                                 boxShadow: [
                                   BoxShadow(
                                     color: const Color(0xFFE5A00D)
-                                        .withOpacity(0.4),
+                                        .withValues(alpha: 0.4),
                                     blurRadius: 10,
                                     offset: const Offset(0, 3),
                                   ),
@@ -511,7 +511,7 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
                                       group.description,
                                       style: TextStyle(
                                         color:
-                                            Colors.white.withOpacity(0.7),
+                                            Colors.white.withValues(alpha: 0.7),
                                         fontSize: 12.sp,
                                       ),
                                       maxLines: 1,
@@ -608,7 +608,7 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
                                 padding: EdgeInsets.symmetric(
                                     horizontal: 8.w, vertical: 4.h),
                                 decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.1),
+                                  color: Colors.white.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(8.r),
                                 ),
                                 child: Text(

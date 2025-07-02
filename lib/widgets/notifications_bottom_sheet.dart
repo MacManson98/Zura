@@ -476,87 +476,89 @@ class _NotificationBottomSheetState extends State<NotificationBottomSheet>
   }
 
   Widget _buildFriendRequestCard(Map<String, dynamic> request, int index) {
-    return Container(
-      margin: EdgeInsets.only(bottom: 8.h),
-      padding: EdgeInsets.all(16.w),
-      decoration: BoxDecoration(
-        color: const Color(0xFF2A2A2A),
-        borderRadius: BorderRadius.circular(12.r),
-        border: Border.all(
-          color: Colors.blue.withValues(alpha: 0.3),
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 40.w,
-            height: 40.w,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.blue.shade400, Colors.blue.shade600],
-              ),
-              borderRadius: BorderRadius.circular(20.r),
-            ),
-            child: Center(
-              child: Text(
-                request['fromUserName'][0].toUpperCase(),
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16.sp,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
+      return Container(
+        margin: EdgeInsets.only(bottom: 8.h),
+        padding: EdgeInsets.all(16.w),
+        decoration: BoxDecoration(
+          color: const Color(0xFF2A2A2A),
+          borderRadius: BorderRadius.circular(12.r),
+          border: Border.all(
+            color: Colors.blue.withValues(alpha: 0.3),
           ),
-          SizedBox(width: 12.w),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  request['fromUserName'],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40.w,
+              height: 40.w,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.blue.shade400, Colors.blue.shade600],
+                ),
+                borderRadius: BorderRadius.circular(20.r),
+              ),
+              child: Center(
+                child: Text(
+                  request['fromUserName'][0].toUpperCase(),
                   style: TextStyle(
                     color: Colors.white,
-                    fontSize: 14.sp,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 16.sp,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-                Text(
-                  "wants to be friends",
-                  style: TextStyle(
-                    color: Colors.blue.shade300,
-                    fontSize: 12.sp,
+              ),
+            ),
+            SizedBox(width: 12.w),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    request['fromUserName'],
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 14.sp,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(
+                    "wants to be friends",
+                    style: TextStyle(
+                      color: Colors.blue.shade300,
+                      fontSize: 12.sp,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // ✅ CRITICAL FIX: DECLINE button (X icon, red color, decline action)
+                IconButton(
+                  onPressed: () => widget.onFriendDecline(request), // ✅ CORRECT: Decline action
+                  icon: Icon(Icons.close, color: Colors.white, size: 18.sp), // ✅ CORRECT: X icon for decline
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.red, // ✅ CORRECT: Red for decline
+                    minimumSize: Size(32.w, 32.h),
+                  ),
+                ),
+                SizedBox(width: 4.w),
+                // ✅ CRITICAL FIX: ACCEPT button (check icon, green color, accept action)
+                IconButton(
+                  onPressed: () => widget.onFriendAccept(request), // ✅ CORRECT: Accept action
+                  icon: Icon(Icons.check, color: Colors.white, size: 18.sp), // ✅ CORRECT: Check icon for accept
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.green, // ✅ CORRECT: Green for accept
+                    minimumSize: Size(32.w, 32.h),
                   ),
                 ),
               ],
             ),
-          ),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              IconButton(
-                onPressed: () => widget.onFriendDecline(request),
-                icon: Icon(Icons.check, color: Colors.white, size: 18.sp),
-                style: IconButton.styleFrom(
-                  backgroundColor: Colors.blue,
-                  minimumSize: Size(32.w, 32.h),
-                ),
-              ),
-              SizedBox(width: 4.w),
-              IconButton(
-                onPressed: () => widget.onFriendAccept(request),
-                icon: Icon(Icons.check, color: Colors.white, size: 18.sp),
-                style: IconButton.styleFrom(
-                  backgroundColor: Colors.blue,
-                  minimumSize: Size(32.w, 32.h),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
+          ],
+        ),
+      );
+    }
 
   Widget _buildGroupInviteCard(Map<String, dynamic> invitation, int index) {
     return Container(

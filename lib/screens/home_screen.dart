@@ -797,26 +797,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 letterSpacing: 0.3,
               ),
             ),
-            const Spacer(),
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
-              decoration: BoxDecoration(
-                color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(12.r),
-                border: Border.all(
-                  color: const Color(0xFFE5A00D).withValues(alpha: 0.4),
-                  width: 1.w,
-                ),
-              ),
-              child: Text(
-                'Based on your likes',
-                style: TextStyle(
-                  color: const Color(0xFFE5A00D),
-                  fontSize: 10.sp,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
           ],
         ),
         SizedBox(height: 16.h),
@@ -959,36 +939,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   ],
                 ),
               ],
-            ),
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
-              decoration: BoxDecoration(
-                color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(12.r),
-                border: Border.all(
-                  color: const Color(0xFFE5A00D).withValues(alpha: 0.4),
-                  width: 1.w,
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    _isLoadingTrending ? Icons.hourglass_empty : Icons.whatshot,
-                    color: const Color(0xFFE5A00D),
-                    size: 12.sp,
-                  ),
-                  SizedBox(width: 4.w),
-                  Text(
-                    _isLoadingTrending ? 'Loading' : 'Live',
-                    style: TextStyle(
-                      color: const Color(0xFFE5A00D),
-                      fontSize: 12.sp,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
             ),
           ],
         ),

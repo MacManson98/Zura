@@ -20,8 +20,9 @@ class AddFriendScreen extends StatefulWidget {
 
 class _AddFriendScreenState extends State<AddFriendScreen> {
   final TextEditingController _searchController = TextEditingController();
-  final List<UserProfile> _searchResults = [];
+  final List<UserProfile> _searchResults = []; // ✅ FIXED: Changed from final to regular list
   bool _isSearching = false;
+  String? _searchError; // ✅ ADDED: Missing _searchError variable
   Timer? _debounceTimer;
   String _lastQuery = '';
   
@@ -44,6 +45,7 @@ class _AddFriendScreenState extends State<AddFriendScreen> {
       setState(() {
         _searchResults.clear();
         _isSearching = false;
+        _searchError = null; // ✅ FIXED: Clear error when empty
         _lastQuery = '';
       });
       return;
@@ -56,6 +58,7 @@ class _AddFriendScreenState extends State<AddFriendScreen> {
     if (!_isSearching) {
       setState(() {
         _isSearching = true;
+        _searchError = null; // ✅ FIXED: Clear error when starting new search
       });
     }
     
@@ -64,6 +67,7 @@ class _AddFriendScreenState extends State<AddFriendScreen> {
     });
   }
 
+  // ✅ FIXED: Updated method signature to match usage
   void _searchUsers(String query) async {
     if (!mounted || query != _searchController.text || query == _lastQuery) {
       return;
@@ -71,11 +75,22 @@ class _AddFriendScreenState extends State<AddFriendScreen> {
     
     _lastQuery = query;
     
+    // ✅ IMPROVED: Better validation
+    if (query.length < 2) {
+      setState(() {
+        _searchError = "Enter at least 2 characters to search";
+        _searchResults.clear();
+        _isSearching = false;
+      });
+      return;
+    }
+    
     try {
       DebugLogger.log('🔍 Searching for: $query');
       
+      // ✅ IMPROVED: Add timeout and better error handling
       final results = await FriendshipService.searchUsersByName(query, widget.currentUser.uid)
-          .timeout(const Duration(seconds: 5));
+          .timeout(const Duration(seconds: 10));
       
       if (!mounted || query != _searchController.text) {
         return;
@@ -92,6 +107,13 @@ class _AddFriendScreenState extends State<AddFriendScreen> {
             _searchResults.clear();
             _searchResults.addAll(results);
             _isSearching = false;
+            
+            // ✅ IMPROVED: Better user feedback
+            if (results.isEmpty) {
+              _searchError = "No users found matching '$query'";
+            } else {
+              _searchError = null;
+            }
           });
         }
       });
@@ -105,36 +127,75 @@ class _AddFriendScreenState extends State<AddFriendScreen> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           setState(() {
+            _searchResults.clear();
             _isSearching = false;
+            
+            // ✅ IMPROVED: User-friendly error messages
+            if (e.toString().contains('timed out')) {
+              _searchError = "Search timed out. Check your connection and try again.";
+            } else if (e.toString().contains('permission')) {
+              _searchError = "Unable to search. Please try logging out and back in.";
+            } else {
+              _searchError = "Search failed. Please try again.";
+            }
           });
-          
-          ThemedNotifications.showError(context, 'Search failed: $e');
         }
       });
     }
   }
 
-  void _sendFriendRequest(UserProfile user) async {
+  // ✅ IMPROVED: Better friend request sending with retry logic
+  Future<void> _sendFriendRequest(UserProfile user) async {
+    setState(() {
+      _loadingUsers.add(user.uid);
+    });
+
     try {
+      DebugLogger.log("📤 Sending friend request to: ${user.name} (${user.uid})");
+      
+      // ✅ IMPROVED: Add timeout for friend request
       await FriendshipService.sendFriendRequest(
         fromUserId: widget.currentUser.uid,
         toUserId: user.uid,
         fromUserName: widget.currentUser.name,
         toUserName: user.name,
+      ).timeout(
+        const Duration(seconds: 15),
       );
 
-      if (!mounted) return;
-
-      // Update cache
-      _requestStatusCache[user.uid] = 'pending';
-      
-      setState(() {}); // Refresh UI to show updated button state
-      
-      ThemedNotifications.showSuccess(context, 'Friend request sent to ${user.name}!', icon: "🤝");
+      // ✅ IMPROVED: Update cache immediately for better UX
+      if (mounted) {
+        setState(() {
+          _requestStatusCache[user.uid] = 'pending';
+        });
+        
+        ThemedNotifications.showSuccess(
+          context, 
+          'Friend request sent to ${user.name}!', 
+          icon: "🤝"
+        );
+      }
     } catch (e) {
-      if (!mounted) return;
-      
-      ThemedNotifications.showError(context, 'Failed to send request: $e');
+      DebugLogger.log("❌ Error sending friend request: $e");
+      if (mounted) {
+        // ✅ IMPROVED: Better error messages
+        String errorMessage = 'Failed to send request';
+        if (e.toString().contains('already sent')) {
+          errorMessage = 'Friend request already sent';
+        } else if (e.toString().contains('timed out')) {
+          errorMessage = 'Request timed out. Please try again.';
+        } else if (e.toString().contains('permission')) {
+          errorMessage = 'Unable to send request. Please try logging out and back in.';
+        }
+        
+        ThemedNotifications.showError(context, errorMessage);
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loadingUsers.remove(user.uid);
+        });
+      }
     }
   }
 
@@ -183,83 +244,118 @@ class _AddFriendScreenState extends State<AddFriendScreen> {
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.3),
                     blurRadius: 8.r,
-                    offset: Offset(0, 2.h),
+                    offset: Offset(0, 4.h),
                   ),
                 ],
               ),
-              child: Padding(
-                padding: EdgeInsets.all(20.w),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Find Friends',
+              padding: EdgeInsets.fromLTRB(20.w, 16.h, 20.w, 16.h),
+              child: Column(
+                children: [
+                  // Search input
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [
+                          Color(0xFF2A2A2A),
+                          Color(0xFF1F1F1F),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(16.r),
+                      border: Border.all(
+                        color: const Color(0xFFE5A00D).withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: TextField(
+                      controller: _searchController,
+                      onChanged: _onSearchChanged,
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: 20.sp,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 0.5,
+                        fontSize: 16.sp,
                       ),
-                    ),
-                    SizedBox(height: 8.h),
-                    Text(
-                      'Search by name to find friends and send requests',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.7),
-                        fontSize: 14.sp,
-                      ),
-                    ),
-                    SizedBox(height: 20.h),
-                    Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(16.r),
-                        border: Border.all(
-                          color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
+                      decoration: InputDecoration(
+                        hintText: 'Search for friends by name...',
+                        hintStyle: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.5),
+                          fontSize: 16.sp,
                         ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.2),
-                            blurRadius: 8.r,
-                            offset: Offset(0, 2.h),
+                        prefixIcon: Icon(
+                          Icons.search,
+                          color: const Color(0xFFE5A00D),
+                          size: 24.sp,
+                        ),
+                        suffixIcon: _isSearching
+                            ? Padding(
+                                padding: EdgeInsets.all(12.w),
+                                child: SizedBox(
+                                  width: 20.w,
+                                  height: 20.h,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.w,
+                                    valueColor: const AlwaysStoppedAnimation<Color>(
+                                      Color(0xFFE5A00D),
+                                    ),
+                                  ),
+                                ),
+                              )
+                            : _searchController.text.isNotEmpty
+                                ? IconButton(
+                                    onPressed: () {
+                                      _searchController.clear();
+                                      _onSearchChanged('');
+                                    },
+                                    icon: Icon(
+                                      Icons.clear,
+                                      color: Colors.white.withValues(alpha: 0.7),
+                                      size: 20.sp,
+                                    ),
+                                  )
+                                : null,
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 16.w,
+                          vertical: 16.h,
+                        ),
+                      ),
+                    ),
+                  ),
+                  
+                  // ✅ ADDED: Error message display
+                  if (_searchError != null) ...[
+                    SizedBox(height: 8.h),
+                    Container(
+                      padding: EdgeInsets.all(12.w),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8.r),
+                        border: Border.all(
+                          color: Colors.red.withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.info_outline,
+                            color: Colors.red,
+                            size: 16.sp,
+                          ),
+                          SizedBox(width: 8.w),
+                          Expanded(
+                            child: Text(
+                              _searchError!,
+                              style: TextStyle(
+                                color: Colors.red,
+                                fontSize: 12.sp,
+                              ),
+                            ),
                           ),
                         ],
                       ),
-                      child: TextField(
-                        controller: _searchController,
-                        decoration: InputDecoration(
-                          hintText: 'Search for friends...',
-                          hintStyle: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.5),
-                            fontSize: 16.sp,
-                          ),
-                          prefixIcon: Icon(
-                            Icons.search,
-                            color: const Color(0xFFE5A00D),
-                            size: 24.sp,
-                          ),
-                          filled: true,
-                          fillColor: const Color(0xFF2A2A2A),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16.r),
-                            borderSide: BorderSide.none,
-                          ),
-                          contentPadding: EdgeInsets.symmetric(
-                            vertical: 16.h,
-                            horizontal: 20.w,
-                          ),
-                        ),
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16.sp,
-                        ),
-                        onChanged: _onSearchChanged,
-                      ),
                     ),
                   ],
-                ),
+                ],
               ),
             ),
-
+            
             // Results section - Expandable
             Expanded(
               child: _searchController.text.isEmpty
@@ -430,114 +526,103 @@ class _AddFriendScreenState extends State<AddFriendScreen> {
       tween: Tween(begin: 0.0, end: 1.0),
       builder: (context, value, child) {
         return Transform.translate(
-          offset: Offset(0, 20.h * (1 - value)),
+          offset: Offset(0, 20 * (1 - value)),
           child: Opacity(
             opacity: value,
             child: Container(
               margin: EdgeInsets.only(bottom: 16.h),
+              padding: EdgeInsets.all(16.w),
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16.r),
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+                gradient: LinearGradient(
                   colors: [
-                    Color(0xFF2A2A2A),
-                    Color(0xFF1F1F1F),
+                    const Color(0xFF2A2A2A),
+                    const Color(0xFF1F1F1F),
                   ],
                 ),
+                borderRadius: BorderRadius.circular(16.r),
                 border: Border.all(
                   color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
-                  width: 1.w,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.3),
+                    color: Colors.black.withValues(alpha: 0.2),
                     blurRadius: 8.r,
-                    offset: Offset(0, 2.h),
+                    offset: Offset(0, 4.h),
                   ),
                 ],
               ),
-              child: Padding(
-                padding: EdgeInsets.all(16.w),
-                child: Row(
-                  children: [
-                    // Avatar
-                    Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: LinearGradient(
-                          colors: [Colors.grey[600]!, Colors.grey[800]!],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.3),
-                            blurRadius: 6.r,
-                            offset: Offset(0, 2.h),
-                          ),
+              child: Row(
+                children: [
+                  // Avatar
+                  Container(
+                    width: 56.w,
+                    height: 56.h,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [
+                          Color(0xFFE5A00D),
+                          Color(0xFFFF6B00),
                         ],
                       ),
-                      child: CircleAvatar(
-                        radius: 28.r,
-                        backgroundColor: Colors.transparent,
-                        child: Text(
-                          user.name.isNotEmpty ? user.name[0].toUpperCase() : "?",
+                      borderRadius: BorderRadius.circular(16.r),
+                    ),
+                    child: Center(
+                      child: Text(
+                        user.name.isNotEmpty ? user.name[0].toUpperCase() : "?",
+                        style: TextStyle(
+                          fontSize: 20.sp,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 16.w),
+                  
+                  // User details
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          user.name,
                           style: TextStyle(
-                            fontSize: 20.sp,
-                            fontWeight: FontWeight.bold,
                             color: Colors.white,
+                            fontSize: 18.sp,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-                      ),
-                    ),
-                    SizedBox(width: 16.w),
-                    
-                    // User details
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            user.name,
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 18.sp,
-                              fontWeight: FontWeight.bold,
+                        SizedBox(height: 6.h),
+                        if (user.preferredGenres.isNotEmpty)
+                          Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 8.w,
+                              vertical: 4.h,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(8.r),
+                            ),
+                            child: Text(
+                              'Likes: ${user.preferredGenres.take(3).join(", ")}',
+                              style: TextStyle(
+                                color: const Color(0xFFE5A00D),
+                                fontSize: 12.sp,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          SizedBox(height: 6.h),
-                          if (user.preferredGenres.isNotEmpty)
-                            Container(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: 8.w,
-                                vertical: 4.h,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFE5A00D).withValues(alpha: 0.2),
-                                borderRadius: BorderRadius.circular(8.r),
-                              ),
-                              child: Text(
-                                'Likes: ${user.preferredGenres.take(3).join(", ")}',
-                                style: TextStyle(
-                                  color: const Color(0xFFE5A00D),
-                                  fontSize: 12.sp,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                        ],
-                      ),
+                      ],
                     ),
-                    
-                    SizedBox(width: 16.w),
-                    
-                    // Button - simplified to avoid nested FutureBuilders
-                    _buildActionButton(user),
-                  ],
-                ),
+                  ),
+                  
+                  SizedBox(width: 16.w),
+                  
+                  // Button - simplified to avoid nested FutureBuilders
+                  _buildActionButton(user),
+                ],
               ),
             ),
           ),

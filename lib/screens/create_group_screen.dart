@@ -3,7 +3,9 @@
 
 import 'package:flutter/material.dart';
 import '../models/user_profile.dart';
+import '../services/group_invitation_service.dart';
 import '../services/group_service.dart';
+import '../utils/debug_loader.dart';
 import '../utils/themed_notifications.dart';
 
 class CreateGroupScreen extends StatefulWidget {
@@ -70,26 +72,61 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
     });
 
     try {
+      // ✅ STEP 1: Create the group first
       final group = await _groupService.createGroup(
         name: _groupNameController.text.trim(),
         description: _groupDescriptionController.text.trim(),
-        members: [widget.currentUser],
+        members: [widget.currentUser], // Only creator initially
         isPrivate: _isPrivate,
         notificationsEnabled: _notificationsEnabled,
       );
 
+      // ✅ STEP 2: Send actual invitations to selected friends
+      if (_selectedFriends.isNotEmpty) {
+        try {
+          await GroupInvitationService().sendGroupInvitations(
+            groupId: group.id,
+            groupName: group.name,
+            groupDescription: group.description,
+            groupImageUrl: group.imageUrl,
+            creator: widget.currentUser,
+            invitees: _selectedFriends.toList(),
+          );
+          
+          DebugLogger.log("✅ Sent ${_selectedFriends.length} group invitations");
+        } catch (inviteError) {
+          DebugLogger.log("⚠️ Error sending invitations: $inviteError");
+          // Don't fail the entire group creation if invitations fail
+          if (mounted) {
+            ThemedNotifications.showError(
+              context, 
+              'Group created but some invitations failed to send'
+            );
+          }
+        }
+      }
+
       if (mounted) {
         final inviteCount = _selectedFriends.length;
-        ThemedNotifications.showSuccess(
-          context, 
-          'Group "${group.name}" created! ${inviteCount > 0 ? "Will send $inviteCount invitation${inviteCount != 1 ? 's' : ''} once invitation system is ready." : ""}',
-          icon: "🎉"
-        );
+        if (inviteCount > 0) {
+          ThemedNotifications.showSuccess(
+            context, 
+            'Group "${group.name}" created! Sent $inviteCount invitation${inviteCount != 1 ? 's' : ''}.',
+            icon: "🎉"
+          );
+        } else {
+          ThemedNotifications.showSuccess(
+            context, 
+            'Group "${group.name}" created!',
+            icon: "🎉"
+          );
+        }
         
-        // ✅ FIXED: Return true to indicate success
-        Navigator.pop(context, true);
+        // Navigate back to friends screen
+        Navigator.pop(context, true); // Return true to indicate success
       }
     } catch (e) {
+      DebugLogger.log("❌ Error creating group: $e");
       if (mounted) {
         ThemedNotifications.showError(context, 'Failed to create group: $e');
       }
