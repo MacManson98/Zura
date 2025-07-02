@@ -1,6 +1,6 @@
-// Updated Mood Engine Testing Script for the NEW redesigned engine
-// Save as: test_mood_engine.dart
-// Run with: dart test_mood_engine.dart
+// Updated Test Script for STRICT Mood Engine
+// Save as: test_strict_mood_engine.dart
+// Run with: dart test_strict_mood_engine.dart
 
 import 'dart:io';
 import 'dart:convert';
@@ -49,7 +49,7 @@ class Movie {
   }
 }
 
-// CurrentMood enum
+// CurrentMood enum (same as in your engine)
 enum CurrentMood {
   pureComedy('Pure Comedy', '😂', ['Comedy'], ['Funny', 'Silly', 'Upbeat', 'Light-Hearted', 'Hilarious', 'Witty']),
   epicAction('Epic Action', '💥', ['Action'], ['Action-Packed', 'High Stakes', 'Fast-Paced', 'Adrenaline', 'Intense', 'Explosive']),
@@ -76,204 +76,255 @@ enum CurrentMood {
   final List<String> preferredVibes;
 }
 
-// NEW REDESIGNED MOOD MATCHING LOGIC
-class MoodTester {
+// STRICT Mood Matching Logic (mirrors your new engine)
+class StrictMoodTester {
   
-  /// Main mood matching function using the NEW logic
-  static bool matchesMoodCriteria(Movie movie, CurrentMood mood) {
-    return _isMoviePerfectForMood(movie, mood);
+  /// Test both strict and relaxed matching
+  static MatchResult testMoodMatching(Movie movie, CurrentMood mood) {
+    final isStrictMatch = _isMovieStrictMatchForMood(movie, mood);
+    final isRelaxedMatch = _isMovieRelaxedMatchForMood(movie, mood);
+    
+    return MatchResult(
+      isStrictMatch: isStrictMatch,
+      isRelaxedMatch: isRelaxedMatch,
+      meetsQuality: _meetsQualityThreshold(movie),
+    );
   }
   
-  /// NEW: Each mood has custom logic for perfect matching
-  static bool _isMoviePerfectForMood(Movie movie, CurrentMood mood) {
-    final movieGenres = movie.genres.map((g) => g.toLowerCase()).toSet();
-    final movieTags = movie.tags.map((t) => t.toLowerCase()).toSet();
+  /// STRICT matching - requires both genre AND specific vibe indicators
+  static bool _isMovieStrictMatchForMood(Movie movie, CurrentMood mood) {
+    final movieGenres = movie.genres.map((g) => g.toLowerCase().trim()).toSet();
+    final movieTags = movie.tags.map((t) => t.toLowerCase().trim()).toSet();
+    
+    // Global exclusions first
+    if (_hasGlobalExclusions(movie, mood, movieGenres, movieTags)) return false;
     
     switch (mood) {
       case CurrentMood.pureComedy:
-        return _isPureComedy(movie, movieGenres, movieTags);
+        // Must be Comedy genre AND have funny indicators AND not be dark/action heavy
+        if (!movieGenres.contains('comedy')) return false;
+        if (_isActionHeavyMovie(movieGenres, movieTags)) return false;
+        final comedyVibes = ['funny', 'hilarious', 'witty', 'humorous', 'comedic', 'light-hearted', 'silly'];
+        return _hasExactVibeMatch(movieTags, comedyVibes);
         
       case CurrentMood.epicAction:
-        return _isEpicAction(movie, movieGenres, movieTags);
+        // Must be Action genre AND have action indicators AND not be primarily comedy/family
+        if (!movieGenres.contains('action')) return false;
+        if (_isPrimarilyComedyOrFamily(movieGenres, movieTags)) return false;
+        final actionVibes = ['action-packed', 'combat', 'fighting', 'explosive', 'intense', 'adrenaline'];
+        return _hasExactVibeMatch(movieTags, actionVibes);
         
       case CurrentMood.scaryAndSuspenseful:
-        return _isScaryAndSuspenseful(movie, movieGenres, movieTags);
+        // Must be Horror or Thriller AND have scary indicators
+        if (!movieGenres.contains('horror') && !movieGenres.contains('thriller')) return false;
+        final scaryVibes = ['scary', 'terrifying', 'frightening', 'suspenseful', 'creepy', 'spine-chilling'];
+        return _hasExactVibeMatch(movieTags, scaryVibes) || movieGenres.contains('horror');
         
       case CurrentMood.romantic:
-        return _isRomantic(movie, movieGenres, movieTags);
+        // Must be Romance genre OR have EXPLICIT romantic indicators (not action movies with romance tags)
+        if (movieGenres.contains('romance')) return true;
+        if (_isActionHeavyMovie(movieGenres, movieTags)) return false;
+        final romanticVibes = ['love story', 'passionate', 'tender', 'sweet'];
+        final explicitRomantic = ['romantic comedy', 'romantic drama', 'love triangle', 'wedding'];
+        return _hasExactVibeMatch(movieTags, romanticVibes) || _hasExactVibeMatch(movieTags, explicitRomantic);
         
       case CurrentMood.mindBending:
-        return _isMindBending(movie, movieGenres, movieTags);
+        // Must have specific genres AND explicit mind-bending indicators
+        final rightGenres = movieGenres.any((g) => ['drama', 'sci-fi', 'science fiction', 'mystery', 'thriller'].contains(g));
+        if (!rightGenres) return false;
+        final mindVibes = ['mind-bending', 'psychological thriller', 'cerebral', 'thought-provoking'];
+        final twistVibes = ['plot twist', 'twist ending', 'non-linear', 'unreliable narrator'];
+        return _hasExactVibeMatch(movieTags, mindVibes) || _hasExactVibeMatch(movieTags, twistVibes);
         
       case CurrentMood.emotionalDrama:
-        return _isEmotionalDrama(movie, movieGenres, movieTags);
+        // Must be Drama AND have emotional indicators
+        if (!movieGenres.contains('drama')) return false;
+        final emotionalVibes = ['emotional', 'heartwarming', 'moving', 'touching', 'meaningful', 'tearjerker'];
+        return _hasExactVibeMatch(movieTags, emotionalVibes);
         
       case CurrentMood.trueStories:
-        return _isTrueStory(movie, movieGenres, movieTags);
+        // Must have biographical genres OR very explicit true story indicators
+        if (movieGenres.any((g) => ['biography', 'documentary', 'history'].contains(g))) return true;
+        final trueVibes = ['based on true story', 'based on a true story', 'biographical', 'true story'];
+        return _hasExactVibeMatch(movieTags, trueVibes);
         
       case CurrentMood.mysteryCrime:
-        return _isMysteryOrCrime(movie, movieGenres, movieTags);
+        // Must be Crime/Mystery/Thriller AND have investigation indicators
+        if (!movieGenres.any((g) => ['crime', 'mystery', 'thriller'].contains(g))) return false;
+        final crimeVibes = ['detective', 'investigation', 'murder mystery', 'crime solving', 'police procedural'];
+        final criminalVibes = ['heist', 'organized crime', 'criminal', 'mafia', 'gangster'];
+        return _hasExactVibeMatch(movieTags, crimeVibes) || _hasExactVibeMatch(movieTags, criminalVibes);
         
       case CurrentMood.adventureFantasy:
-        return _isAdventureFantasy(movie, movieGenres, movieTags);
+        // Must have adventure/fantasy genres AND epic indicators
+        if (!movieGenres.any((g) => ['adventure', 'fantasy', 'sci-fi', 'science fiction'].contains(g))) return false;
+        final epicVibes = ['epic', 'quest', 'journey', 'magical', 'otherworldly', 'mythical'];
+        return _hasExactVibeMatch(movieTags, epicVibes);
         
       case CurrentMood.musicalDance:
-        return _isMusicalDance(movie, movieGenres, movieTags);
+        // Must be Musical genre OR have explicit music indicators
+        if (movieGenres.any((g) => ['musical', 'music'].contains(g))) return true;
+        final musicVibes = ['musical', 'dance', 'singing', 'song', 'concert', 'broadway'];
+        return _hasExactVibeMatch(movieTags, musicVibes);
         
       case CurrentMood.familyFun:
-        return _isFamilyFun(movie, movieGenres, movieTags);
+        // Must be Family/Animation OR have family indicators
+        if (movieGenres.any((g) => ['family', 'animation'].contains(g))) return true;
+        final familyVibes = ['family-friendly', 'kids', 'wholesome', 'children'];
+        return _hasExactVibeMatch(movieTags, familyVibes);
         
       case CurrentMood.sciFiFuture:
-        return _isSciFiFuture(movie, movieGenres, movieTags);
+        // Must be Sci-Fi AND have futuristic indicators
+        if (!movieGenres.any((g) => ['sci-fi', 'science fiction'].contains(g))) return false;
+        final scifiVibes = ['futuristic', 'space', 'alien', 'robot', 'artificial intelligence', 'cyberpunk', 'dystopian'];
+        return _hasExactVibeMatch(movieTags, scifiVibes);
         
       case CurrentMood.worldCinema:
-        return _isWorldCinema(movie, movieGenres, movieTags);
+        // Must be Foreign OR have explicit foreign film indicators
+        if (movieGenres.contains('foreign')) return true;
+        final worldVibes = ['subtitled', 'foreign language', 'international film', 'world cinema'];
+        return _hasExactVibeMatch(movieTags, worldVibes);
         
       case CurrentMood.cultClassic:
-        return _isCultClassic(movie, movieGenres, movieTags);
+        // Must have explicit cult indicators (not generic "underground")
+        final cultVibes = ['cult classic', 'cult film', 'cult following', 'midnight movie', 'b-movie', 'campy', 'weird', 'bizarre'];
+        return _hasExactVibeMatch(movieTags, cultVibes);
         
       case CurrentMood.twistEnding:
-        return _isTwistEnding(movie, movieGenres, movieTags);
+        // Must have right genres AND explicit twist indicators
+        if (!movieGenres.any((g) => ['thriller', 'mystery', 'drama'].contains(g))) return false;
+        final twistVibes = ['plot twist', 'twist ending', 'surprise ending', 'shocking ending', 'unexpected ending'];
+        return _hasExactVibeMatch(movieTags, twistVibes);
         
       case CurrentMood.highStakes:
-        return _isHighStakes(movie, movieGenres, movieTags);
+        // Must have action/thriller genres AND explicit stakes indicators
+        if (!movieGenres.any((g) => ['action', 'thriller', 'crime'].contains(g))) return false;
+        final stakesVibes = ['high stakes', 'race against time', 'time-sensitive', 'countdown', 'urgent', 'life or death'];
+        return _hasExactVibeMatch(movieTags, stakesVibes);
     }
   }
   
-  // ========================================
-  // MOOD-SPECIFIC MATCHING FUNCTIONS
-  // ========================================
+  /// Helper: Check for exact vibe matches (not partial contains)
+  static bool _hasExactVibeMatch(Set<String> movieTags, List<String> targetVibes) {
+    for (final vibe in targetVibes) {
+      for (final tag in movieTags) {
+        // Exact match or vibe is contained as a complete word/phrase
+        if (tag == vibe || tag.contains(' $vibe ') || tag.startsWith('$vibe ') || tag.endsWith(' $vibe')) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
   
-  static bool _isPureComedy(Movie movie, Set<String> genres, Set<String> tags) {
-    if (!genres.contains('comedy')) return false;
-    
-    final comedyTags = ['funny', 'hilarious', 'witty', 'humorous', 'comedic', 'light-hearted'];
-    final hasComedyTag = tags.any((tag) => comedyTags.any((comedyTag) => tag.contains(comedyTag)));
-    
-    if (tags.contains('dark comedy') || tags.contains('black comedy')) {
-      return hasComedyTag;
+  /// Helper: Global exclusions to prevent cross-contamination
+  static bool _hasGlobalExclusions(Movie movie, CurrentMood mood, Set<String> movieGenres, Set<String> movieTags) {
+    // Prevent family movies from appearing in inappropriate moods
+    if (movieGenres.contains('family') || movieGenres.contains('animation')) {
+      if ([CurrentMood.scaryAndSuspenseful, CurrentMood.mysteryCrime].contains(mood)) {
+        return true;
+      }
     }
     
-    return hasComedyTag || genres.contains('comedy');
+    // Prevent action movies from dominating non-action moods
+    if (_isActionHeavyMovie(movieGenres, movieTags)) {
+      if ([CurrentMood.emotionalDrama, CurrentMood.trueStories].contains(mood)) {
+        // Only allow if they have very strong indicators for the target mood
+        return !_hasStrongMoodIndicators(movieTags, mood);
+      }
+    }
+    
+    return false;
   }
   
-  static bool _isEpicAction(Movie movie, Set<String> genres, Set<String> tags) {
-    if (!genres.contains('action')) return false;
-    
-    final actionTags = ['action-packed', 'combat', 'fighting', 'explosion', 'chase', 'shootout', 'martial arts', 'gunfight'];
-    final hasActionTag = tags.any((tag) => actionTags.any((actionTag) => tag.contains(actionTag)));
-    
-    final stakeTags = ['high stakes', 'intense', 'adrenaline', 'explosive'];
-    final hasStakeTag = tags.any((tag) => stakeTags.any((stakeTag) => tag.contains(stakeTag)));
-    
-    return hasActionTag || hasStakeTag;
+  /// Helper: Detect action-heavy movies
+  static bool _isActionHeavyMovie(Set<String> movieGenres, Set<String> movieTags) {
+    if (!movieGenres.contains('action')) return false;
+    final actionIndicators = ['action-packed', 'combat', 'fighting', 'explosive', 'shootout'];
+    return movieTags.any((tag) => actionIndicators.any((indicator) => tag.contains(indicator)));
   }
   
-  static bool _isScaryAndSuspenseful(Movie movie, Set<String> genres, Set<String> tags) {
-    if (!genres.contains('horror') && !genres.contains('thriller')) return false;
+  /// Helper: Detect primarily comedy/family movies
+  static bool _isPrimarilyComedyOrFamily(Set<String> movieGenres, Set<String> movieTags) {
+    // If it has family/animation genres, it's primarily family
+    if (movieGenres.any((g) => ['family', 'animation'].contains(g))) return true;
     
-    final scaryTags = ['scary', 'terrifying', 'frightening', 'suspenseful', 'creepy', 'dark', 'supernatural', 'ghost', 'demon', 'murder'];
-    final hasScaryTag = tags.any((tag) => scaryTags.any((scaryTag) => tag.contains(scaryTag)));
+    // If it has comedy genre AND comedy tags, it's primarily comedy
+    if (movieGenres.contains('comedy')) {
+      final comedyTags = ['funny', 'hilarious', 'witty', 'comedic'];
+      return movieTags.any((tag) => comedyTags.any((comedy) => tag.contains(comedy)));
+    }
     
-    if (genres.contains('horror')) return true;
-    
-    return hasScaryTag;
+    return false;
   }
   
-  static bool _isRomantic(Movie movie, Set<String> genres, Set<String> tags) {
-    if (genres.contains('romance')) return true;
-    
-    final romanticTags = ['romantic', 'love story', 'love triangle', 'wedding', 'marriage', 'relationship'];
-    return tags.any((tag) => romanticTags.any((romTag) => tag.contains(romTag)));
+  /// Helper: Check for strong mood indicators
+  static bool _hasStrongMoodIndicators(Set<String> movieTags, CurrentMood mood) {
+    switch (mood) {
+      case CurrentMood.emotionalDrama:
+        final strongEmotional = ['tearjerker', 'heartbreaking', 'deeply moving', 'emotionally powerful'];
+        return _hasExactVibeMatch(movieTags, strongEmotional);
+      case CurrentMood.trueStories:
+        final strongTrue = ['based on true story', 'biographical', 'documentary style'];
+        return _hasExactVibeMatch(movieTags, strongTrue);
+      default:
+        return false;
+    }
   }
   
-  static bool _isMindBending(Movie movie, Set<String> genres, Set<String> tags) {
-    final mindBendingTags = [
-      'mind-bending', 'psychological', 'complex narrative', 'non linear', 'time travel', 
-      'alternate reality', 'memory loss', 'unreliable narrator', 'twist', 'cerebral'
-    ];
+  /// RELAXED matching - genre requirements only (as fallback)
+  static bool _isMovieRelaxedMatchForMood(Movie movie, CurrentMood mood) {
+    final movieGenres = movie.genres.map((g) => g.toLowerCase().trim()).toSet();
     
-    final hasMindBendingTag = tags.any((tag) => 
-        mindBendingTags.any((mbTag) => tag.contains(mbTag)));
-    
-    final rightGenres = genres.contains('sci-fi') || genres.contains('thriller') || genres.contains('mystery') || genres.contains('science fiction');
-    return rightGenres && hasMindBendingTag;
-  }
-  
-  static bool _isEmotionalDrama(Movie movie, Set<String> genres, Set<String> tags) {
-    if (!genres.contains('drama')) return false;
-    
-    final emotionalTags = ['emotional', 'heartwarming', 'moving', 'touching', 'tearjerker', 'inspiring'];
-    return tags.any((tag) => emotionalTags.any((emTag) => tag.contains(emTag)));
-  }
-  
-  static bool _isTrueStory(Movie movie, Set<String> genres, Set<String> tags) {
-    if (genres.contains('biography') || genres.contains('documentary')) return true;
-    
-    final trueStoryTags = ['based on true story', 'biographical', 'real events', 'true story', 'memoir', 'real person'];
-    return tags.any((tag) => trueStoryTags.any((tsTag) => tag.contains(tsTag)));
-  }
-  
-  static bool _isMysteryOrCrime(Movie movie, Set<String> genres, Set<String> tags) {
-    if (genres.contains('crime') || genres.contains('mystery')) return true;
-    
-    final crimeTags = ['detective', 'investigation', 'murder', 'police', 'fbi', 'criminal', 'heist'];
-    return tags.any((tag) => crimeTags.any((crimeTag) => tag.contains(crimeTag)));
-  }
-  
-  static bool _isAdventureFantasy(Movie movie, Set<String> genres, Set<String> tags) {
-    if (genres.contains('adventure') || genres.contains('fantasy') || genres.contains('sci-fi') || genres.contains('science fiction')) return true;
-    
-    final epicTags = ['epic', 'magical', 'quest', 'journey', 'fantasy', 'otherworldly'];
-    return tags.any((tag) => epicTags.any((epicTag) => tag.contains(epicTag)));
-  }
-  
-  static bool _isMusicalDance(Movie movie, Set<String> genres, Set<String> tags) {
-    if (genres.contains('musical') || genres.contains('music')) return true;
-    
-    final musicalTags = ['musical', 'dance', 'singing', 'song', 'concert'];
-    return tags.any((tag) => musicalTags.any((musTag) => tag.contains(musTag)));
-  }
-  
-  static bool _isFamilyFun(Movie movie, Set<String> genres, Set<String> tags) {
-    if (genres.contains('family') || genres.contains('animation')) return true;
-    
-    final familyTags = ['family-friendly', 'kids', 'wholesome', 'children'];
-    return tags.any((tag) => familyTags.any((famTag) => tag.contains(famTag)));
-  }
-  
-  static bool _isSciFiFuture(Movie movie, Set<String> genres, Set<String> tags) {
-    if (genres.contains('science fiction') || genres.contains('sci-fi')) return true;
-    
-    final scifiTags = ['futuristic', 'space', 'alien', 'robot', 'artificial intelligence', 'technology', 'spacecraft'];
-    return tags.any((tag) => scifiTags.any((scifiTag) => tag.contains(scifiTag)));
-  }
-  
-  static bool _isWorldCinema(Movie movie, Set<String> genres, Set<String> tags) {
-    if (genres.contains('foreign')) return true;
-    
-    final worldTags = ['international', 'cultural', 'subtitled', 'foreign language'];
-    return tags.any((tag) => worldTags.any((worldTag) => tag.contains(worldTag)));
-  }
-  
-  static bool _isCultClassic(Movie movie, Set<String> genres, Set<String> tags) {
-    final cultTags = ['cult classic', 'cult film', 'underground', 'weird', 'quirky', 'offbeat', 'bizarre', 'campy'];
-    return tags.any((tag) => cultTags.any((cultTag) => tag.contains(cultTag)));
-  }
-  
-  static bool _isTwistEnding(Movie movie, Set<String> genres, Set<String> tags) {
-    final rightGenres = genres.contains('thriller') || genres.contains('mystery') || genres.contains('drama');
-    if (!rightGenres) return false;
-    
-    final twistTags = ['plot twist', 'twist ending', 'surprise ending', 'shocking', 'unexpected', 'revelation'];
-    return tags.any((tag) => twistTags.any((twistTag) => tag.contains(twistTag)));
-  }
-  
-  static bool _isHighStakes(Movie movie, Set<String> genres, Set<String> tags) {
-    if (!genres.contains('action') && !genres.contains('thriller') && !genres.contains('crime')) return false;
-    
-    final stakesTags = ['high stakes', 'urgent', 'time-sensitive', 'race against time', 'countdown', 'bomb', 'hostage', 'rescue'];
-    return tags.any((tag) => stakesTags.any((stakesTag) => tag.contains(stakesTag)));
+    switch (mood) {
+      case CurrentMood.pureComedy:
+        return movieGenres.contains('comedy');
+        
+      case CurrentMood.epicAction:
+        return movieGenres.contains('action');
+        
+      case CurrentMood.scaryAndSuspenseful:
+        return movieGenres.contains('horror') || movieGenres.contains('thriller');
+        
+      case CurrentMood.romantic:
+        return movieGenres.contains('romance');
+        
+      case CurrentMood.mindBending:
+        return movieGenres.any((g) => ['drama', 'sci-fi', 'science fiction', 'mystery', 'thriller'].contains(g));
+        
+      case CurrentMood.emotionalDrama:
+        return movieGenres.contains('drama');
+        
+      case CurrentMood.trueStories:
+        return movieGenres.any((g) => ['biography', 'documentary', 'history', 'drama'].contains(g));
+        
+      case CurrentMood.mysteryCrime:
+        return movieGenres.any((g) => ['crime', 'mystery', 'thriller'].contains(g));
+        
+      case CurrentMood.adventureFantasy:
+        return movieGenres.any((g) => ['adventure', 'fantasy', 'sci-fi', 'science fiction'].contains(g));
+        
+      case CurrentMood.musicalDance:
+        return movieGenres.any((g) => ['musical', 'music'].contains(g));
+        
+      case CurrentMood.familyFun:
+        return movieGenres.any((g) => ['family', 'animation'].contains(g));
+        
+      case CurrentMood.sciFiFuture:
+        return movieGenres.any((g) => ['sci-fi', 'science fiction'].contains(g));
+        
+      case CurrentMood.worldCinema:
+        return movieGenres.contains('foreign');
+        
+      case CurrentMood.cultClassic:
+        return movieGenres.any((g) => ['drama', 'comedy', 'horror'].contains(g));
+        
+      case CurrentMood.twistEnding:
+        return movieGenres.any((g) => ['thriller', 'mystery', 'drama'].contains(g));
+        
+      case CurrentMood.highStakes:
+        return movieGenres.any((g) => ['action', 'thriller', 'crime'].contains(g));
+    }
   }
 
   static bool _meetsQualityThreshold(Movie movie) {
@@ -285,9 +336,29 @@ class MoodTester {
   }
 }
 
+class MatchResult {
+  final bool isStrictMatch;
+  final bool isRelaxedMatch;
+  final bool meetsQuality;
+  
+  MatchResult({
+    required this.isStrictMatch,
+    required this.isRelaxedMatch,
+    required this.meetsQuality,
+  });
+  
+  String get status {
+    if (isStrictMatch && meetsQuality) return '✅ PERFECT';
+    if (isStrictMatch && !meetsQuality) return '🟡 STRICT (Low Quality)';
+    if (isRelaxedMatch && meetsQuality) return '🟠 RELAXED';
+    if (isRelaxedMatch && !meetsQuality) return '🔴 RELAXED (Low Quality)';
+    return '❌ NO MATCH';
+  }
+}
+
 // Main testing function
 void main() async {
-  print('🎬 NEW Mood Engine Tester Starting...\n');
+  print('🎬 STRICT Mood Engine Tester Starting...\n');
   
   // Ask for path to movies.json
   print('Enter the path to your movies.json file:');
@@ -325,47 +396,69 @@ void main() async {
     
     print('✅ Loaded ${movies.length} movies (skipped $skipped invalid entries)\n');
     
-    // Test each mood
-    print('🎭 Testing NEW Mood Matching Logic...\n');
-    print('=' * 80);
+    // Test each mood with STRICT and RELAXED matching
+    print('🎭 Testing STRICT vs RELAXED Mood Matching...\n');
+    print('=' * 90);
     
     for (final mood in CurrentMood.values) {
       print('\n${mood.emoji} ${mood.displayName.toUpperCase()}');
       print('Target Genres: ${mood.preferredGenres.join(', ')}');
       print('Target Vibes: ${mood.preferredVibes.join(', ')}');
-      print('-' * 60);
+      print('-' * 80);
       
-      final matchedMovies = <Movie>[];
+      final strictMatches = <Movie>[];
+      final relaxedMatches = <Movie>[];
+      final qualityStrictMatches = <Movie>[];
+      final qualityRelaxedMatches = <Movie>[];
       
       for (final movie in movies) {
-        if (!MoodTester._meetsQualityThreshold(movie)) continue;
+        final result = StrictMoodTester.testMoodMatching(movie, mood);
         
-        if (MoodTester.matchesMoodCriteria(movie, mood)) {
-          matchedMovies.add(movie);
+        if (result.isStrictMatch) {
+          strictMatches.add(movie);
+          if (result.meetsQuality) qualityStrictMatches.add(movie);
+        } else if (result.isRelaxedMatch) {
+          relaxedMatches.add(movie);
+          if (result.meetsQuality) qualityRelaxedMatches.add(movie);
         }
       }
       
-      print('📊 Total Matches: ${matchedMovies.length}');
+      print('📊 MATCH SUMMARY:');
+      print('   🟢 Strict Matches: ${strictMatches.length} (${qualityStrictMatches.length} high quality)');
+      print('   🟡 Relaxed Only: ${relaxedMatches.length} (${qualityRelaxedMatches.length} high quality)');
+      print('   🎯 Users will see: ${qualityStrictMatches.length} strict + ${qualityRelaxedMatches.length} relaxed fallback');
       
-      // Show top 10 matches
-      final topMatches = matchedMovies.take(10).toList();
-      if (topMatches.isNotEmpty) {
-        print('\n🏆 Top Matches:');
-        for (int i = 0; i < topMatches.length; i++) {
-          final movie = topMatches[i];
-          print('   ${i + 1}. ${movie.title} (${movie.rating ?? 'N/A'})');
+      // Show top matches from each category
+      if (qualityStrictMatches.isNotEmpty) {
+        print('\n🏆 TOP STRICT MATCHES (what users will see first):');
+        final topStrict = qualityStrictMatches.take(5).toList();
+        for (int i = 0; i < topStrict.length; i++) {
+          final movie = topStrict[i];
+          print('   ${i + 1}. ${movie.title} (${movie.rating ?? 'N/A'}) ✅');
           print('      Genres: ${movie.genres.join(', ')}');
-          if (movie.tags.isNotEmpty) {
-            final relevantTags = movie.tags.take(5).join(', ');
-            print('      Tags: $relevantTags${movie.tags.length > 5 ? '...' : ''}');
+          final relevantTags = movie.tags.where((tag) => 
+              mood.preferredVibes.any((vibe) => tag.toLowerCase().contains(vibe.toLowerCase()))).take(3);
+          if (relevantTags.isNotEmpty) {
+            print('      Mood Tags: ${relevantTags.join(', ')}');
           }
         }
       }
       
-      print('=' * 80);
+      if (qualityRelaxedMatches.isNotEmpty && qualityStrictMatches.length < 5) {
+        print('\n🟡 TOP RELAXED FALLBACK MATCHES:');
+        final topRelaxed = qualityRelaxedMatches.take(3).toList();
+        for (int i = 0; i < topRelaxed.length; i++) {
+          final movie = topRelaxed[i];
+          print('   ${i + 1}. ${movie.title} (${movie.rating ?? 'N/A'}) 🟡');
+          print('      Genres: ${movie.genres.join(', ')}');
+          print('      Tags: ${movie.tags.take(3).join(', ')}');
+        }
+      }
+      
+      print('=' * 90);
     }
     
-    // Ask if user wants detailed analysis of a specific mood
+    // Ask for detailed analysis
     print('\n🔍 Want detailed analysis of a specific mood?');
     print('Enter mood name (or press Enter to skip):');
     final moodInput = stdin.readLineSync()?.trim().toLowerCase();
@@ -391,52 +484,71 @@ void main() async {
 
 void _detailedMoodAnalysis(List<Movie> movies, CurrentMood mood) {
   print('\n🔍 DETAILED ANALYSIS: ${mood.displayName}');
-  print('=' * 80);
+  print('=' * 90);
   
-  var allMatches = <Movie>[];
-  final rejectedByQuality = <Movie>[];
+  final strictResults = <Movie, MatchResult>{};
+  final relaxedResults = <Movie, MatchResult>{};
+  final rejectedResults = <Movie, MatchResult>{};
   
   for (final movie in movies) {
-    if (MoodTester.matchesMoodCriteria(movie, mood)) {
-      if (MoodTester._meetsQualityThreshold(movie)) {
-        allMatches.add(movie);
-      } else {
-        rejectedByQuality.add(movie);
-      }
+    final result = StrictMoodTester.testMoodMatching(movie, mood);
+    
+    if (result.isStrictMatch && result.meetsQuality) {
+      strictResults[movie] = result;
+    } else if (result.isRelaxedMatch && result.meetsQuality) {
+      relaxedResults[movie] = result;
+    } else if (result.isStrictMatch || result.isRelaxedMatch) {
+      rejectedResults[movie] = result;
     }
   }
   
-  print('📊 MATCH BREAKDOWN:');
-  print('   Total Matches: ${allMatches.length}');
-  print('   Rejected by Quality: ${rejectedByQuality.length}');
+  print('📊 DETAILED BREAKDOWN:');
+  print('   ✅ Strict Quality Matches: ${strictResults.length}');
+  print('   🟡 Relaxed Quality Matches: ${relaxedResults.length}');
+  print('   ❌ Rejected (Poor Quality): ${rejectedResults.length}');
   
-  if (allMatches.length > 20) {
-    print('\n⚠️  Large result set (${allMatches.length} movies)');
-    print('Showing top 20 matches sorted by rating...');
-    allMatches.sort((a, b) => (b.rating ?? 0).compareTo(a.rating ?? 0));
-    allMatches = allMatches.take(20).toList();
-  }
-  
-  print('\n📝 DETAILED MATCHES:');
-  for (int i = 0; i < allMatches.length; i++) {
-    final movie = allMatches[i];
-    
-    print('\n${i + 1}. ${movie.title}');
+  void _printMovieDetails(Movie movie, MatchResult result) {
+    print('   Title: ${movie.title}');
+    print('   Status: ${result.status}');
     print('   Rating: ${movie.rating ?? 'N/A'} | Votes: ${movie.voteCount ?? 'N/A'}');
     print('   Genres: ${movie.genres.join(', ')}');
     print('   Tags: ${movie.tags.join(', ')}');
-    
     if (movie.overview.isNotEmpty && movie.overview.length > 100) {
       print('   Overview: ${movie.overview.substring(0, 100)}...');
-    } else if (movie.overview.isNotEmpty) {
-      print('   Overview: ${movie.overview}');
+    }
+    print('');
+  }
+  
+  if (strictResults.isNotEmpty) {
+    print('\n✅ STRICT QUALITY MATCHES (Perfect for this mood):');
+    var count = 0;
+    for (final entry in strictResults.entries) {
+      if (count >= 10) break;
+      print('\n${count + 1}.');
+      _printMovieDetails(entry.key, entry.value);
+      count++;
     }
   }
   
-  if (rejectedByQuality.isNotEmpty && rejectedByQuality.length <= 10) {
-    print('\n🚫 REJECTED BY QUALITY THRESHOLD:');
-    for (final movie in rejectedByQuality.take(10)) {
-      print('   - ${movie.title} (Rating: ${movie.rating ?? 'N/A'}, Votes: ${movie.voteCount ?? 'N/A'})');
+  if (relaxedResults.isNotEmpty && relaxedResults.length <= 10) {
+    print('\n🟡 RELAXED QUALITY MATCHES (Fallback options):');
+    var count = 0;
+    for (final entry in relaxedResults.entries) {
+      if (count >= 5) break;
+      print('\n${count + 1}.');
+      _printMovieDetails(entry.key, entry.value);
+      count++;
+    }
+  }
+  
+  if (rejectedResults.isNotEmpty && rejectedResults.length <= 5) {
+    print('\n❌ REJECTED MATCHES (Low quality but genre/tag match):');
+    var count = 0;
+    for (final entry in rejectedResults.entries) {
+      if (count >= 3) break;
+      print('\n${count + 1}.');
+      _printMovieDetails(entry.key, entry.value);
+      count++;
     }
   }
 }

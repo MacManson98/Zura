@@ -5,7 +5,7 @@ import '../../movie.dart';
 import '../../models/session_models.dart';
 import '../../models/user_profile.dart';
 import '../../models/matching_models.dart';
-import '../../utils/mood_based_learning_engine.dart';
+import '../../utils/mood_engine.dart';
 import '../../utils/session_manager.dart';
 import '../../utils/user_profile_storage.dart';
 import '../../utils/debug_loader.dart';

@@ -2,7 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import '../utils/mood_based_learning_engine.dart';
+import '../utils/mood_engine.dart';
 
 class MoodSelectionWidget extends StatefulWidget {
   final Function(List<CurrentMood>) onMoodsSelected;

@@ -12,7 +12,6 @@ import '../utils/user_profile_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'match_celebration_screen.dart';
 import '../utils/tmdb_api.dart';
-import '../utils/mood_based_learning_engine.dart';
 import '../widgets/mood_selection_widget.dart';
 import '../models/session_models.dart';
 import '../services/session_service.dart';
@@ -27,6 +26,7 @@ import '../widgets/matcher/session_hub_widget.dart';
 import '../widgets/matcher/session_banner_widget.dart';
 import '../widgets/matcher/collaborative_header_widget.dart';
 import '../utils/matcher_group_intergration.dart';
+import '../utils/mood_engine_bridge.dart';
 
 class MatcherScreen extends StatefulWidget {
   final List<Movie> allMovies;

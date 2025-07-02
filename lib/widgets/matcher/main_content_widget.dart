@@ -8,7 +8,7 @@ import '../../models/session_models.dart';
 import '../../utils/session_manager.dart';
 import '../../utils/debug_loader.dart';
 import '../../utils/user_profile_storage.dart';
-import '../../utils/mood_based_learning_engine.dart';
+import '../../utils/mood_engine.dart';
 import '../../services/session_service.dart';
 import '../../screens/movie_detail_screen.dart';
 import '../../utils/themed_notifications.dart';

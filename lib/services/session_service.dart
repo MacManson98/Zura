@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/session_models.dart';
 import '../models/user_profile.dart';
-import '../utils/mood_based_learning_engine.dart';
+import '../utils/mood_engine.dart';
 import '../utils/debug_loader.dart';
 
 class SessionService {

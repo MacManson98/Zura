@@ -10,7 +10,7 @@ import '../models/session_models.dart';
 import '../services/group_service.dart';
 import '../services/session_service.dart';
 import '../screens/create_group_screen.dart';
-import '../utils/mood_based_learning_engine.dart';
+import '../utils/mood_engine.dart';
 import '../utils/debug_loader.dart';
 import '../utils/themed_notifications.dart';
 import 'mood_selection_widget.dart';
