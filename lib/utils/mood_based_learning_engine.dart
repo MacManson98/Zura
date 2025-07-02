@@ -1,11 +1,7 @@
-// File: lib/utils/mood_based_learning_engine.dart
-// MINIMAL IMPROVEMENTS: Same API, better internal logic, removed redundancies
-
 import '../movie.dart';
 import '../models/user_profile.dart';
 import '../utils/debug_loader.dart';
 
-// Same mood enum - no changes
 enum CurrentMood {
   pureComedy('Pure Comedy', '😂', ['Comedy'], ['Funny', 'Silly', 'Upbeat', 'Light-Hearted', 'Hilarious', 'Witty']),
   epicAction('Epic Action', '💥', ['Action'], ['Action-Packed', 'High Stakes', 'Fast-Paced', 'Adrenaline', 'Intense', 'Explosive']),
@@ -32,7 +28,6 @@ enum CurrentMood {
   final List<String> preferredVibes;
 }
 
-// Same SessionContext - no changes
 class SessionContext {
   final CurrentMood moods;
   final DateTime startTime;
@@ -47,7 +42,7 @@ class SessionContext {
 
 class MoodBasedLearningEngine {
   
-  /// ✨ IMPROVED: Same method signature, better internal logic
+  /// Main mood session generator - completely redesigned
   static Future<List<Movie>> generateMoodBasedSession({
     required UserProfile user,
     required List<Movie> movieDatabase,
@@ -57,11 +52,8 @@ class MoodBasedLearningEngine {
     int sessionSize = 30,
   }) async {
     DebugLogger.log("🎭 Generating mood session: ${sessionContext.moods.displayName}");
-    DebugLogger.log("   Target genres: ${sessionContext.moods.preferredGenres}");
-    DebugLogger.log("   Target vibes: ${sessionContext.moods.preferredVibes}");
     
-    // Step 1: Filter by mood (improved but same logic)
-    final moodFilteredMovies = _filterByMood(
+    final moodFilteredMovies = _filterByMoodCriteria(
       movieDatabase, 
       sessionContext.moods, 
       seenMovieIds, 
@@ -73,8 +65,7 @@ class MoodBasedLearningEngine {
       return _getFallbackMovies(movieDatabase, seenMovieIds, sessionSize);
     }
     
-    // Step 2: ✨ IMPROVED: Better scoring that considers user preferences when available
-    final result = _sortWithSmartScoring(moodFilteredMovies, user, sessionSize);
+    final result = _sortAndScoreMovies(moodFilteredMovies, sessionContext.moods, user, sessionSize);
     
     DebugLogger.log("🎬 Generated ${result.length} mood movies");
     DebugLogger.log("   Sample: ${result.take(3).map((m) => m.title).join(', ')}");
@@ -82,7 +73,37 @@ class MoodBasedLearningEngine {
     return result;
   }
   
-  /// ✨ IMPROVED: Same method signature, better group balancing
+  /// Blended mood session generator
+  static Future<List<Movie>> generateBlendedMoodSession({
+    required UserProfile user,
+    required List<Movie> movieDatabase,
+    required List<CurrentMood> selectedMoods,
+    required Set<String> seenMovieIds,
+    required Set<String> sessionPassedMovieIds,
+    int sessionSize = 30,
+  }) async {
+    DebugLogger.log("🎭 Generating blended mood session for: ${selectedMoods.map((m) => m.displayName).join(' + ')}");
+    
+    final blendedMovies = _filterForBlendedMoods(
+      movieDatabase,
+      selectedMoods,
+      seenMovieIds,
+      sessionPassedMovieIds,
+    );
+    
+    if (blendedMovies.isEmpty) {
+      DebugLogger.log("⚠️ No movies found for blended moods, using fallback");
+      return _getFallbackMovies(movieDatabase, seenMovieIds, sessionSize);
+    }
+    
+    // For blended moods, use first mood's criteria for scoring
+    final result = _sortAndScoreMovies(blendedMovies, selectedMoods.first, user, sessionSize);
+    
+    DebugLogger.log("🎬 Generated ${result.length} blended mood movies");
+    return result;
+  }
+  
+  /// Group session generator
   static Future<List<Movie>> generateGroupSession({
     required List<UserProfile> groupMembers,
     required List<Movie> movieDatabase,
@@ -92,8 +113,7 @@ class MoodBasedLearningEngine {
   }) async {
     DebugLogger.log("👥 Generating shared mood pool for ${groupMembers.length} people: ${sessionContext.moods.displayName}");
     
-    // Step 1: Filter by mood (same as before)
-    final moodFilteredMovies = _filterByMood(
+    final moodFilteredMovies = _filterByMoodCriteria(
       movieDatabase, 
       sessionContext.moods, 
       seenMovieIds, 
@@ -105,7 +125,6 @@ class MoodBasedLearningEngine {
       return _getFallbackMovies(movieDatabase, seenMovieIds, sessionSize);
     }
     
-    // Step 2: ✨ IMPROVED: Consider group preferences when available
     final sharedPool = _sortForGroupCompatibility(moodFilteredMovies, groupMembers, sessionSize);
     
     DebugLogger.log("🎬 Generated ${sharedPool.length} shared movies for group");
@@ -114,52 +133,8 @@ class MoodBasedLearningEngine {
     return sharedPool;
   }
   
-  /// ✨ IMPROVED: Same method signature, better blending logic
-  static Future<List<Movie>> generateBlendedMoodSession({
-    required UserProfile user,
-    required List<Movie> movieDatabase,
-    required List<CurrentMood> selectedMoods,
-    required Set<String> seenMovieIds,
-    required Set<String> sessionPassedMovieIds,
-    int sessionSize = 30,
-  }) async {
-    DebugLogger.log("🎭 Generating blended mood session for: ${selectedMoods.map((m) => m.displayName).join(' + ')}");
-    
-    // Combine all preferred genres and vibes from selected moods
-    final Set<String> allPreferredGenres = {};
-    final Set<String> allPreferredVibes = {};
-    
-    for (final mood in selectedMoods) {
-      allPreferredGenres.addAll(mood.preferredGenres);
-      allPreferredVibes.addAll(mood.preferredVibes);
-    }
-    
-    DebugLogger.log("   Combined genres: ${allPreferredGenres.join(', ')}");
-    DebugLogger.log("   Combined vibes: ${allPreferredVibes.join(', ')}");
-        
-    // ✨ IMPROVED: Better filtering for blended moods
-    final blendedMovies = _filterForBlendedMoods(
-      movieDatabase,
-      allPreferredGenres,
-      allPreferredVibes,
-      seenMovieIds,
-      sessionPassedMovieIds,
-    );
-    
-    if (blendedMovies.isEmpty) {
-      DebugLogger.log("⚠️ No movies found for blended moods, using fallback");
-      return _getFallbackMovies(movieDatabase, seenMovieIds, sessionSize);
-    }
-    
-    // ✨ IMPROVED: Better scoring for blended results
-    final result = _sortWithSmartScoring(blendedMovies, user, sessionSize);
-    
-    DebugLogger.log("🎬 Generated ${result.length} blended mood movies");
-    return result;
-  }
-  
-  /// ✨ IMPROVED: Better movie filtering with enhanced mood matching
-  static List<Movie> _filterByMood(
+  /// REDESIGNED: Ultra-specific mood filtering that gives users what they expect
+  static List<Movie> _filterByMoodCriteria(
     List<Movie> movieDatabase, 
     CurrentMood mood, 
     Set<String> seenMovieIds, 
@@ -175,7 +150,7 @@ class MoodBasedLearningEngine {
       if (!_meetsQualityThreshold(movie)) continue;
       if (!_isSfwMovie(movie)) continue;
 
-      if (_matchesMoodCriteria(movie, mood)) {
+      if (_isMoviePerfectForMood(movie, mood)) {
         moodMovies.add(movie);
       }
     }
@@ -183,63 +158,239 @@ class MoodBasedLearningEngine {
     DebugLogger.log("✅ Found ${moodMovies.length} movies matching mood: ${mood.displayName}");
     return moodMovies;
   }
-
-  /// ✨ IMPROVED: Enhanced mood matching with better coverage
-  static bool _matchesMoodCriteria(Movie movie, CurrentMood mood) {
+  
+  /// COMPLETELY NEW: Each mood has custom logic for perfect matching
+  static bool _isMoviePerfectForMood(Movie movie, CurrentMood mood) {
     final movieGenres = movie.genres.map((g) => g.toLowerCase()).toSet();
     final movieTags = movie.tags.map((t) => t.toLowerCase()).toSet();
-
-    // Direct genre match
-    final hasDirectGenreMatch = mood.preferredGenres.any((moodGenre) => 
-        movieGenres.contains(moodGenre.toLowerCase()));
     
-    // ✨ IMPROVED: Better vibe matching
-    final hasVibeMatch = _checkVibeMatch(movieTags, mood.preferredVibes);
-    
-    // Special cases for specific moods (improved)
     switch (mood) {
+      case CurrentMood.pureComedy:
+        return _isPureComedy(movie, movieGenres, movieTags);
+        
+      case CurrentMood.epicAction:
+        return _isEpicAction(movie, movieGenres, movieTags);
+        
+      case CurrentMood.scaryAndSuspenseful:
+        return _isScaryAndSuspenseful(movie, movieGenres, movieTags);
+        
+      case CurrentMood.romantic:
+        return _isRomantic(movie, movieGenres, movieTags);
+        
+      case CurrentMood.mindBending:
+        return _isMindBending(movie, movieGenres, movieTags);
+        
+      case CurrentMood.emotionalDrama:
+        return _isEmotionalDrama(movie, movieGenres, movieTags);
+        
+      case CurrentMood.trueStories:
+        return _isTrueStory(movie, movieGenres, movieTags);
+        
+      case CurrentMood.mysteryCrime:
+        return _isMysteryOrCrime(movie, movieGenres, movieTags);
+        
+      case CurrentMood.adventureFantasy:
+        return _isAdventureFantasy(movie, movieGenres, movieTags);
+        
       case CurrentMood.musicalDance:
-        final hasMusicalGenre = movieGenres.contains('music');
-        final hasMusicalTag = movieTags.any((tag) => 
-            tag.contains('musical') || tag.contains('music') || tag.contains('dance'));
-        return hasMusicalGenre || hasMusicalTag;
+        return _isMusicalDance(movie, movieGenres, movieTags);
+        
+      case CurrentMood.familyFun:
+        return _isFamilyFun(movie, movieGenres, movieTags);
+        
+      case CurrentMood.sciFiFuture:
+        return _isSciFiFuture(movie, movieGenres, movieTags);
+        
+      case CurrentMood.worldCinema:
+        return _isWorldCinema(movie, movieGenres, movieTags);
         
       case CurrentMood.cultClassic:
-        final cultKeywords = ['cult', 'underground', 'retro', 'campy', 'weird', 'quirky', 'b-movie', 'niche'];
-        final hasCultVibe = movieTags.any((tag) => 
-            cultKeywords.any((keyword) => tag.contains(keyword)));
-        return hasDirectGenreMatch || hasVibeMatch || hasCultVibe;
+        return _isCultClassic(movie, movieGenres, movieTags);
         
-      default:
-        return hasDirectGenreMatch || hasVibeMatch;
+      case CurrentMood.twistEnding:
+        return _isTwistEnding(movie, movieGenres, movieTags);
+        
+      case CurrentMood.highStakes:
+        return _isHighStakes(movie, movieGenres, movieTags);
     }
   }
   
-  /// ✨ NEW: Better vibe matching that catches more relevant movies
-  static bool _checkVibeMatch(Set<String> movieTags, List<String> moodVibes) {
-    for (final moodVibe in moodVibes) {
-      final vibeLower = moodVibe.toLowerCase();
-      
-      // Exact match
-      if (movieTags.any((tag) => tag.contains(vibeLower))) {
-        return true;
-      }
-      
-      // Word-by-word matching for multi-word vibes
-      final vibeWords = vibeLower.split(' ').where((w) => w.length > 3);
-      if (vibeWords.any((word) => 
-          movieTags.any((tag) => tag.contains(word)))) {
-        return true;
-      }
+  // ========================================
+  // MOOD-SPECIFIC MATCHING FUNCTIONS
+  // Each function defines what users expect for that mood
+  // ========================================
+  
+  static bool _isPureComedy(Movie movie, Set<String> genres, Set<String> tags) {
+    // Must have Comedy genre AND funny indicators
+    if (!genres.contains('comedy')) return false;
+    
+    // Look for comedy-specific tags from TMDB
+    final comedyTags = ['funny', 'hilarious', 'witty', 'humorous', 'comedic', 'light-hearted'];
+    final hasComedyTag = tags.any((tag) => comedyTags.any((comedyTag) => tag.contains(comedyTag)));
+    
+    // Exclude dark comedies unless they have strong funny indicators
+    if (tags.contains('dark comedy') || tags.contains('black comedy')) {
+      return hasComedyTag; // Only include if explicitly funny
     }
-    return false;
+    
+    return hasComedyTag || genres.contains('comedy');
   }
   
-  /// ✨ NEW: Better filtering for blended moods
+  static bool _isEpicAction(Movie movie, Set<String> genres, Set<String> tags) {
+    // Must have Action genre AND action-specific indicators
+    if (!genres.contains('action')) return false;
+    
+    // Look for action-specific TMDB tags
+    final actionTags = ['action-packed', 'combat', 'fighting', 'explosion', 'chase', 'shootout', 'martial arts', 'gunfight'];
+    final hasActionTag = tags.any((tag) => actionTags.any((actionTag) => tag.contains(actionTag)));
+    
+    // Or high stakes indicators
+    final stakeTags = ['high stakes', 'intense', 'adrenaline', 'explosive'];
+    final hasStakeTag = tags.any((tag) => stakeTags.any((stakeTag) => tag.contains(stakeTag)));
+    
+    return hasActionTag || hasStakeTag;
+  }
+  
+  static bool _isScaryAndSuspenseful(Movie movie, Set<String> genres, Set<String> tags) {
+    // Must have Horror or Thriller genre
+    if (!genres.contains('horror') && !genres.contains('thriller')) return false;
+    
+    // Look for scary/suspense indicators
+    final scaryTags = ['scary', 'terrifying', 'frightening', 'suspenseful', 'creepy', 'dark', 'supernatural', 'ghost', 'demon', 'murder'];
+    final hasScaryTag = tags.any((tag) => scaryTags.any((scaryTag) => tag.contains(scaryTag)));
+    
+    // Horror movies are automatically scary
+    if (genres.contains('horror')) return true;
+    
+    // Thrillers need scary indicators
+    return hasScaryTag;
+  }
+  
+  static bool _isRomantic(Movie movie, Set<String> genres, Set<String> tags) {
+    // Romance genre OR romantic indicators
+    if (genres.contains('romance')) return true;
+    
+    // Look for romantic TMDB tags
+    final romanticTags = ['romantic', 'love story', 'love triangle', 'wedding', 'marriage', 'relationship'];
+    return tags.any((tag) => romanticTags.any((romTag) => tag.contains(romTag)));
+  }
+  
+  static bool _isMindBending(Movie movie, Set<String> genres, Set<String> tags) {
+    // Needs specific mind-bending indicators, not just genre
+    final mindBendingTags = [
+      'mind-bending', 'psychological', 'complex narrative', 'non linear', 'time travel', 
+      'alternate reality', 'memory loss', 'unreliable narrator', 'twist', 'cerebral'
+    ];
+    
+    final hasMindBendingTag = tags.any((tag) => 
+        mindBendingTags.any((mbTag) => tag.contains(mbTag)));
+    
+    // Must have the right genre AND mind-bending indicators
+    final rightGenres = genres.contains('sci-fi') || genres.contains('thriller') || genres.contains('mystery');
+    return rightGenres && hasMindBendingTag;
+  }
+  
+  static bool _isEmotionalDrama(Movie movie, Set<String> genres, Set<String> tags) {
+    // Must have Drama genre
+    if (!genres.contains('drama')) return false;
+    
+    // Look for emotional indicators
+    final emotionalTags = ['emotional', 'heartwarming', 'moving', 'touching', 'tearjerker', 'inspiring'];
+    return tags.any((tag) => emotionalTags.any((emTag) => tag.contains(emTag)));
+  }
+  
+  static bool _isTrueStory(Movie movie, Set<String> genres, Set<String> tags) {
+    // Biography/Documentary genres are automatic
+    if (genres.contains('biography') || genres.contains('documentary')) return true;
+    
+    // Or explicit true story indicators
+    final trueStoryTags = ['based on true story', 'biographical', 'real events', 'true story', 'memoir', 'real person'];
+    return tags.any((tag) => trueStoryTags.any((tsTag) => tag.contains(tsTag)));
+  }
+  
+  static bool _isMysteryOrCrime(Movie movie, Set<String> genres, Set<String> tags) {
+    // Crime or Mystery genre
+    if (genres.contains('crime') || genres.contains('mystery')) return true;
+    
+    // Or crime/mystery indicators
+    final crimeTags = ['detective', 'investigation', 'murder', 'police', 'fbi', 'criminal', 'heist'];
+    return tags.any((tag) => crimeTags.any((crimeTag) => tag.contains(crimeTag)));
+  }
+  
+  static bool _isAdventureFantasy(Movie movie, Set<String> genres, Set<String> tags) {
+    // Adventure, Fantasy, or Sci-Fi genres
+    if (genres.contains('adventure') || genres.contains('fantasy') || genres.contains('sci-fi')) return true;
+    
+    // Or epic/fantasy indicators
+    final epicTags = ['epic', 'magical', 'quest', 'journey', 'fantasy', 'otherworldly'];
+    return tags.any((tag) => epicTags.any((epicTag) => tag.contains(epicTag)));
+  }
+  
+  static bool _isMusicalDance(Movie movie, Set<String> genres, Set<String> tags) {
+    // Musical genre or music-related tags
+    if (genres.contains('musical') || genres.contains('music')) return true;
+    
+    final musicalTags = ['musical', 'dance', 'singing', 'song', 'concert'];
+    return tags.any((tag) => musicalTags.any((musTag) => tag.contains(musTag)));
+  }
+  
+  static bool _isFamilyFun(Movie movie, Set<String> genres, Set<String> tags) {
+    // Family or Animation genres
+    if (genres.contains('family') || genres.contains('animation')) return true;
+    
+    // Or family-friendly indicators
+    final familyTags = ['family-friendly', 'kids', 'wholesome', 'children'];
+    return tags.any((tag) => familyTags.any((famTag) => tag.contains(famTag)));
+  }
+  
+  static bool _isSciFiFuture(Movie movie, Set<String> genres, Set<String> tags) {
+    // Sci-Fi genre OR sci-fi specific indicators
+    if (genres.contains('science fiction') || genres.contains('sci-fi')) return true;
+    
+    final scifiTags = ['futuristic', 'space', 'alien', 'robot', 'artificial intelligence', 'technology', 'spacecraft'];
+    return tags.any((tag) => scifiTags.any((scifiTag) => tag.contains(scifiTag)));
+  }
+  
+  static bool _isWorldCinema(Movie movie, Set<String> genres, Set<String> tags) {
+    // Foreign genre OR international indicators
+    if (genres.contains('foreign')) return true;
+    
+    // Look for international/cultural tags
+    final worldTags = ['international', 'cultural', 'subtitled', 'foreign language'];
+    return tags.any((tag) => worldTags.any((worldTag) => tag.contains(worldTag)));
+  }
+  
+  static bool _isCultClassic(Movie movie, Set<String> genres, Set<String> tags) {
+    // Look for cult-specific indicators
+    final cultTags = ['cult classic', 'cult film', 'underground', 'weird', 'quirky', 'offbeat', 'bizarre', 'campy'];
+    return tags.any((tag) => cultTags.any((cultTag) => tag.contains(cultTag)));
+  }
+  
+  static bool _isTwistEnding(Movie movie, Set<String> genres, Set<String> tags) {
+    // Must have right genre AND twist indicators
+    final rightGenres = genres.contains('thriller') || genres.contains('mystery') || genres.contains('drama');
+    if (!rightGenres) return false;
+    
+    final twistTags = ['plot twist', 'twist ending', 'surprise ending', 'shocking', 'unexpected', 'revelation'];
+    return tags.any((tag) => twistTags.any((twistTag) => tag.contains(twistTag)));
+  }
+  
+  static bool _isHighStakes(Movie movie, Set<String> genres, Set<String> tags) {
+    // Must have action/thriller genre
+    if (!genres.contains('action') && !genres.contains('thriller') && !genres.contains('crime')) return false;
+    
+    // Look for high stakes indicators
+    final stakesTags = ['high stakes', 'urgent', 'time-sensitive', 'race against time', 'countdown', 'bomb', 'hostage', 'rescue'];
+    return tags.any((tag) => stakesTags.any((stakesTag) => tag.contains(stakesTag)));
+  }
+  
+  // ========================================
+  // FILTERING AND SCORING FUNCTIONS
+  // ========================================
+  
   static List<Movie> _filterForBlendedMoods(
     List<Movie> movieDatabase,
-    Set<String> allPreferredGenres,
-    Set<String> allPreferredVibes,
+    List<CurrentMood> selectedMoods,
     Set<String> seenMovieIds,
     Set<String> sessionPassedMovieIds,
   ) {
@@ -253,10 +404,10 @@ class MoodBasedLearningEngine {
       if (!_meetsQualityThreshold(movie)) continue;
       if (!_isSfwMovie(movie)) continue;
       
-      final hasGenreMatch = movie.genres.any((g) => allPreferredGenres.contains(g));
-      final hasVibeMatch = _checkVibeMatch(movie.tags.map((t) => t.toLowerCase()).toSet(), allPreferredVibes.toList());
+      // Movie must match at least one of the selected moods
+      final matchesAnyMood = selectedMoods.any((mood) => _isMoviePerfectForMood(movie, mood));
       
-      if (hasGenreMatch || hasVibeMatch) {
+      if (matchesAnyMood) {
         blendedMovies.add(movie);
       }
     }
@@ -264,23 +415,25 @@ class MoodBasedLearningEngine {
     return blendedMovies;
   }
   
-  /// ✨ IMPROVED: Smart scoring that considers user preferences when available
-  static List<Movie> _sortWithSmartScoring(List<Movie> movies, UserProfile user, int sessionSize) {
+  static List<Movie> _sortAndScoreMovies(List<Movie> movies, CurrentMood mood, UserProfile user, int sessionSize) {
     final scoredMovies = movies.map((movie) {
       double score = 0.0;
       
-      // Base quality score (unchanged)
+      // Base quality score
       score += (movie.rating ?? 0) + (movie.voteCount ?? 0) / 10000;
       
-      // ✨ IMPROVEMENT: Gentle personalization boost when user has preferences
+      // Mood-specific scoring bonuses
+      score += _getMoodSpecificScore(movie, mood);
+      
+      // User preference bonuses
       if (user.preferredGenres.isNotEmpty) {
         final userGenreMatches = movie.genres.where((g) => user.preferredGenres.contains(g)).length;
-        score += userGenreMatches * 1.0; // Modest boost
+        score += userGenreMatches * 1.0;
       }
       
       if (user.preferredVibes.isNotEmpty) {
         final userVibeMatches = movie.tags.where((t) => user.preferredVibes.contains(t)).length;
-        score += userVibeMatches * 0.5; // Gentle boost
+        score += userVibeMatches * 0.5;
       }
       
       return MapEntry(movie, score);
@@ -292,9 +445,48 @@ class MoodBasedLearningEngine {
     return result;
   }
   
-  /// ✨ IMPROVED: Group sorting that considers group preferences
+  static double _getMoodSpecificScore(Movie movie, CurrentMood mood) {
+    final movieTags = movie.tags.map((t) => t.toLowerCase()).toSet();
+    double score = 0.0;
+    
+    // Give bonus points for mood-specific excellence
+    switch (mood) {
+      case CurrentMood.pureComedy:
+        if (movieTags.contains('hilarious')) score += 2.0;
+        if (movieTags.contains('funny')) score += 1.0;
+        break;
+        
+      case CurrentMood.epicAction:
+        if (movieTags.contains('action-packed')) score += 2.0;
+        if (movieTags.contains('explosive')) score += 1.5;
+        break;
+        
+      case CurrentMood.scaryAndSuspenseful:
+        if (movieTags.contains('terrifying')) score += 2.0;
+        if (movieTags.contains('scary')) score += 1.0;
+        break;
+        
+      case CurrentMood.mindBending:
+        if (movieTags.contains('mind-bending')) score += 2.0;
+        if (movieTags.contains('psychological')) score += 1.5;
+        break;
+        
+      case CurrentMood.trueStories:
+        if (movieTags.contains('based on true story')) score += 2.0;
+        if (movieTags.contains('biographical')) score += 1.5;
+        break;
+        
+      default:
+        // Generic mood matching bonus
+        final hasStrongMoodMatch = mood.preferredVibes.any((vibe) => 
+            movieTags.contains(vibe.toLowerCase()));
+        if (hasStrongMoodMatch) score += 1.0;
+    }
+    
+    return score;
+  }
+  
   static List<Movie> _sortForGroupCompatibility(List<Movie> movies, List<UserProfile> groupMembers, int sessionSize) {
-    // Analyze group preferences
     final groupGenres = <String, int>{};
     final groupVibes = <String, int>{};
     
@@ -310,13 +502,11 @@ class MoodBasedLearningEngine {
     final scoredMovies = movies.map((movie) {
       double score = 0.0;
       
-      // Base quality score
       score += (movie.rating ?? 0) + (movie.voteCount ?? 0) / 10000;
       
-      // Group preference scoring
       for (final genre in movie.genres) {
         final popularity = groupGenres[genre] ?? 0;
-        score += popularity * 1.0; // More members like this genre = higher score
+        score += popularity * 1.0;
       }
       
       for (final tag in movie.tags) {
@@ -328,20 +518,21 @@ class MoodBasedLearningEngine {
     }).toList();
     
     scoredMovies.sort((a, b) => b.value.compareTo(a.value));
-    // Don't shuffle for groups - consistent experience
     return scoredMovies.take(sessionSize).map((entry) => entry.key).toList();
   }
   
-  // ✨ IMPROVED: Better quality threshold
+  // ========================================
+  // HELPER FUNCTIONS
+  // ========================================
+  
   static bool _meetsQualityThreshold(Movie movie) {
     return movie.posterUrl.isNotEmpty &&
            movie.rating != null &&
-           movie.rating! >= 4.5 && // Slightly more permissive
+           movie.rating! >= 4.5 &&
            movie.voteCount != null &&
-           movie.voteCount! >= 500; // Lower threshold for more variety
+           movie.voteCount! >= 500;
   }
   
-  // Same helper methods (unchanged)
   static List<Movie> _getFallbackMovies(List<Movie> movieDatabase, Set<String> excludedMovieIds, int count) {
     final fallbackMovies = movieDatabase
         .where((movie) => 
@@ -361,7 +552,7 @@ class MoodBasedLearningEngine {
     return !bannedKeywords.any((kw) => lcTitle.contains(kw) || lcOverview.contains(kw));
   }
 
-  // Public helper methods (unchanged)
+  // Public helper methods
   static bool meetsQualityThreshold(Movie movie) {
     return _meetsQualityThreshold(movie);
   }
