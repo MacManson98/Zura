@@ -1,5 +1,5 @@
-// Enhanced Mood Engine with Anti-Pattern Exclusions
-// This replaces the mood matching logic in your mood_based_learning_engine.dart
+// Enhanced Mood Engine with Massively Expanded Exemplar Lists
+// This replaces your mood_engine.dart with much larger curated lists
 
 import '../movie.dart';
 import '../utils/debug_loader.dart';
@@ -45,22 +45,54 @@ enum CurrentMood {
 
 class EnhancedMoodEngine {
   
-  // Exemplar movie lists for complex moods (Tier 3)
+  // Massively expanded exemplar movie lists for complex moods (Tier 3)
   static const Map<String, List<String>> EXEMPLAR_MOVIES = {
     'mind_bending': [
-      // Psychological Mind-Benders
+      // Classic Mind-Benders
       'inception', 'memento', 'mulholland drive', 'eternal sunshine of the spotless mind',
       'shutter island', 'black swan', 'donnie darko', 'the prestige', 'fight club',
       'being john malkovich', 'synecdoche new york', 'primer', 'the matrix',
       'existenz', 'vanilla sky', 'total recall', 'blade runner', 'minority report',
       'the machinist', 'requiem for a dream', 'pi', 'solaris', 'ghost in the shell',
       'paprika', 'perfect blue', 'akira', 'serial experiments lain',
+      
+      // Modern Mind-Benders
+      'annihilation', 'ex machina', 'her', 'under the skin', 'arrival', 'interstellar',
+      'enemy', 'the lobster', 'swiss army man', 'charlie kaufman movies',
+      'adaptation', 'being there', 'the holy mountain', 'eraserhead',
+      'meshes of the afternoon', 'persona', 'the seventh seal', '8½',
+      
       // Philosophical Mind-Benders
       'the tree of life', 'cloud atlas', 'mr nobody', 'the fountain',
-      'under the skin', 'her', 'ex machina', 'arrival', 'interstellar',
+      'a scanner darkly', 'waking life', 'the science of sleep',
+      'i heart huckabees', 'stranger than fiction', 'the truman show',
+      'pleasantville', 'the purple rose of cairo', 'zelig',
+      
       // Time/Reality Benders
       'groundhog day', 'looper', 'predestination', 'coherence', 'the butterfly effect',
       'source code', 'edge of tomorrow', 'about time', 'palm springs',
+      'russian doll', 'the endless', 'resolution', 'triangle', 'timecrimes',
+      'la jetée', 'alphaville', 'world on a wire', 'the man from earth',
+      'primer', 'upstream color', 'sound of my voice', 'another earth',
+      
+      // Surreal/Experimental
+      'synecdoche new york', 'kaufman films', 'lynch films', 'tarkovsky films',
+      'antonioni films', 'godard films', 'kurosawa dreams', 'the holy mountain',
+      'el topo', 'fantastic planet', 'allegro non troppo', 'mind game',
+      'tekkonkinkreet', 'cat soup', 'angel egg', 'belladonna of sadness',
+      
+      // Recent Mind-Benders
+      'tenet', 'midsommar', 'hereditary', 'mandy', 'color out of space',
+      'possessor', 'saint maud', 'the lighthouse', 'the witch', 'mother!',
+      'sorry to bother you', 'horse girl', 'i thinking of ending things',
+      'the platform', 'vivarium', 'saint frances', 'the vast of night',
+      
+      // International Mind-Benders
+      'burning', 'shoplifters', 'parasite', 'oldboy', 'the handmaiden',
+      'memories of murder', 'mother', 'the wailing', 'train to busan',
+      'climax', 'gaspar noé films', 'holy motors', 'the skin i live in',
+      'talk to her', 'all about my mother', 'women on the verge',
+      'volver', 'amour', 'caché', 'funny games', 'the piano teacher',
     ],
     
     'twist_ending': [
@@ -68,52 +100,153 @@ class EnhancedMoodEngine {
       'the sixth sense', 'the usual suspects', 'fight club', 'the prestige',
       'memento', 'shutter island', 'gone girl', 'the others', 'orphan',
       'the village', 'unbreakable', 'split', 'glass', 'signs',
-      // Thriller Twists
+      'the happening', 'lady in the water', 'wide awake', 'the visit',
+      
+      // Hitchcock Twists
+      'vertigo', 'psycho', 'rear window', 'north by northwest', 'the birds',
+      'rope', 'dial m for murder', 'strangers on a train', 'spellbound',
+      'notorious', 'the man who knew too much', 'marnie', 'torn curtain',
+      
+      // Modern Thriller Twists
       'zodiac', 'seven', 'the departed', 'no country for old men',
       'there will be blood', 'nightcrawler', 'prisoners', 'sicario',
       'hell or high water', 'wind river', 'blade runner 2049',
+      'knives out', 'glass onion', 'the menu', 'barbarian', 'nope',
+      
       // Psychological Twists
       'black swan', 'requiem for a dream', 'american psycho', 'taxi driver',
       'the machinist', 'one hour photo', 'insomnia', 'the game',
+      'identity', 'secret window', 'the number 23', 'gothika',
+      'jacob ladder', 'angel heart', 'lost highway', 'mulholland drive',
+      
       // Horror Twists
-      'get out', 'hereditary', 'midsommar', 'the wicker man', 'rosemarys baby',
-      'dont look now', 'the changeling', 'the innocents', 'carnival of souls',
+      'get out', 'us', 'nope', 'hereditary', 'midsommar', 'the witch',
+      'the wicker man', 'rosemarys baby', 'dont look now', 'the changeling',
+      'the innocents', 'carnival of souls', 'dead ringers', 'videodrome',
+      'scanners', 'the fly', 'they live', 'invasion of the body snatchers',
+      'the thing', 'alien', 'aliens', 'predator', 'the mist',
+      
       // Sci-Fi Twists
       'planet of the apes', 'soylent green', 'the matrix', 'dark city',
       'the thirteenth floor', 'strange days', 'gattaca', 'minority report',
+      'total recall', 'blade runner', 'ex machina', 'her', 'arrival',
+      'annihilation', 'under the skin', 'moon', 'source code', 'looper',
+      
+      // International Twists
+      'oldboy', 'the handmaiden', 'parasite', 'burning', 'memories of murder',
+      'the wailing', 'i saw the devil', 'a tale of two sisters',
+      'audition', 'perfect blue', 'paprika', 'ghost in the shell',
+      'battle royale', 'ichi the killer', 'visitor q', 'love exposure',
+      
+      // Crime/Noir Twists
+      'chinatown', 'the maltese falcon', 'double indemnity', 'sunset boulevard',
+      'vertigo', 'laura', 'the third man', 'touch of evil', 'the postman always rings twice',
+      'out of the past', 'the big sleep', 'murder my sweet', 'the lady from shanghai',
+      'l.a. confidential', 'mulholland falls', 'the black dahlia', 'hollywoodland',
+      
+      // Recent Twists
+      'the invisible man', 'midsommar', 'hereditary', 'us', 'get out',
+      'sorry to bother you', 'horse girl', 'i thinking of ending things',
+      'the platform', 'vivarium', 'color out of space', 'mandy',
+      'possessor', 'saint maud', 'the lighthouse', 'the witch',
     ],
     
     'cult_classic': [
-      // Tarantino & Independent Classics
-      'pulp fiction', 'reservoir dogs', 'kill bill', 'jackie brown',
-      'true romance', 'natural born killers', 'from dusk till dawn',
-      // Coen Brothers
+      // Tarantino Universe
+      'pulp fiction', 'reservoir dogs', 'kill bill', 'kill bill vol 2',
+      'jackie brown', 'true romance', 'natural born killers', 'from dusk till dawn',
+      'death proof', 'planet terror', 'grindhouse', 'django unchained',
+      'inglourious basterds', 'once upon a time in hollywood', 'hateful eight',
+      
+      // Coen Brothers Cult
       'the big lebowski', 'fargo', 'raising arizona', 'barton fink',
       'miller crossing', 'the hudsucker proxy', 'burn after reading',
+      'a serious man', 'inside llewyn davis', 'hail caesar', 'the ballad of buster scruggs',
+      'true grit', 'no country for old men', 'blood simple', 'the man who wasnt there',
+      
       // Horror Cult Classics
-      'the rocky horror picture show', 'evil dead', 'army of darkness',
-      'dead alive', 'bad taste', 'house', 're-animator', 'return of the living dead',
+      'the rocky horror picture show', 'evil dead', 'evil dead 2', 'army of darkness',
+      'dead alive', 'bad taste', 'meet the feebles', 'brain dead',
+      'house', 'hausu', 're-animator', 'return of the living dead',
       'night of the demons', 'the texas chain saw massacre', 'dawn of the dead',
       'day of the dead', 'they live', 'the thing', 'videodrome', 'scanners',
+      'the fly', 'dead ringers', 'naked lunch', 'crash', 'existenz',
+      'society', 'basket case', 'frankenhooker', 'bad biology',
+      'the stuff', 'q the winged serpent', 'its alive', 'god told me to',
+      
       // Comedy Cult Classics
       'the room', 'plan 9 from outer space', 'troll 2', 'miami connection',
-      'the warriors', 'escape from new york', 'big trouble in little china',
-      'the princess bride', 'this is spinal tap', 'best in show', 'waiting for guffman',
-      // Midnight Movies
+      'birdemic', 'the happening', 'fateful findings', 'double down',
+      'pass thru', 'twisted pair', 'the warriors', 'escape from new york',
+      'big trouble in little china', 'they live', 'the princess bride',
+      'this is spinal tap', 'best in show', 'waiting for guffman',
+      'a mighty wind', 'for your consideration', 'mascots',
+      'the big lebowski', 'pee wees big adventure', 'beetlejuice',
+      'young frankenstein', 'blazing saddles', 'the producers',
+      'life of brian', 'holy grail', 'meaning of life',
+      
+      // Midnight Movies/Underground
       'eraserhead', 'pink flamingos', 'female trouble', 'desperate living',
       'multiple maniacs', 'mondo trasho', 'polyester', 'hairspray',
+      'cry baby', 'serial mom', 'pecker', 'cecil b demented',
+      'a dirty shame', 'el topo', 'the holy mountain', 'santa sangre',
+      'the dance of reality', 'endless poetry', 'psychomagic',
+      'fantastic planet', 'allegro non troppo', 'wizards', 'fire and ice',
+      
       // International Cult
       'battle royale', 'oldboy', 'ichi the killer', 'audition', 'tetsuo',
       'house', 'hausu', 'visitor q', 'love exposure', 'tokyo gore police',
+      'machine girl', 'vampire girl vs frankenstein girl', 'robogeisha',
+      'wild zero', 'versus', 'alive', 'the happiness of the katakuris',
+      'dead or alive', 'gozu', 'izo', 'first love', 'blade of the immortal',
+      'city of lost children', 'delicatessen', 'amelie', 'micmacs',
+      'mood indigo', 'the young and prodigious ts spivet',
+      
       // Sci-Fi Cult
       'blade runner', 'akira', 'ghost in the shell', 'serial experiments lain',
       'neon genesis evangelion', 'cowboy bebop', 'perfect blue', 'paprika',
+      'spirited away', 'princess mononoke', 'nausicaa', 'castle in the sky',
+      'my neighbor totoro', 'kikis delivery service', 'porco rosso',
+      'the wind rises', 'grave of the fireflies', 'only yesterday',
+      'the red turtle', 'when marnie was there', 'the tale of princess kaguya',
+      
       // B-Movies & Exploitation
       'faster pussycat kill kill', 'beyond the valley of the dolls',
+      'supervixens', 'up', 'beneath the valley of the ultra vixens',
       'showgirls', 'valley of the dolls', 'mommie dearest', 'what ever happened to baby jane',
-      // Lynch & Surreal
+      'whatever happened to aunt alice', 'strait jacket', 'berserk',
+      'trog', 'i spit on your grave', 'last house on the left',
+      'hills have eyes', 'people under the stairs', 'red eye',
+      'my soul to take', 'the serpent and the rainbow',
+      
+      // 80s/90s Cult
+      'heathers', 'river edge', 'pump up the volume', 'say anything',
+      'better off dead', 'one crazy summer', 'sixteen candles',
+      'weird science', 'the breakfast club', 'ferris bueller',
+      'pretty in pink', 'some kind of wonderful', 'mannequin',
+      'earth girls are easy', 'valley girl', 'fast times at ridgemont high',
+      'spicoli', 'bill and ted', 'waynes world', 'dumb and dumber',
+      'kingpin', 'theres something about mary', 'dumb and dumber to',
+      
+      // Lynch & Surreal Cult
       'blue velvet', 'wild at heart', 'lost highway', 'mulholland drive',
       'the straight story', 'twin peaks fire walk with me', 'inland empire',
+      'elephant man', 'dune', 'twin peaks the return',
+      'eraserhead', 'the grandmother', 'six men getting sick',
+      
+      // Waters & Transgressive
+      'pink flamingos', 'female trouble', 'desperate living', 'multiple maniacs',
+      'mondo trasho', 'polyester', 'hairspray', 'cry baby', 'serial mom',
+      'pecker', 'cecil b demented', 'a dirty shame',
+      
+      // Recent Cult Films
+      'the room', 'the disaster artist', 'spring breakers', 'only god forgives',
+      'neon demon', 'drive', 'blade runner 2049', 'mandy', 'color out of space',
+      'possessor', 'saint maud', 'the lighthouse', 'the witch',
+      'midsommar', 'hereditary', 'us', 'get out', 'sorry to bother you',
+      'horse girl', 'i thinking of ending things', 'the platform',
+      'vivarium', 'under the silver lake', 'the love witch',
+      'the neon demon', 'spring breakers', 'harmony korine films',
     ]
   };
   
@@ -435,29 +568,31 @@ class EnhancedMoodEngine {
     
     // Look for emotional indicators
     final emotionalTags = ['emotional', 'heartwarming', 'moving', 'touching'];
-    return tags.any((tag) => emotionalTags.any((emTag) => tag.contains(emTag)));
+    return tags.any((tag) => emotionalTags.any((emoTag) => tag.contains(emoTag)));
   }
   
   static bool _isTrueStoryEnhanced(Set<String> genres, Set<String> tags) {
-    // Biography/Documentary genres are automatic
-    if (genres.contains('biography') || genres.contains('documentary')) return true;
+    // Multiple genre options
+    final validGenres = ['biography', 'history', 'drama', 'documentary'];
+    if (!genres.any((genre) => validGenres.contains(genre))) return false;
     
     // Look for true story indicators
-    final trueStoryTags = ['based on a true story', 'based on true story', 'biographical'];
+    final trueStoryTags = ['based on a true story', 'real events', 'true story', 'biographical'];
     return tags.any((tag) => trueStoryTags.any((tsTag) => tag.contains(tsTag)));
   }
   
   static bool _isAdventureFantasyEnhanced(Set<String> genres, Set<String> tags) {
-    // Must have Adventure or Fantasy genre
-    if (!genres.contains('adventure') && !genres.contains('fantasy')) return false;
+    // Multiple genre options
+    final validGenres = ['adventure', 'fantasy', 'science fiction'];
+    if (!genres.any((genre) => validGenres.contains(genre))) return false;
     
-    // Look for epic/fantasy indicators
-    final epicTags = ['epic', 'magical', 'quest', 'journey', 'fantasy'];
-    return tags.any((tag) => epicTags.any((epicTag) => tag.contains(epicTag)));
+    // Look for epic/adventure indicators
+    final adventureTags = ['epic', 'adventure', 'journey', 'fantasy', 'magical'];
+    return tags.any((tag) => adventureTags.any((advTag) => tag.contains(advTag)));
   }
   
   static bool _isCultClassicEnhanced(Set<String> genres, Set<String> tags) {
-    // Tier 3: Primarily exemplar-driven with some tag detection
+    // Tier 3: Ultra-strict exemplar-driven approach
     
     // Step 1: Check exemplar list first (most reliable)
     if (_isExemplarMovie('cult_classic', tags)) {
@@ -465,12 +600,13 @@ class EnhancedMoodEngine {
     }
     
     // Step 2: Very strict tag-based detection
-    final cultTags = ['cult classic', 'cult film', 'midnight movie', 'underground'];
-    final hasCultTag = tags.any((tag) => cultTags.any((cultTag) => tag.contains(cultTag)));
+    final explicitCultTags = ['cult classic', 'cult film', 'midnight movie'];
+    final hasExplicitCultTag = tags.any((tag) => 
+        explicitCultTags.any((cultTag) => tag.contains(cultTag)));
     
-    if (!hasCultTag) return false;
+    if (!hasExplicitCultTag) return false;
     
-    // Step 3: Must have specific characteristics
+    // Step 3: Must have supporting characteristics
     final cultCharacteristics = ['weird', 'quirky', 'campy', 'bizarre', 'offbeat', 'surreal'];
     final hasCharacteristics = tags.any((tag) => 
         cultCharacteristics.any((char) => tag.contains(char)));

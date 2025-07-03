@@ -85,6 +85,9 @@ class _MatcherScreenState extends State<MatcherScreen>
   Map<String, dynamic> _groupSessionStats = {};
   bool _isLoadingGroupStats = false;
   Timer? _groupStatsTimer;
+  bool _useSmartOrdering = true;  // Enable/disable smart session flow
+  CurrentMood? _lastSessionMood;  // Track last mood for reordering
+  int _sessionSwipeCount = 0;     // Track swipes in current session
   
   @override
 void initState() {
@@ -450,8 +453,24 @@ void initState() {
 
   void _onMoodSelected(List<CurrentMood> moods) async {
     DebugLogger.log("🔍 DEBUG: _onMoodSelected called with ${moods.length} mood(s)");
-
     
+    // Check if this is a mood change (for existing sessions)
+    if (_lastSessionMood != null && moods.isNotEmpty) {
+      final newMood = moods.first;
+      if (_lastSessionMood != newMood) {
+        final wouldReorder = SmartSessionFlow.shouldReorderVsRegenerate(
+          previousMood: _lastSessionMood!,
+          newMood: newMood,
+          swipeCount: _sessionSwipeCount,
+        );
+        
+        if (wouldReorder) {
+          DebugLogger.log("🔄 Mood change detected - will reorder session");
+        } else {
+          DebugLogger.log("🆕 Mood change detected - will regenerate session");
+        }
+      }
+    }
     
     setState(() {
       selectedMoods = moods;
@@ -626,9 +645,21 @@ void initState() {
     
     try {
       DebugLogger.log("🎭 Generating mood-based session: ${selectedMoods.first.displayName}");
+      DebugLogger.log("🎯 Using smart ordering: $_useSmartOrdering");
+      
+      // Check if this is a mood change that should trigger reordering
+      final shouldReorder = _shouldReorderForMoodChange(selectedMoods.first);
+      
+      if (shouldReorder) {
+        DebugLogger.log("🔄 Detected mood change - will reorder existing session");
+      } else {
+        DebugLogger.log("🆕 Generating fresh session");
+        // Reset session tracking for fresh start
+        MoodBasedLearningEngine.resetSessionTracking();
+      }
       
       if (currentMode == MatchingMode.solo) {
-        // Solo mood session
+        // Solo mood session with smart ordering
         sessionPool = await MoodBasedLearningEngine.generateMoodBasedSession(
           user: widget.currentUser,
           movieDatabase: movieDatabase,
@@ -636,6 +667,7 @@ void initState() {
           seenMovieIds: seenMovieIds,
           sessionPassedMovieIds: sessionPassedMovieIds,
           sessionSize: 30,
+          useSmartOrdering: _useSmartOrdering,  // NEW PARAMETER
         );
       } else {
         // Friend/Group mood session - everyone gets same pool
@@ -644,37 +676,56 @@ void initState() {
             : currentMode == MatchingMode.group
                 ? [widget.currentUser, ...selectedGroup]
                 : [widget.currentUser];
-        
+
         sessionPool = await MoodBasedLearningEngine.generateGroupSession(
           groupMembers: groupMembers,
           movieDatabase: movieDatabase,
           sessionContext: currentSessionContext!,
           seenMovieIds: seenMovieIds,
           sessionSize: 25,
+          useSmartOrdering: _useSmartOrdering,  // NEW PARAMETER
         );
       }
+
+      // Update tracking variables
+      _lastSessionMood = selectedMoods.first;
+      _sessionSwipeCount = 0;
       
+      // Log session analytics if using smart ordering
+      if (_useSmartOrdering) {
+        final analytics = SmartSessionFlow.getSessionAnalytics(sessionPool);
+        DebugLogger.log("📊 Session Analytics: $analytics");
+      }
+
       if (sessionPool.isEmpty) {
-        _showErrorAndReset("No movies found for this mood. Try a different mood or popular movies.");
+        _showErrorAndReset("No movies found for this mood. Try a different mood.");
         return;
       }
+      
+      setState(() {
+        _isLoadingSession = false;
+      });
       
       currentSessionMovieIds.clear();
       currentSessionMovieIds.addAll(sessionPool.map((m) => m.id));
       
-      DebugLogger.log("🎭 Generated ${sessionPool.length} movies for ${currentMode.name} mood session");
-      if (sessionPool.isNotEmpty) {
-        DebugLogger.log("   Sample movies: ${sessionPool.take(3).map((m) => m.title).join(', ')}");
-      }
+      DebugLogger.log("🎬 Generated ${sessionPool.length} enhanced mood movies");
+      DebugLogger.log("   Sample: ${sessionPool.take(3).map((m) => '${m.title} (${m.voteCount ?? 0} votes)').join(', ')}");
       
     } catch (e) {
-      DebugLogger.log("❌ Error generating mood-based session: $e");
+      DebugLogger.log("❌ Error generating mood session: $e");
       _showErrorAndReset("Failed to generate movies for this mood. Please try again.");
-    } finally {
-      setState(() {
-        _isLoadingSession = false;
-      });
     }
+  }
+
+  bool _shouldReorderForMoodChange(CurrentMood newMood) {
+    if (_lastSessionMood == null) return false;
+    
+    return SmartSessionFlow.shouldReorderVsRegenerate(
+      previousMood: _lastSessionMood!,
+      newMood: newMood,
+      swipeCount: _sessionSwipeCount,
+    );
   }
 
   Future<void> _initializeApp() async {
@@ -742,6 +793,7 @@ void initState() {
   
   void likeMovie(Movie movie) async {
     _startSessionIfNeeded();
+    _trackSwipe(movie.id, true);
     SessionManager.addLikedMovie(movie.id);
 
     if (isInCollaborativeMode && currentSession != null) {
@@ -1031,6 +1083,7 @@ void initState() {
   // 🔄 PRESERVED: Your exact passMovie method
   void passMovie(Movie movie) {
     _startSessionIfNeeded();
+    _trackSwipe(movie.id, false);
     SessionManager.recordActivity();
     // Save profile
     UserProfileStorage.saveProfile(widget.currentUser);
@@ -1108,7 +1161,9 @@ void initState() {
         ...currentSessionMovieIds,
       };
       
-      // SIMPLE: Generate more movies of the same mood
+      DebugLogger.log("🔄 Adapting session pool (smart: $_useSmartOrdering)");
+      
+      // Generate more movies using enhanced engine
       final moreMovies = await MoodBasedLearningEngine.generateMoodBasedSession(
         user: widget.currentUser,
         movieDatabase: movieDatabase,
@@ -1116,19 +1171,51 @@ void initState() {
         seenMovieIds: seenMovieIds,
         sessionPassedMovieIds: sessionPassedMovieIds,
         sessionSize: 10,
+        useSmartOrdering: _useSmartOrdering,
       );
       
       if (moreMovies.isNotEmpty) {
         setState(() {
           sessionPool.addAll(moreMovies);
-          currentSessionMovieIds.addAll(moreMovies.map((m) => m.id));
-          DebugLogger.log("✨ Added ${moreMovies.length} more mood-based movies");
+          _isRefreshingPool = false;
         });
+        
+        currentSessionMovieIds.addAll(moreMovies.map((m) => m.id));
+        
+        DebugLogger.log("✅ Added ${moreMovies.length} more movies to session");
+        DebugLogger.log("   New total: ${sessionPool.length} movies");
+      } else {
+        DebugLogger.log("⚠️ No additional movies found for current mood");
+        setState(() => _isRefreshingPool = false);
       }
+      
     } catch (e) {
-      DebugLogger.log("❌ Error adding more movies: $e");
-    } finally {
+      DebugLogger.log("❌ Error adapting session pool: $e");
       setState(() => _isRefreshingPool = false);
+    }
+  }
+
+  void _trackSwipe(String movieId, bool isLike) {
+    _sessionSwipeCount++;
+    
+    // Track in the mood engine
+    MoodBasedLearningEngine.recordSwipe(
+      movieId: movieId,
+      isLike: isLike,
+    );
+    
+    DebugLogger.log("👆 Swipe ${_sessionSwipeCount}: ${isLike ? 'LIKE' : 'PASS'} - ${movieId}");
+    
+    // Log session health periodically
+    if (_sessionSwipeCount % 5 == 0) {
+      final health = MoodBasedLearningEngine.getSessionHealthScore();
+      DebugLogger.log("💚 Session Health: ${(health * 100).toStringAsFixed(1)}%");
+      
+      // Suggest mood change if session health is low
+      if (health < 0.4 && _sessionSwipeCount > 15) {
+        DebugLogger.log("⚠️ Low session health - user might want to change mood");
+        // You could show a UI hint here if desired
+      }
     }
   }
 

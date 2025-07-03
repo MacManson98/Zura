@@ -1,18 +1,24 @@
-// mood_based_learning_engine.dart
-// Drop-in replacement that uses the EnhancedMoodEngine
-// This maintains the same interface as your original file
+// Updated Mood Engine Bridge with Smart Session Flow Integration
+// Maintains compatibility while adding intelligent session ordering
 
 import '../movie.dart';
 import '../models/user_profile.dart';
 import '../utils/debug_loader.dart';
 import 'mood_engine.dart';
+import 'smart_session_flow.dart';
 
 // Re-export the enums and classes from enhanced engine
 export 'mood_engine.dart' show CurrentMood, SessionContext, EnhancedMoodEngine;
+export 'smart_session_flow.dart' show SmartSessionFlow;
 
 class MoodBasedLearningEngine {
   
-  /// Main mood session generator - uses enhanced engine
+  // Session state tracking for mood changes
+  static CurrentMood? _lastSessionMood;
+  static int _currentSwipeCount = 0;
+  static List<Movie>? _lastGeneratedSession;
+  
+  /// Main mood session generator with smart ordering
   static Future<List<Movie>> generateMoodBasedSession({
     required UserProfile user,
     required List<Movie> movieDatabase,
@@ -20,10 +26,11 @@ class MoodBasedLearningEngine {
     required Set<String> seenMovieIds,
     required Set<String> sessionPassedMovieIds,
     int sessionSize = 30,
+    bool useSmartOrdering = true,
   }) async {
     DebugLogger.log("🎭 Generating enhanced mood session: ${sessionContext.moods.displayName}");
     
-    // Use the enhanced filtering system
+    // Step 1: Filter movies using enhanced mood engine
     final moodFilteredMovies = EnhancedMoodEngine.filterByMoodCriteria(
       movieDatabase, 
       sessionContext.moods, 
@@ -36,15 +43,84 @@ class MoodBasedLearningEngine {
       return _getFallbackMovies(movieDatabase, seenMovieIds, sessionSize);
     }
     
-    final result = _sortAndScoreMovies(moodFilteredMovies, sessionContext.moods, user, sessionSize);
+    List<Movie> result;
+    
+    // Step 2: Check if we should reorder existing session or create new one
+    if (useSmartOrdering && _shouldReorderExistingSession(sessionContext.moods)) {
+      DebugLogger.log("🔄 Reordering existing session for mood change");
+      result = SmartSessionFlow.reorderForMoodChange(
+        currentSession: _lastGeneratedSession!,
+        availableMovies: moodFilteredMovies,
+        newMood: sessionContext.moods,
+        user: user,
+        alreadySeenIds: seenMovieIds.union(sessionPassedMovieIds),
+        sessionSize: sessionSize,
+      );
+    } else {
+      // Step 3: Create new smart session
+      if (useSmartOrdering) {
+        DebugLogger.log("🎯 Creating new smart-ordered session");
+        result = SmartSessionFlow.createBalancedSession(
+          filteredMovies: moodFilteredMovies,
+          mood: sessionContext.moods,
+          user: user,
+          sessionSize: sessionSize,
+        );
+      } else {
+        // Fallback to original sorting method
+        DebugLogger.log("📊 Using original sorting method");
+        result = _sortAndScoreMovies(moodFilteredMovies, sessionContext.moods, user, sessionSize);
+      }
+    }
+    
+    // Update session tracking
+    _lastSessionMood = sessionContext.moods;
+    _lastGeneratedSession = result;
+    _currentSwipeCount = 0;
     
     DebugLogger.log("🎬 Generated ${result.length} enhanced mood movies");
     DebugLogger.log("   Sample: ${result.take(3).map((m) => m.title).join(', ')}");
     
+    // Log session analytics
+    if (useSmartOrdering) {
+      final analytics = SmartSessionFlow.getSessionAnalytics(result);
+      DebugLogger.log("📊 Session analytics: $analytics");
+    }
+    
     return result;
   }
   
-  /// Blended mood session generator
+  /// Record a swipe to track user engagement with current session
+  static void recordSwipe({
+    required String movieId,
+    required bool isLike,
+  }) {
+    _currentSwipeCount++;
+    DebugLogger.log("👆 Swipe recorded: ${isLike ? 'LIKE' : 'PASS'} (count: $_currentSwipeCount)");
+  }
+  
+  /// Check if current session should be reordered vs regenerated
+  static bool _shouldReorderExistingSession(CurrentMood newMood) {
+    if (_lastSessionMood == null || _lastGeneratedSession == null) {
+      return false;
+    }
+    
+    return SmartSessionFlow.shouldReorderVsRegenerate(
+      previousMood: _lastSessionMood!,
+      newMood: newMood,
+      swipeCount: _currentSwipeCount,
+    );
+  }
+  
+  /// Reset session tracking (call when user starts completely new session)
+  static void resetSessionTracking() {
+    _lastSessionMood = null;
+    _currentSwipeCount = 0;
+    _lastGeneratedSession = null;
+    DebugLogger.log("🔄 Session tracking reset");
+  }
+  
+  /// Blended mood session generator with smart ordering
   static Future<List<Movie>> generateBlendedMoodSession({
     required UserProfile user,
     required List<Movie> movieDatabase,
@@ -52,6 +128,7 @@ class MoodBasedLearningEngine {
     required Set<String> seenMovieIds,
     required Set<String> sessionPassedMovieIds,
     int sessionSize = 30,
+    bool useSmartOrdering = true,
   }) async {
     DebugLogger.log("🎭 Generating enhanced blended mood session for: ${selectedMoods.map((m) => m.displayName).join(' + ')}");
     
@@ -67,20 +144,33 @@ class MoodBasedLearningEngine {
       return _getFallbackMovies(movieDatabase, seenMovieIds, sessionSize);
     }
     
-    // For blended moods, use first mood's criteria for scoring
-    final result = _sortAndScoreMovies(blendedMovies, selectedMoods.first, user, sessionSize);
+    List<Movie> result;
+    
+    if (useSmartOrdering) {
+      // Use smart ordering with first mood as primary
+      result = SmartSessionFlow.createBalancedSession(
+        filteredMovies: blendedMovies,
+        mood: selectedMoods.first,
+        user: user,
+        sessionSize: sessionSize,
+      );
+    } else {
+      // For blended moods, use first mood's criteria for scoring
+      result = _sortAndScoreMovies(blendedMovies, selectedMoods.first, user, sessionSize);
+    }
     
     DebugLogger.log("🎬 Generated ${result.length} enhanced blended mood movies");
     return result;
   }
   
-  /// Group session generator
+  /// Group session generator with smart ordering
   static Future<List<Movie>> generateGroupSession({
     required List<UserProfile> groupMembers,
     required List<Movie> movieDatabase,
     required SessionContext sessionContext,
     required Set<String> seenMovieIds,
     int sessionSize = 25,
+    bool useSmartOrdering = true,
   }) async {
     DebugLogger.log("👥 Generating enhanced shared mood pool for ${groupMembers.length} people: ${sessionContext.moods.displayName}");
     
@@ -97,12 +187,27 @@ class MoodBasedLearningEngine {
       return _getFallbackMovies(movieDatabase, seenMovieIds, sessionSize);
     }
     
-    final sharedPool = _sortForGroupCompatibility(moodFilteredMovies, groupMembers, sessionSize);
+    List<Movie> result;
     
-    DebugLogger.log("🎬 Generated ${sharedPool.length} enhanced shared movies for group");
-    DebugLogger.log("   Everyone will see: ${sharedPool.take(3).map((m) => m.title).join(', ')}");
+    if (useSmartOrdering) {
+      // For groups, use the first user's profile but with stronger mainstream bias
+      result = SmartSessionFlow.createBalancedSession(
+        filteredMovies: moodFilteredMovies,
+        mood: sessionContext.moods,
+        user: groupMembers.first,
+        sessionSize: sessionSize,
+        popularityWeight: 0.5,  // Higher popularity weight for groups
+        qualityWeight: 0.3,
+        randomWeight: 0.2,
+      );
+    } else {
+      result = _sortForGroupCompatibility(moodFilteredMovies, groupMembers, sessionSize);
+    }
     
-    return sharedPool;
+    DebugLogger.log("🎬 Generated ${result.length} enhanced shared movies for group");
+    DebugLogger.log("   Everyone will see: ${result.take(3).map((m) => m.title).join(', ')}");
+    
+    return result;
   }
   
   // ========================================
@@ -200,7 +305,7 @@ class MoodBasedLearningEngine {
   }
   
   // ========================================
-  // SORTING AND SCORING (PRESERVED FROM ORIGINAL)
+  // ORIGINAL SORTING AND SCORING (PRESERVED FOR COMPATIBILITY)
   // ========================================
   
   static List<Movie> _sortAndScoreMovies(List<Movie> movies, CurrentMood mood, UserProfile user, int sessionSize) {
@@ -261,31 +366,29 @@ class MoodBasedLearningEngine {
       groupScore += (movie.rating ?? 0) * 10;
       groupScore += (movie.voteCount ?? 0) / 1000;
       
-      // Count how many group members would like this movie
+      // Count how many group members would like this genre
       final movieGenres = movie.genres.map((g) => g.toLowerCase()).toSet();
+      int membersWhoLikeGenre = 0;
+      
       for (final member in groupMembers) {
-        try {
-          final memberGenres = _getUserPreferredGenres(member);
-          final overlap = movieGenres.intersection(memberGenres.map((g) => g.toLowerCase()).toSet()).length;
-          if (overlap > 0) {
-            groupScore += 15; // Bonus for each member who might like it
-          }
-        } catch (e) {
-          // If member preferences not available, give small bonus for popular genres
-          if (movieGenres.contains('adventure') || movieGenres.contains('comedy')) {
-            groupScore += 5;
-          }
+        final memberGenres = _getUserPreferredGenres(member);
+        if (memberGenres.any((g) => movieGenres.contains(g.toLowerCase()))) {
+          membersWhoLikeGenre++;
         }
       }
       
-      // Prefer movies that are broadly appealing
-      if (movieGenres.contains('adventure') || movieGenres.contains('comedy')) {
-        groupScore += 5;
-      }
+      // Bonus for movies that appeal to more group members
+      groupScore += (membersWhoLikeGenre / groupMembers.length) * 30;
+      
+      // Popularity bonus (groups often prefer recognizable movies)
+      final votes = movie.voteCount ?? 0;
+      if (votes > 500) groupScore += 15;
+      if (votes > 1000) groupScore += 10;
       
       return MapEntry(movie, groupScore);
     }).toList();
     
+    // Sort by group compatibility score
     scoredMovies.sort((a, b) => b.value.compareTo(a.value));
     
     return scoredMovies
@@ -294,53 +397,90 @@ class MoodBasedLearningEngine {
         .toList();
   }
   
-  static List<Movie> _getFallbackMovies(List<Movie> movieDatabase, Set<String> seenMovieIds, int count) {
-    // Fallback: Return popular, high-rated movies not yet seen
-    final fallbackMovies = movieDatabase
-        .where((movie) => !seenMovieIds.contains(movie.id))
-        .where((movie) => (movie.rating ?? 0) > 6.5)
-        .where((movie) => (movie.voteCount ?? 0) > 100)
-        .toList();
-    
-    // Sort by rating and popularity
-    fallbackMovies.sort((a, b) {
-      final scoreA = (a.rating ?? 0) + (a.voteCount ?? 0) / 10000;
-      final scoreB = (b.rating ?? 0) + (b.voteCount ?? 0) / 10000;
-      return scoreB.compareTo(scoreA);
-    });
-    
-    DebugLogger.log("🔄 Using ${fallbackMovies.length} fallback movies");
-    return fallbackMovies.take(count).toList();
-  }
-  
   // ========================================
-  // HELPER FUNCTIONS
+  // HELPER METHODS
   // ========================================
   
-  /// Get user preferred genres based on their actual liked movies
   static List<String> _getUserPreferredGenres(UserProfile user) {
-    // Extract genres from user's liked movies
-    final genreCount = <String, int>{};
+    // Get user's top genres based on their scoring
+    final sortedGenres = user.genreScores.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
     
-    for (final movie in user.likedMovies) {
-      for (final genre in movie.genres) {
-        genreCount[genre] = (genreCount[genre] ?? 0) + 1;
-      }
-    }
-    
-    // Return top genres (at least 2 occurrences)
-    return genreCount.entries
-        .where((entry) => entry.value >= 2)
-        .map((entry) => entry.key)
-        .toList();
+    return sortedGenres.take(3).map((entry) => entry.key).toList();
   }
   
   static int? _extractYear(String? dateString) {
     if (dateString == null || dateString.isEmpty) return null;
     try {
-      return int.parse(dateString.substring(0, 4));
+      final parts = dateString.split('-');
+      if (parts.isNotEmpty) {
+        return int.parse(parts[0]);
+      }
     } catch (e) {
-      return null;
+      // Ignore parsing errors
     }
+    return null;
+  }
+  
+  static List<Movie> _getFallbackMovies(List<Movie> movieDatabase, Set<String> seenMovieIds, int sessionSize) {
+    // Simple fallback: return high-quality movies that haven't been seen
+    final fallbackMovies = movieDatabase
+        .where((movie) => 
+            !seenMovieIds.contains(movie.id) &&
+            (movie.rating ?? 0) >= 6.5 &&
+            (movie.voteCount ?? 0) >= 100)
+        .toList();
+    
+    if (fallbackMovies.isEmpty) {
+      // Last resort: any unseen movie
+      return movieDatabase
+          .where((movie) => !seenMovieIds.contains(movie.id))
+          .take(sessionSize)
+          .toList();
+    }
+    
+    fallbackMovies.shuffle();
+    return fallbackMovies.take(sessionSize).toList();
+  }
+  
+  // ========================================
+  // SESSION MANAGEMENT UTILITIES
+  // ========================================
+  
+  /// Get current session analytics
+  static Map<String, dynamic> getCurrentSessionAnalytics() {
+    if (_lastGeneratedSession == null) {
+      return {'error': 'No active session'};
+    }
+    
+    final analytics = SmartSessionFlow.getSessionAnalytics(_lastGeneratedSession!);
+    analytics['swipeCount'] = _currentSwipeCount;
+    analytics['currentMood'] = _lastSessionMood?.displayName ?? 'Unknown';
+    
+    return analytics;
+  }
+  
+  /// Check if mood change would trigger session reorder
+  static bool wouldMoodChangeReorder(CurrentMood newMood) {
+    if (_lastSessionMood == null) return false;
+    
+    return SmartSessionFlow.shouldReorderVsRegenerate(
+      previousMood: _lastSessionMood!,
+      newMood: newMood,
+      swipeCount: _currentSwipeCount,
+    );
+  }
+  
+  /// Get session health score (0.0 to 1.0)
+  /// Higher score means session is working well for user
+  static double getSessionHealthScore() {
+    if (_currentSwipeCount == 0) return 1.0;
+    
+    // This would need to be enhanced with actual like/pass ratio
+    // For now, return a simple engagement score
+    if (_currentSwipeCount < 5) return 1.0;
+    if (_currentSwipeCount < 15) return 0.8;
+    if (_currentSwipeCount < 25) return 0.6;
+    return 0.4; // User has swiped through most of session
   }
 }
