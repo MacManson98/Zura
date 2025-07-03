@@ -14,6 +14,7 @@ import '../services/group_invitation_service.dart';
 import '../services/group_service.dart';
 import 'movie_detail_screen.dart';
 import '../utils/movie_loader.dart';
+import '../utils/debug_loader.dart';
 
 class GroupDetailScreen extends StatefulWidget {
   final FriendGroup group;
@@ -57,8 +58,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     });
 
     try {
-      print("🎯 Loading group recommendations for: ${_group.name}");
-      print("👥 Group members: ${_group.members.length}");
+      DebugLogger.log("🎯 Loading group recommendations for: ${_group.name}");
+      DebugLogger.log("👥 Group members: ${_group.members.length}");
       
       // Analyze what the group collectively likes
       final Map<String, int> movieLikeCount = {};
@@ -67,10 +68,10 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
       final Map<String, int> vibePreferences = {};
       
       for (final member in _group.members) {
-        print("📊 Analyzing member: ${member.name}");
-        print("   Liked movies: ${member.likedMovieIds.length}");
-        print("   Preferred genres: ${member.preferredGenres}");
-        print("   Preferred vibes: ${member.preferredVibes}");
+        DebugLogger.log("📊 Analyzing member: ${member.name}");
+        DebugLogger.log("   Liked movies: ${member.likedMovieIds.length}");
+        DebugLogger.log("   Preferred genres: ${member.preferredGenres}");
+        DebugLogger.log("   Preferred vibes: ${member.preferredVibes}");
         
         // Count movie likes
         for (final movieId in member.likedMovieIds) {
@@ -92,8 +93,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
         }
       }
       
-      print("🎬 Total unique movies seen by group: ${allSeenMovies.length}");
-      print("📈 Top genres: ${genrePreferences.entries.where((e) => e.value >= 2).map((e) => '${e.key} (${e.value})').join(', ')}");
+      DebugLogger.log("🎬 Total unique movies seen by group: ${allSeenMovies.length}");
+      DebugLogger.log("📈 Top genres: ${genrePreferences.entries.where((e) => e.value >= 2).map((e) => '${e.key} (${e.value})').join(', ')}");
       
       // Find movies liked by multiple group members (group favorites)
       final groupFavorites = widget.allMovies.where((movie) {
@@ -101,7 +102,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
         return likeCount >= 2; // Liked by at least 2 people
       }).toList();
       
-      print("⭐ Group favorites: ${groupFavorites.length} movies");
+      DebugLogger.log("⭐ Group favorites: ${groupFavorites.length} movies");
       
       // Generate smart recommendations
       final recommendations = <Movie, double>{};
@@ -127,7 +128,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
         }
       }
       
-      print("🔍 Found ${recommendations.length} similar movie recommendations");
+      DebugLogger.log("🔍 Found ${recommendations.length} similar movie recommendations");
       
       // Strategy 2: Add high-rated movies in preferred genres/vibes
       if (recommendations.length < 12) {
@@ -145,7 +146,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
           }
         }
         
-        print("➕ Added ${additionalMovies.length} genre/vibe-based recommendations");
+        DebugLogger.log("➕ Added ${additionalMovies.length} genre/vibe-based recommendations");
       }
       
       // Strategy 3: If still not enough, add universally acclaimed movies
@@ -162,7 +163,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
           }
         }
         
-        print("🏆 Added ${acclaimedMovies.take(8 - recommendations.length).length} acclaimed movies");
+        DebugLogger.log("🏆 Added ${acclaimedMovies.take(8 - recommendations.length).length} acclaimed movies");
       }
       
       // Sort by score and get top recommendations
@@ -174,7 +175,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
           .map((entry) => entry.key)
           .toList();
       
-      print("✅ Final recommendations: ${finalRecommendations.length} movies");
+      DebugLogger.log("✅ Final recommendations: ${finalRecommendations.length} movies");
       
       if (mounted) {
         setState(() {
@@ -184,7 +185,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
       }
       
     } catch (e) {
-      print("❌ Error loading group recommendations: $e");
+      DebugLogger.log("❌ Error loading group recommendations: $e");
       if (mounted) {
         setState(() {
           _recommendedMovies = {};
@@ -1256,11 +1257,11 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     });
 
     try {
-      print("📅 Loading group matches for: ${_group.name}");
+      DebugLogger.log("📅 Loading group matches for: ${_group.name}");
       
       // Get all group member UIDs
       final groupMemberIds = _group.members.map((member) => member.uid).toList();
-      print("👥 Group members: ${groupMemberIds.length} (${groupMemberIds})");
+      DebugLogger.log("👥 Group members: ${groupMemberIds.length} (${groupMemberIds})");
       
       // Query swipeSessions collection for group sessions with these members
       final sessionsQuery = await FirebaseFirestore.instance
@@ -1268,7 +1269,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
           .where('status', isEqualTo: 'completed')
           .get();
       
-      print("📊 Found ${sessionsQuery.docs.length} total completed sessions");
+      DebugLogger.log("📊 Found ${sessionsQuery.docs.length} total completed sessions");
       
       // Filter for sessions that are GROUP sessions with these specific members
       final groupSessions = sessionsQuery.docs.where((doc) {
@@ -1291,15 +1292,15 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
         final qualifies = isGroupSession && hasGroupMembers && matchesGroupId;
         
         if (qualifies) {
-          print("✅ Valid group session: ${doc.id}");
-          print("   Participants: ${participantIds.length} (${participantIds})");
-          print("   Type: $sessionType, GroupId: $sessionGroupId");
+          DebugLogger.log("✅ Valid group session: ${doc.id}");
+          DebugLogger.log("   Participants: ${participantIds.length} (${participantIds})");
+          DebugLogger.log("   Type: $sessionType, GroupId: $sessionGroupId");
         }
         
         return qualifies;
       }).toList();
       
-      print("🎬 Found ${groupSessions.length} group sessions");
+      DebugLogger.log("🎬 Found ${groupSessions.length} group sessions");
       
       // Extract all matched movie IDs from these group sessions
       final Set<String> allMatchedMovieIds = {};
@@ -1307,10 +1308,10 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
         final data = sessionDoc.data();
         final matches = List<String>.from(data['matches'] ?? []);
         allMatchedMovieIds.addAll(matches);
-        print("📽️ Group session ${sessionDoc.id}: ${matches.length} matches");
+        DebugLogger.log("📽️ Group session ${sessionDoc.id}: ${matches.length} matches");
       }
       
-      print("🎬 Total unique group matches: ${allMatchedMovieIds.length}");
+      DebugLogger.log("🎬 Total unique group matches: ${allMatchedMovieIds.length}");
       
       // Load movie details from local database
       if (allMatchedMovieIds.isNotEmpty) {
@@ -1321,9 +1322,9 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
           try {
             final movie = fullMovieDatabase.firstWhere((m) => m.id == movieId);
             loadedMovies.add(movie);
-            print("✅ Loaded group match movie: ${movie.title}");
+            DebugLogger.log("✅ Loaded group match movie: ${movie.title}");
           } catch (e) {
-            print("❌ Could not find movie with ID: $movieId");
+            DebugLogger.log("❌ Could not find movie with ID: $movieId");
           }
         }
         
@@ -1332,17 +1333,17 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
           _isLoadingMatches = false;
         });
         
-        print("📊 Successfully loaded ${loadedMovies.length} group match movie objects");
+        DebugLogger.log("📊 Successfully loaded ${loadedMovies.length} group match movie objects");
       } else {
         setState(() {
           _groupMatches = [];
           _isLoadingMatches = false;
         });
-        print("ℹ️ No group matches found");
+        DebugLogger.log("ℹ️ No group matches found");
       }
       
     } catch (e) {
-      print("❌ Error loading group matches: $e");
+      DebugLogger.log("❌ Error loading group matches: $e");
       setState(() {
         _groupMatches = [];
         _isLoadingMatches = false;

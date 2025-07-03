@@ -25,10 +25,10 @@ This document summarizes the debugging session where we fixed critical user auth
 ### Step 1: Profile Loading Analysis
 We added debug prints to `auth_gate.dart` to trace profile loading:
 ```dart
-print('🔍 Loading profile for UID: $uid');
-print('🔍 Document exists: ${doc.exists}');
-print('🔍 Document data: ${doc.data()}');
-print('🔍 Loaded profile with name: ${profile.name}');
+DebugLogger.log('🔍 Loading profile for UID: $uid');
+DebugLogger.log('🔍 Document exists: ${doc.exists}');
+DebugLogger.log('🔍 Document data: ${doc.data()}');
+DebugLogger.log('🔍 Loaded profile with name: ${profile.name}');
 ```
 
 **Discovery**: Profile was loading correctly from Firestore with proper name and UID.

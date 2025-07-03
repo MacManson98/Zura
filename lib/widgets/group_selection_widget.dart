@@ -614,12 +614,12 @@ class _GroupSelectionWidgetState extends State<GroupSelectionWidget> {
   }
 
   void _selectGroup(FriendGroup group) {
-    print('🔍 DEBUG: _selectGroup called with group: ${group.name}');
+    DebugLogger.log('🔍 DEBUG: _selectGroup called with group: ${group.name}');
     _showMoodSelectionModal(group);
   }
 
   void _showMoodSelectionModal(FriendGroup group) {
-    print('🔍 DEBUG: _showMoodSelectionModal called for group: ${group.name}');
+    DebugLogger.log('🔍 DEBUG: _showMoodSelectionModal called for group: ${group.name}');
     
     showModalBottomSheet(
       context: context,
@@ -676,8 +676,8 @@ class _GroupSelectionWidgetState extends State<GroupSelectionWidget> {
   }
 
   void _onMoodsSelectedForGroup(FriendGroup group, List<CurrentMood> moods) {
-    print('🔍 DEBUG: _onMoodsSelectedForGroup called');
-    print('🔍 DEBUG: Group: ${group.name}, Moods: ${moods.map((m) => m.displayName).join(", ")}');
+    DebugLogger.log('🔍 DEBUG: _onMoodsSelectedForGroup called');
+    DebugLogger.log('🔍 DEBUG: Group: ${group.name}, Moods: ${moods.map((m) => m.displayName).join(", ")}');
     
     // Set the selected group for the original callback
     _selectedGroup = group;

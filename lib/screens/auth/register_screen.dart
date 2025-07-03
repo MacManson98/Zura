@@ -4,6 +4,7 @@ import '../../services/auth_service.dart';
 import '../../models/user_profile.dart';
 import '../../utils/user_profile_storage.dart';
 import 'package:Zura/auth_gate.dart';
+import '../../utils/debug_loader.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -130,15 +131,15 @@ class _RegisterScreenState extends State<RegisterScreen> with TickerProviderStat
         return;
       }
 
-      print("🔥 Creating Firebase user..."); // 🐛 DEBUG
+      DebugLogger.log("🔥 Creating Firebase user..."); // 🐛 DEBUG
       final user = await _authService.registerWithEmail(
         _emailController.text.trim(),
         _passwordController.text.trim(),
       );
 
       if (user != null) {
-        print("🔥 User created: ${user.uid}"); // 🐛 DEBUG
-        print("🔥 User email: ${user.email}"); // 🐛 DEBUG
+        DebugLogger.log("🔥 User created: ${user.uid}"); // 🐛 DEBUG
+        DebugLogger.log("🔥 User email: ${user.email}"); // 🐛 DEBUG
         
         final profile = UserProfile.empty().copyWith(
           uid: user.uid,
@@ -146,28 +147,28 @@ class _RegisterScreenState extends State<RegisterScreen> with TickerProviderStat
           email: _emailController.text.trim(),
         );
         
-        print("🔥 Saving user profile..."); // 🐛 DEBUG
+        DebugLogger.log("🔥 Saving user profile..."); // 🐛 DEBUG
         await UserProfileStorage.saveProfile(profile);
-        print("🔥 Profile saved successfully"); // 🐛 DEBUG
+        DebugLogger.log("🔥 Profile saved successfully"); // 🐛 DEBUG
 
         if (!mounted) return;
         
         // Wait a bit for Firebase Auth state to propagate
-        print("🔥 Waiting for auth state to update..."); // 🐛 DEBUG
+        DebugLogger.log("🔥 Waiting for auth state to update..."); // 🐛 DEBUG
         await Future.delayed(const Duration(milliseconds: 1000));
         
-        print("🔥 Navigating to AuthGate..."); // 🐛 DEBUG
+        DebugLogger.log("🔥 Navigating to AuthGate..."); // 🐛 DEBUG
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (context) => const AuthGate()),
           (route) => false, // Clear entire navigation stack
         );
-        print("🔥 Navigation completed"); // 🐛 DEBUG
+        DebugLogger.log("🔥 Navigation completed"); // 🐛 DEBUG
       } else {
-        print("🚫 User creation returned null"); // 🐛 DEBUG
+        DebugLogger.log("🚫 User creation returned null"); // 🐛 DEBUG
         setState(() => _error = "Registration failed. Please try again.");
       }
     } catch (e) {
-      print("🚫 Registration error: $e"); // 🐛 DEBUG
+      DebugLogger.log("🚫 Registration error: $e"); // 🐛 DEBUG
       setState(() => _error = "Registration failed. Please try again.");
     } finally {
       if (mounted) setState(() => _isLoading = false);

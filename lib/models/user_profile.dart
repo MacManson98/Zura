@@ -1,8 +1,9 @@
-import '/movie.dart';
+import '../movie.dart';
 import '../utils/completed_session.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/user_service.dart';
 import '../utils/user_profile_storage.dart';
+import '../utils/debug_loader.dart';
 
 class MovieLike {
   final String movieId;
@@ -311,7 +312,7 @@ class UserProfile {
     }
     
     if (uniqueSessions.length != sessionHistory.length) {
-      print("🧹 Cleaned up ${sessionHistory.length - uniqueSessions.length} duplicate sessions");
+      DebugLogger.log("🧹 Cleaned up ${sessionHistory.length - uniqueSessions.length} duplicate sessions");
       sessionHistory = uniqueSessions;
     }
   }
@@ -333,7 +334,7 @@ class UserProfile {
       
       return allSessions;
     } catch (e) {
-      print("Error loading collaborative sessions: $e");
+      DebugLogger.log("Error loading collaborative sessions: $e");
       return soloSessions; // Fallback to solo sessions only
     }
   }
@@ -352,7 +353,7 @@ class UserProfile {
             .doc(session.id)
             .delete();
       } catch (e) {
-        print("Error deleting collaborative session: $e");
+        DebugLogger.log("Error deleting collaborative session: $e");
       }
     }
   }

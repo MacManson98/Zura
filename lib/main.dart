@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:firebase_core/firebase_core.dart';
+import '../utils/debug_loader.dart';
 import 'firebase_options.dart'; // ← This is the new file we generated
 
 import 'auth_gate.dart';
@@ -18,7 +19,7 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  print('✅ Firebase initialized successfully');
+  DebugLogger.log('✅ Firebase initialized successfully');
 
   runApp(const MyApp());
 }

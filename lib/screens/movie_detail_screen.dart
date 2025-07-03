@@ -701,12 +701,12 @@ Widget _buildActorFallback(String name) {
 }
 
 Widget _buildStreamingSection(BuildContext context, Movie movie) {
-    print('🎬 Movie: ${movie.title}');
-  print('🔍 hasAnyStreamingOptions: ${movie.hasAnyStreamingOptions}');
-  print('🔍 allServices: ${movie.allServices}');
-  print('🔍 availableOn: ${movie.availableOn}');
-  print('🔍 rentOn: ${movie.rentOn}');
-  print('🔍 buyOn: ${movie.buyOn}');
+    DebugLogger.log('🎬 Movie: ${movie.title}');
+  DebugLogger.log('🔍 hasAnyStreamingOptions: ${movie.hasAnyStreamingOptions}');
+  DebugLogger.log('🔍 allServices: ${movie.allServices}');
+  DebugLogger.log('🔍 availableOn: ${movie.availableOn}');
+  DebugLogger.log('🔍 rentOn: ${movie.rentOn}');
+  DebugLogger.log('🔍 buyOn: ${movie.buyOn}');
     return Container(
       margin: EdgeInsets.fromLTRB(24.w, 0, 24.w, 32.h),
       child: Column(
@@ -979,7 +979,7 @@ void _openStreamingPlatform(String platform, String type) async {
   if (await canLaunchUrl(url)) {
     await launchUrl(url, mode: LaunchMode.externalApplication);
   } else {
-    debugPrint('Could not launch $url');
+    DebugLogger.log('Could not launch $url');
   }
 }
 

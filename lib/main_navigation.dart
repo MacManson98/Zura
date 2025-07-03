@@ -77,7 +77,7 @@ class _MainNavigationState extends State<MainNavigation> {
     _completeMovieDatabase = widget.preloadedMovies;
     
     if (kDebugMode) {
-      print("✅ MainNavigation: Initialized with ${_completeMovieDatabase.length} preloaded movies");
+      DebugLogger.log("✅ MainNavigation: Initialized with ${_completeMovieDatabase.length} preloaded movies");
     }
     
     _matcherScreen = _buildMatcherScreen();
@@ -92,7 +92,7 @@ class _MainNavigationState extends State<MainNavigation> {
     
     try {
       if (kDebugMode) {
-        print("🔄 MainNavigation: Starting streamlined initialization...");
+        DebugLogger.log("🔄 MainNavigation: Starting streamlined initialization...");
       }
       
       // Load friends (network only) - this is fast
@@ -110,12 +110,12 @@ class _MainNavigationState extends State<MainNavigation> {
       });
       
       if (kDebugMode) {
-        print("✅ MainNavigation: Streamlined initialization completed");
+        DebugLogger.log("✅ MainNavigation: Streamlined initialization completed");
       }
       
     } catch (e) {
       if (kDebugMode) {
-        print('❌ Error in initialization: $e');
+        DebugLogger.log('❌ Error in initialization: $e');
       }
       // Always show UI even if friends loading fails
       if (mounted) {
@@ -138,25 +138,25 @@ class _MainNavigationState extends State<MainNavigation> {
         final timeSinceCleanup = now.difference(_lastCleanupTime!);
         if (timeSinceCleanup.inHours < 6) {
           if (kDebugMode) {
-            print("ℹ️ Cleanup not needed yet");
+            DebugLogger.log("ℹ️ Cleanup not needed yet");
           }
           return;
         }
       }
       
       if (kDebugMode) {
-        print("🧹 Starting optional cleanup...");
+        DebugLogger.log("🧹 Starting optional cleanup...");
       }
       
       await SessionService.performMaintenanceCleanup();
       _lastCleanupTime = now;
       
       if (kDebugMode) {
-        print("✅ Optional cleanup completed");
+        DebugLogger.log("✅ Optional cleanup completed");
       }
     } catch (e) {
       if (kDebugMode) {
-        print("Note: Optional cleanup failed: $e");
+        DebugLogger.log("Note: Optional cleanup failed: $e");
       }
       // Cleanup failures are not critical
     }
@@ -173,7 +173,7 @@ class _MainNavigationState extends State<MainNavigation> {
       }
     } catch (e) {
       if (kDebugMode) {
-        print('Error loading friends: $e');
+        DebugLogger.log('Error loading friends: $e');
       }
     }
   }
@@ -499,7 +499,7 @@ class _MainNavigationState extends State<MainNavigation> {
 
   void _goToSoloMatcher() {
     if (kDebugMode) {
-      print("🔍 Navigating to Solo Matcher");
+      DebugLogger.log("🔍 Navigating to Solo Matcher");
     }
     setState(() {
       _matcherMode = MatchingMode.solo;
@@ -511,7 +511,7 @@ class _MainNavigationState extends State<MainNavigation> {
 
   void _goToFriendMatcher(UserProfile friend) {
     if (kDebugMode) {
-      print("🟢 Switching to Matcher tab with ${friend.name}");
+      DebugLogger.log("🟢 Switching to Matcher tab with ${friend.name}");
     }
     setState(() {
       _selectedFriend = friend;
@@ -523,7 +523,7 @@ class _MainNavigationState extends State<MainNavigation> {
 
   void _goToGroupMatcher() {
     if (kDebugMode) {
-      print("🔍 Navigating to Group Matcher");
+      DebugLogger.log("🔍 Navigating to Group Matcher");
     }
     setState(() {
       _matcherMode = MatchingMode.group;
@@ -535,7 +535,7 @@ class _MainNavigationState extends State<MainNavigation> {
 
   void _goToFriendMatcherTab() {
     if (kDebugMode) {
-      print("🟢 Switching to Friend Matcher");
+      DebugLogger.log("🟢 Switching to Friend Matcher");
     }
     setState(() {
       _matcherMode = MatchingMode.friend;

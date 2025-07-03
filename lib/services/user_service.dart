@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/user_profile.dart';
 import '../utils/completed_session.dart';
+import '../utils/debug_loader.dart';
 
 class UserService {
   final _auth = FirebaseAuth.instance;
@@ -47,7 +48,7 @@ class UserService {
         return CompletedSession.fromFirestore(doc.id, doc.data());
       }).toList();
     } catch (e) {
-      print("Error loading collaborative sessions: $e");
+      DebugLogger.log("Error loading collaborative sessions: $e");
       return [];
     }
   }

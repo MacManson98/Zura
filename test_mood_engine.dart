@@ -4,6 +4,7 @@
 
 import 'dart:io';
 import 'dart:convert';
+import 'package:Zura/utils/debug_loader.dart';
 
 // Simple Movie class for testing
 class Movie {
@@ -358,20 +359,20 @@ class MatchResult {
 
 // Main testing function
 void main() async {
-  print('🎬 STRICT Mood Engine Tester Starting...\n');
+  DebugLogger.log('🎬 STRICT Mood Engine Tester Starting...\n');
   
   // Ask for path to movies.json
-  print('Enter the path to your movies.json file:');
-  print('(or press Enter for default: ./assets/movies.json)');
+  DebugLogger.log('Enter the path to your movies.json file:');
+  DebugLogger.log('(or press Enter for default: ./assets/movies.json)');
   final input = stdin.readLineSync();
   final filePath = input?.trim().isEmpty == true ? './assets/movies.json' : input!.trim();
   
   try {
     // Load movies
-    print('\n📚 Loading movies from: $filePath');
+    DebugLogger.log('\n📚 Loading movies from: $filePath');
     final file = File(filePath);
     if (!file.existsSync()) {
-      print('❌ File not found: $filePath');
+      DebugLogger.log('❌ File not found: $filePath');
       return;
     }
     
@@ -394,17 +395,17 @@ void main() async {
       }
     }
     
-    print('✅ Loaded ${movies.length} movies (skipped $skipped invalid entries)\n');
+    DebugLogger.log('✅ Loaded ${movies.length} movies (skipped $skipped invalid entries)\n');
     
     // Test each mood with STRICT and RELAXED matching
-    print('🎭 Testing STRICT vs RELAXED Mood Matching...\n');
-    print('=' * 90);
+    DebugLogger.log('🎭 Testing STRICT vs RELAXED Mood Matching...\n');
+    DebugLogger.log('=' * 90);
     
     for (final mood in CurrentMood.values) {
-      print('\n${mood.emoji} ${mood.displayName.toUpperCase()}');
-      print('Target Genres: ${mood.preferredGenres.join(', ')}');
-      print('Target Vibes: ${mood.preferredVibes.join(', ')}');
-      print('-' * 80);
+      DebugLogger.log('\n${mood.emoji} ${mood.displayName.toUpperCase()}');
+      DebugLogger.log('Target Genres: ${mood.preferredGenres.join(', ')}');
+      DebugLogger.log('Target Vibes: ${mood.preferredVibes.join(', ')}');
+      DebugLogger.log('-' * 80);
       
       final strictMatches = <Movie>[];
       final relaxedMatches = <Movie>[];
@@ -423,44 +424,44 @@ void main() async {
         }
       }
       
-      print('📊 MATCH SUMMARY:');
-      print('   🟢 Strict Matches: ${strictMatches.length} (${qualityStrictMatches.length} high quality)');
-      print('   🟡 Relaxed Only: ${relaxedMatches.length} (${qualityRelaxedMatches.length} high quality)');
-      print('   🎯 Users will see: ${qualityStrictMatches.length} strict + ${qualityRelaxedMatches.length} relaxed fallback');
+      DebugLogger.log('📊 MATCH SUMMARY:');
+      DebugLogger.log('   🟢 Strict Matches: ${strictMatches.length} (${qualityStrictMatches.length} high quality)');
+      DebugLogger.log('   🟡 Relaxed Only: ${relaxedMatches.length} (${qualityRelaxedMatches.length} high quality)');
+      DebugLogger.log('   🎯 Users will see: ${qualityStrictMatches.length} strict + ${qualityRelaxedMatches.length} relaxed fallback');
       
       // Show top matches from each category
       if (qualityStrictMatches.isNotEmpty) {
-        print('\n🏆 TOP STRICT MATCHES (what users will see first):');
+        DebugLogger.log('\n🏆 TOP STRICT MATCHES (what users will see first):');
         final topStrict = qualityStrictMatches.take(5).toList();
         for (int i = 0; i < topStrict.length; i++) {
           final movie = topStrict[i];
-          print('   ${i + 1}. ${movie.title} (${movie.rating ?? 'N/A'}) ✅');
-          print('      Genres: ${movie.genres.join(', ')}');
+          DebugLogger.log('   ${i + 1}. ${movie.title} (${movie.rating ?? 'N/A'}) ✅');
+          DebugLogger.log('      Genres: ${movie.genres.join(', ')}');
           final relevantTags = movie.tags.where((tag) => 
               mood.preferredVibes.any((vibe) => tag.toLowerCase().contains(vibe.toLowerCase()))).take(3);
           if (relevantTags.isNotEmpty) {
-            print('      Mood Tags: ${relevantTags.join(', ')}');
+            DebugLogger.log('      Mood Tags: ${relevantTags.join(', ')}');
           }
         }
       }
       
       if (qualityRelaxedMatches.isNotEmpty && qualityStrictMatches.length < 5) {
-        print('\n🟡 TOP RELAXED FALLBACK MATCHES:');
+        DebugLogger.log('\n🟡 TOP RELAXED FALLBACK MATCHES:');
         final topRelaxed = qualityRelaxedMatches.take(3).toList();
         for (int i = 0; i < topRelaxed.length; i++) {
           final movie = topRelaxed[i];
-          print('   ${i + 1}. ${movie.title} (${movie.rating ?? 'N/A'}) 🟡');
-          print('      Genres: ${movie.genres.join(', ')}');
-          print('      Tags: ${movie.tags.take(3).join(', ')}');
+          DebugLogger.log('   ${i + 1}. ${movie.title} (${movie.rating ?? 'N/A'}) 🟡');
+          DebugLogger.log('      Genres: ${movie.genres.join(', ')}');
+          DebugLogger.log('      Tags: ${movie.tags.take(3).join(', ')}');
         }
       }
       
-      print('=' * 90);
+      DebugLogger.log('=' * 90);
     }
     
     // Ask for detailed analysis
-    print('\n🔍 Want detailed analysis of a specific mood?');
-    print('Enter mood name (or press Enter to skip):');
+    DebugLogger.log('\n🔍 Want detailed analysis of a specific mood?');
+    DebugLogger.log('Enter mood name (or press Enter to skip):');
     final moodInput = stdin.readLineSync()?.trim().toLowerCase();
     
     if (moodInput != null && moodInput.isNotEmpty) {
@@ -470,21 +471,21 @@ void main() async {
       if (selectedMood != null) {
         _detailedMoodAnalysis(movies, selectedMood);
       } else {
-        print('❌ Mood not found. Available moods:');
+        DebugLogger.log('❌ Mood not found. Available moods:');
         for (final mood in CurrentMood.values) {
-          print('   - ${mood.displayName}');
+          DebugLogger.log('   - ${mood.displayName}');
         }
       }
     }
     
   } catch (e) {
-    print('❌ Error: $e');
+    DebugLogger.log('❌ Error: $e');
   }
 }
 
 void _detailedMoodAnalysis(List<Movie> movies, CurrentMood mood) {
-  print('\n🔍 DETAILED ANALYSIS: ${mood.displayName}');
-  print('=' * 90);
+  DebugLogger.log('\n🔍 DETAILED ANALYSIS: ${mood.displayName}');
+  DebugLogger.log('=' * 90);
   
   final strictResults = <Movie, MatchResult>{};
   final relaxedResults = <Movie, MatchResult>{};
@@ -502,51 +503,51 @@ void _detailedMoodAnalysis(List<Movie> movies, CurrentMood mood) {
     }
   }
   
-  print('📊 DETAILED BREAKDOWN:');
-  print('   ✅ Strict Quality Matches: ${strictResults.length}');
-  print('   🟡 Relaxed Quality Matches: ${relaxedResults.length}');
-  print('   ❌ Rejected (Poor Quality): ${rejectedResults.length}');
+  DebugLogger.log('📊 DETAILED BREAKDOWN:');
+  DebugLogger.log('   ✅ Strict Quality Matches: ${strictResults.length}');
+  DebugLogger.log('   🟡 Relaxed Quality Matches: ${relaxedResults.length}');
+  DebugLogger.log('   ❌ Rejected (Poor Quality): ${rejectedResults.length}');
   
   void _printMovieDetails(Movie movie, MatchResult result) {
-    print('   Title: ${movie.title}');
-    print('   Status: ${result.status}');
-    print('   Rating: ${movie.rating ?? 'N/A'} | Votes: ${movie.voteCount ?? 'N/A'}');
-    print('   Genres: ${movie.genres.join(', ')}');
-    print('   Tags: ${movie.tags.join(', ')}');
+    DebugLogger.log('   Title: ${movie.title}');
+    DebugLogger.log('   Status: ${result.status}');
+    DebugLogger.log('   Rating: ${movie.rating ?? 'N/A'} | Votes: ${movie.voteCount ?? 'N/A'}');
+    DebugLogger.log('   Genres: ${movie.genres.join(', ')}');
+    DebugLogger.log('   Tags: ${movie.tags.join(', ')}');
     if (movie.overview.isNotEmpty && movie.overview.length > 100) {
-      print('   Overview: ${movie.overview.substring(0, 100)}...');
+      DebugLogger.log('   Overview: ${movie.overview.substring(0, 100)}...');
     }
-    print('');
+    DebugLogger.log('');
   }
   
   if (strictResults.isNotEmpty) {
-    print('\n✅ STRICT QUALITY MATCHES (Perfect for this mood):');
+    DebugLogger.log('\n✅ STRICT QUALITY MATCHES (Perfect for this mood):');
     var count = 0;
     for (final entry in strictResults.entries) {
       if (count >= 10) break;
-      print('\n${count + 1}.');
+      DebugLogger.log('\n${count + 1}.');
       _printMovieDetails(entry.key, entry.value);
       count++;
     }
   }
   
   if (relaxedResults.isNotEmpty && relaxedResults.length <= 10) {
-    print('\n🟡 RELAXED QUALITY MATCHES (Fallback options):');
+    DebugLogger.log('\n🟡 RELAXED QUALITY MATCHES (Fallback options):');
     var count = 0;
     for (final entry in relaxedResults.entries) {
       if (count >= 5) break;
-      print('\n${count + 1}.');
+      DebugLogger.log('\n${count + 1}.');
       _printMovieDetails(entry.key, entry.value);
       count++;
     }
   }
   
   if (rejectedResults.isNotEmpty && rejectedResults.length <= 5) {
-    print('\n❌ REJECTED MATCHES (Low quality but genre/tag match):');
+    DebugLogger.log('\n❌ REJECTED MATCHES (Low quality but genre/tag match):');
     var count = 0;
     for (final entry in rejectedResults.entries) {
       if (count >= 3) break;
-      print('\n${count + 1}.');
+      DebugLogger.log('\n${count + 1}.');
       _printMovieDetails(entry.key, entry.value);
       count++;
     }

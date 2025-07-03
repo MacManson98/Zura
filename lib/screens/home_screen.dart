@@ -62,9 +62,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   void initState() {
     super.initState();
     if (kDebugMode) {
-      print('🏠 Enhanced HomeScreen: initState called');
-      print('🏠 Profile: ${widget.profile.name}');
-      print('🏠 Movies count: ${widget.movies.length}');
+      DebugLogger.log('🏠 Enhanced HomeScreen: initState called');
+      DebugLogger.log('🏠 Profile: ${widget.profile.name}');
+      DebugLogger.log('🏠 Movies count: ${widget.movies.length}');
     }
     
     // Simple animation setup
@@ -93,7 +93,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     if (kDebugMode) {
-      print('🏠 Enhanced HomeScreen: build called');
+      DebugLogger.log('🏠 Enhanced HomeScreen: build called');
     }
     
     return Scaffold(
@@ -175,7 +175,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Future<void> _loadSessionBasedMatches() async {
     try {
       if (kDebugMode) {
-        print("🔍 Loading session-based matches for HomeScreen...");
+        DebugLogger.log("🔍 Loading session-based matches for HomeScreen...");
       }
       final allSessions = await widget.profile.getAllSessionsForDisplay();
       
@@ -187,7 +187,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       }
       
       if (kDebugMode) {
-        print("📊 Total matches found across sessions: $totalMatches");
+        DebugLogger.log("📊 Total matches found across sessions: $totalMatches");
       }
       
       if (mounted) {
@@ -197,14 +197,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       }
     } catch (e) {
       if (kDebugMode) {
-        print("❌ Error loading session matches: $e");
+        DebugLogger.log("❌ Error loading session matches: $e");
       }
     }
   }
 
   void _navigateToLikedMovies() {
     if (kDebugMode) {
-      print('📱 Navigating to Liked Movies');
+      DebugLogger.log('📱 Navigating to Liked Movies');
     }
     Navigator.push(
       context,
@@ -221,7 +221,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   void _navigateToMatches() {
     if (kDebugMode) {
-      print('📱 Navigating to Matches');
+      DebugLogger.log('📱 Navigating to Matches');
     }
     Navigator.push(
       context,
@@ -1274,7 +1274,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       currentUser: widget.profile,
       onAddToFavorites: (movie) {
         if (kDebugMode) {
-          print('➕ Adding movie to favorites: ${movie.title}');
+          DebugLogger.log('➕ Adding movie to favorites: ${movie.title}');
         }
         // Add to user's liked movies
         final updatedProfile = widget.profile.copyWith(
@@ -1284,7 +1284,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       },
       onRemoveFromFavorites: (movie) {
         if (kDebugMode) {
-          print('➖ Removing movie from favorites: ${movie.title}');
+          DebugLogger.log('➖ Removing movie from favorites: ${movie.title}');
         }
         // Remove from user's liked movies
         final updatedLikedIds = widget.profile.likedMovieIds.where((id) => id != movie.id).toList();
@@ -1369,13 +1369,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       });
 
       if (kDebugMode) {
-        print('🎯 Generated ${recommendations.length} recommendations based on ${likedGenres.length} preferred genres');
+        DebugLogger.log('🎯 Generated ${recommendations.length} recommendations based on ${likedGenres.length} preferred genres');
       }
 
       return recommendations.take(6).toList();
     } catch (e) {
       if (kDebugMode) {
-        print('❌ Error generating recommendations: $e');
+        DebugLogger.log('❌ Error generating recommendations: $e');
       }
       return [];
     }

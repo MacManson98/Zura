@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/friend_group.dart';
 import '../models/user_profile.dart';
 import '../utils/user_profile_storage.dart';
+import '../utils/debug_loader.dart';
 
 class GroupService {
   static final GroupService _instance = GroupService._internal();
@@ -34,7 +35,7 @@ class GroupService {
       throw Exception('User must be logged in to create a group');
     }
 
-    print("🔵 Creating group '$name' for user: ${currentUser.uid}");
+    DebugLogger.log("🔵 Creating group '$name' for user: ${currentUser.uid}");
 
     // Create the group
     final group = FriendGroup.create(
@@ -48,24 +49,24 @@ class GroupService {
       notificationsEnabled: notificationsEnabled,
     );
 
-    print("🔵 Group created with memberIds: ${group.memberIds}");
+    DebugLogger.log("🔵 Group created with memberIds: ${group.memberIds}");
 
     try {
       // Save to Firestore
       final docRef = await _groupsCollection.add(group.toFirestore());
-      print("🔵 Group saved to Firestore with ID: ${docRef.id}");
+      DebugLogger.log("🔵 Group saved to Firestore with ID: ${docRef.id}");
       
       // Return group with Firestore ID
       final savedGroup = group.copyWith(id: docRef.id);
 
       // Update members' profiles
       await _addGroupToMembers(savedGroup.id, savedGroup.memberIds);
-      print("🔵 Added group to members' profiles");
+      DebugLogger.log("🔵 Added group to members' profiles");
 
-      print("✅ Group creation completed successfully");
+      DebugLogger.log("✅ Group creation completed successfully");
       return savedGroup;
     } catch (e) {
-      print("❌ Error creating group: $e");
+      DebugLogger.log("❌ Error creating group: $e");
       throw Exception('Failed to create group: $e');
     }
   }
@@ -86,21 +87,21 @@ class GroupService {
       
       return FriendGroup.fromFirestore(doc.id, data, memberProfiles);
     } catch (e) {
-      print('Error getting group: $e');
+      DebugLogger.log('Error getting group: $e');
       return null;
     }
   }
 
   Future<List<FriendGroup>> getUserGroups(String userId) async {
     try {
-      print("🔍 Loading groups for user: $userId");
+      DebugLogger.log("🔍 Loading groups for user: $userId");
       
       final querySnapshot = await _groupsCollection
           .where('memberIds', arrayContains: userId)
           .orderBy('lastActivityDate', descending: true)
           .get();
 
-      print("🔍 Found ${querySnapshot.docs.length} group documents");
+      DebugLogger.log("🔍 Found ${querySnapshot.docs.length} group documents");
       
       final groups = <FriendGroup>[];
       
@@ -109,39 +110,39 @@ class GroupService {
           final data = doc.data() as Map<String, dynamic>;
           final memberIds = List<String>.from(data['memberIds'] ?? []);
           
-          print("🔍 Processing group ${doc.id} with ${memberIds.length} members");
+          DebugLogger.log("🔍 Processing group ${doc.id} with ${memberIds.length} members");
           
           final memberProfiles = await _loadMemberProfiles(memberIds);
           
           if (memberProfiles.isNotEmpty) {
             final group = FriendGroup.fromFirestore(doc.id, data, memberProfiles);
             groups.add(group);
-            print("✅ Successfully created group: ${group.name}");
+            DebugLogger.log("✅ Successfully created group: ${group.name}");
           } else {
-            print("⚠️ Skipping group ${doc.id} - no member profiles loaded");
+            DebugLogger.log("⚠️ Skipping group ${doc.id} - no member profiles loaded");
           }
         } catch (e) {
-          print("❌ Error processing group ${doc.id}: $e");
+          DebugLogger.log("❌ Error processing group ${doc.id}: $e");
         }
       }
 
-      print("✅ Successfully loaded ${groups.length} groups for user");
+      DebugLogger.log("✅ Successfully loaded ${groups.length} groups for user");
       return groups;
     } catch (e) {
-      print('❌ Error getting user groups: $e');
+      DebugLogger.log('❌ Error getting user groups: $e');
       return [];
     }
   }
 
     Future<List<FriendGroup>> searchPublicGroups(String query) async {
       try {
-        print("Searching public groups for: $query");
+        DebugLogger.log("Searching public groups for: $query");
         final querySnapshot = await _groupsCollection
             .where('isPrivate', isEqualTo: false)
             .where('name', isGreaterThanOrEqualTo: query)
             .where('name', isLessThanOrEqualTo: query + '\uf8ff')
             .get();
-        print("Found ${querySnapshot.docs.length} matching groups");
+        DebugLogger.log("Found ${querySnapshot.docs.length} matching groups");
         final groups = <FriendGroup>[];
         for (final doc in querySnapshot.docs) {
           try {
@@ -150,12 +151,12 @@ class GroupService {
             final memberProfiles = await _loadMemberProfiles(memberIds);
             groups.add(FriendGroup.fromFirestore(doc.id, data, memberProfiles));
           } catch (e) {
-            print('Error processing group ${doc.id}: $e');
+            DebugLogger.log('Error processing group ${doc.id}: $e');
           }
         }
         return groups;
       } catch (e) {
-        print('Error searching public groups: $e');
+        DebugLogger.log('Error searching public groups: $e');
         return [];
       }
     }
@@ -170,7 +171,7 @@ class GroupService {
       await _groupsCollection.doc(group.id).update(group.toFirestore());
       return group;
     } catch (e) {
-      print('Error updating group: $e');
+      DebugLogger.log('Error updating group: $e');
       return null;
     }
   }
@@ -194,7 +195,7 @@ class GroupService {
       await updateGroup(updatedGroup);
       return updatedGroup;
     } catch (e) {
-      print('Error updating group activity: $e');
+      DebugLogger.log('Error updating group activity: $e');
       return null;
     }
   }
@@ -217,7 +218,7 @@ class GroupService {
 
       return true;
     } catch (e) {
-      print('Error deleting group: $e');
+      DebugLogger.log('Error deleting group: $e');
       return false;
     }
   }
@@ -237,7 +238,7 @@ class GroupService {
 
       return true;
     } catch (e) {
-      print('Error leaving group: $e');
+      DebugLogger.log('Error leaving group: $e');
       return false;
     }
   }
@@ -265,9 +266,9 @@ class GroupService {
             }
             
             profiles.add(UserProfile.fromJson(userData));
-            print("✅ Loaded profile for user: $memberId, name: ${userData['name'] ?? userData['displayName'] ?? 'No name'}");
+            DebugLogger.log("✅ Loaded profile for user: $memberId, name: ${userData['name'] ?? userData['displayName'] ?? 'No name'}");
           } else {
-            print("⚠️ User document not found for: $memberId");
+            DebugLogger.log("⚠️ User document not found for: $memberId");
             // Create a minimal profile for missing users
             profiles.add(UserProfile(
               uid: memberId,
@@ -277,7 +278,7 @@ class GroupService {
             ));
           }
         } catch (e) {
-          print("❌ Error loading user profile for $memberId: $e");
+          DebugLogger.log("❌ Error loading user profile for $memberId: $e");
           // Create a minimal profile for failed loads
           profiles.add(UserProfile(
             uid: memberId,
@@ -288,10 +289,10 @@ class GroupService {
         }
       }
       
-      print("✅ Loaded ${profiles.length} member profiles out of ${memberIds.length} member IDs");
+      DebugLogger.log("✅ Loaded ${profiles.length} member profiles out of ${memberIds.length} member IDs");
       return profiles;
     } catch (e) {
-      print("❌ Error loading member profiles: $e");
+      DebugLogger.log("❌ Error loading member profiles: $e");
       return [];
     }
   }
@@ -311,9 +312,9 @@ class GroupService {
           await UserProfileStorage.saveProfile(updatedProfile);
         }
         
-        print("✅ Added group $groupId to user $memberId");
+        DebugLogger.log("✅ Added group $groupId to user $memberId");
       } catch (e) {
-        print('❌ Error adding group to member $memberId: $e');
+        DebugLogger.log('❌ Error adding group to member $memberId: $e');
       }
     }
   }
@@ -333,9 +334,9 @@ class GroupService {
           await UserProfileStorage.saveProfile(updatedProfile);
         }
         
-        print("✅ Removed group $groupId from user $memberId");
+        DebugLogger.log("✅ Removed group $groupId from user $memberId");
       } catch (e) {
-        print('❌ Error removing group from member $memberId: $e');
+        DebugLogger.log('❌ Error removing group from member $memberId: $e');
       }
     }
   }
@@ -355,9 +356,9 @@ class GroupService {
       final userProfile = await UserProfileStorage.loadProfile();
       final updatedProfile = userProfile.copyWith(groupIds: groupIds);
       await UserProfileStorage.saveProfile(updatedProfile);
-      print('✅ Synced ${groupIds.length} groups from Firebase');
+      DebugLogger.log('✅ Synced ${groupIds.length} groups from Firebase');
     } catch (e) {
-      print('Error syncing groups: $e');
+      DebugLogger.log('Error syncing groups: $e');
     }
   }
 
@@ -366,7 +367,7 @@ class GroupService {
     required String memberIdToRemove,
   }) async {
     try {
-      print("🔄 Removing member $memberIdToRemove from group $groupId");
+      DebugLogger.log("🔄 Removing member $memberIdToRemove from group $groupId");
       
       final group = await getGroupById(groupId);
       if (group == null) {
@@ -396,10 +397,10 @@ class GroupService {
       // Remove group from the member's profile
       await _removeGroupFromMembers(groupId, [memberIdToRemove]);
 
-      print("✅ Successfully removed member $memberIdToRemove from group $groupId");
+      DebugLogger.log("✅ Successfully removed member $memberIdToRemove from group $groupId");
       return true;
     } catch (e) {
-      print('❌ Error removing member from group: $e');
+      DebugLogger.log('❌ Error removing member from group: $e');
       throw Exception('Failed to remove member: $e');
     }
   }
