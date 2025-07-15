@@ -702,67 +702,119 @@ class SessionService {
   // Accept friend invitation
   static Future<SwipeSession?> acceptInvitation(String sessionId, String userName) async {
     try {
-      final currentUserId = FirebaseAuth.instance.currentUser?.uid;
-      if (currentUserId == null) {
-        DebugLogger.log("❌ No current user found");
-        return null;
-      }
-
-      DebugLogger.log("🤝 Accepting invitation for session: $sessionId, user: $userName");
-
-      // First, check if session exists and get current data
-      final sessionDoc = await _sessionsCollection.doc(sessionId).get();
-      if (!sessionDoc.exists) {
-        DebugLogger.log("❌ Session not found: $sessionId");
-        return null;
-      }
-
-      final currentSession = SwipeSession.fromJson(sessionDoc.data()!);
-      DebugLogger.log("📋 Current session status: ${currentSession.status}");
-      DebugLogger.log("📋 Current participants: ${currentSession.participantNames}");
-
-      // Update session to add participant and activate
-      await _sessionsCollection.doc(sessionId).update({
-        'status': SessionStatus.active.name, // Use enum value
-        'participantNames': FieldValue.arrayUnion([userName]),
-        'participantIds': FieldValue.arrayUnion([currentUserId]),
-        'updatedAt': FieldValue.serverTimestamp(),
-        // Initialize user likes/passes if not exists
-        'userLikes.$currentUserId': [],
-        'userPasses.$currentUserId': [],
-      });
-
-      DebugLogger.log("✅ Session updated successfully");
-
-      // Clean up the invitation from user's pending invitations
-      try {
-        final invitationsSnapshot = await _usersCollection
-            .doc(currentUserId)
-            .collection('pending_invitations')
-            .where('sessionId', isEqualTo: sessionId)
-            .get();
-
-        for (final inviteDoc in invitationsSnapshot.docs) {
-          await inviteDoc.reference.delete();
-          DebugLogger.log("🗑️ Cleaned up invitation: ${inviteDoc.id}");
-        }
-      } catch (e) {
-        DebugLogger.log("⚠️ Could not clean up invitations (not critical): $e");
-      }
-
-      // Return updated session
-      final updatedDoc = await _sessionsCollection.doc(sessionId).get();
-      if (updatedDoc.exists) {
-        final updatedSession = SwipeSession.fromJson(updatedDoc.data()!);
-        DebugLogger.log("🎉 Successfully joined session with ${updatedSession.participantNames.length} participants");
-        return updatedSession;
-      }
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null) throw Exception("User not authenticated");
       
-      return null;
+      final currentUserId = currentUser.uid;
+      DebugLogger.log("🎯 Accepting invitation to session: $sessionId");
+      DebugLogger.log("👤 User: $userName ($currentUserId)");
+
+      // ✅ FIX 1: Use a transaction to prevent race conditions
+      return await FirebaseFirestore.instance.runTransaction<SwipeSession?>((transaction) async {
+        // Get current session state
+        final sessionRef = _sessionsCollection.doc(sessionId);
+        final sessionSnapshot = await transaction.get(sessionRef);
+        
+        if (!sessionSnapshot.exists) {
+          throw Exception("Session not found: $sessionId");
+        }
+        
+        final sessionData = sessionSnapshot.data()!;
+        final currentSession = SwipeSession.fromJson(sessionData);
+        
+        DebugLogger.log("📋 Current session status: ${currentSession.status}");
+        DebugLogger.log("📋 Current participants: ${currentSession.participantNames}");
+        DebugLogger.log("📋 Current participant IDs: ${currentSession.participantIds}");
+        
+        // ✅ FIX 2: Check if user is already in the session
+        if (currentSession.participantIds.contains(currentUserId)) {
+          DebugLogger.log("✅ User already in session, returning current session");
+          return currentSession;
+        }
+        
+        // ✅ FIX 3: Validate session can accept new participants
+        if (currentSession.status == SessionStatus.cancelled) {
+          throw Exception("Cannot join cancelled session");
+        }
+        
+        if (currentSession.status == SessionStatus.completed) {
+          throw Exception("Cannot join completed session");
+        }
+        
+        // ✅ FIX 4: Allow joining both created and active sessions for groups
+        final validStatuses = [SessionStatus.created, SessionStatus.active];
+        if (!validStatuses.contains(currentSession.status)) {
+          throw Exception("Session is not available for joining (status: ${currentSession.status})");
+        }
+        
+        // ✅ FIX 5: Smart status management
+        final newParticipantIds = [...currentSession.participantIds, currentUserId];
+        final newParticipantNames = [...currentSession.participantNames, userName];
+        
+        SessionStatus newStatus;
+        if (newParticipantIds.length >= 2) {
+          newStatus = SessionStatus.active;
+          DebugLogger.log("🟢 Session will be set to ACTIVE (${newParticipantIds.length} participants)");
+        } else {
+          newStatus = currentSession.status;
+          DebugLogger.log("🟡 Session status unchanged (${newParticipantIds.length} participants)");
+        }
+
+        // ✅ FIX 6: Update session with atomic transaction
+        final updateData = <String, dynamic>{
+          'status': newStatus.name,
+          'participantNames': newParticipantNames,
+          'participantIds': newParticipantIds,
+          'updatedAt': FieldValue.serverTimestamp(),
+          'userLikes.$currentUserId': [],
+          'userPasses.$currentUserId': [],
+        };
+        
+        if (newStatus == SessionStatus.active && currentSession.status != SessionStatus.active) {
+          updateData['startedAt'] = FieldValue.serverTimestamp();
+          DebugLogger.log("🚀 Session is now starting - recording startedAt timestamp");
+        }
+        
+        transaction.update(sessionRef, updateData);
+        
+        DebugLogger.log("✅ Session updated successfully in transaction");
+        DebugLogger.log("   New status: ${newStatus.name}");
+        DebugLogger.log("   Total participants: ${newParticipantIds.length}");
+        
+        return currentSession.copyWith(
+          status: newStatus,
+          participantIds: newParticipantIds,
+          participantNames: newParticipantNames,
+          startedAt: newStatus == SessionStatus.active && currentSession.status != SessionStatus.active 
+              ? DateTime.now() 
+              : currentSession.startedAt,
+        );
+      });
+      
     } catch (e) {
       DebugLogger.log("❌ Error accepting invitation: $e");
       DebugLogger.log("❌ Session ID: $sessionId");
       DebugLogger.log("❌ User: $userName");
+      
+      // Clean up invitation even if join failed
+      try {
+        final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+        if (currentUserId != null) {
+          final invitationsSnapshot = await _usersCollection
+              .doc(currentUserId)
+              .collection('pending_invitations')
+              .where('sessionId', isEqualTo: sessionId)
+              .get();
+
+          for (final inviteDoc in invitationsSnapshot.docs) {
+            await inviteDoc.reference.delete();
+            DebugLogger.log("🗑️ Cleaned up invitation after failed join: ${inviteDoc.id}");
+          }
+        }
+      } catch (cleanupError) {
+        DebugLogger.log("⚠️ Could not clean up invitations after failed join: $cleanupError");
+      }
+      
       throw e;
     }
   }
@@ -960,11 +1012,51 @@ class SessionService {
       DebugLogger.log("✅ Session ended successfully: $sessionId");
       DebugLogger.log("📨 Notified ${session.participantIds.length - 1} other participants");
       
+      // ✅ NEW: Clean up pending invitations for this session
+      await cleanupInvitationsAfterSessionEnd(sessionId);
+      
     } catch (e) {
       DebugLogger.log("❌ Error ending session: $e");
       rethrow;
     }
   }
+
+  static Future<void> cleanupInvitationsAfterSessionEnd(String sessionId) async {
+    try {
+      DebugLogger.log("🧹 Cleaning up invitations for ended session: $sessionId");
+      
+      // Get all users who might have pending invitations for this session
+      final usersSnapshot = await _usersCollection.limit(100).get();
+      
+      final batch = _firestore.batch();
+      int deleteCount = 0;
+      
+      for (final userDoc in usersSnapshot.docs) {
+        final invitationsSnapshot = await userDoc.reference
+            .collection('pending_invitations')
+            .where('sessionId', isEqualTo: sessionId)
+            .get();
+        
+        for (final inviteDoc in invitationsSnapshot.docs) {
+          batch.delete(inviteDoc.reference);
+          deleteCount++;
+          DebugLogger.log("🗑️ Will delete invitation: ${inviteDoc.id} for user: ${userDoc.id}");
+        }
+      }
+      
+      if (deleteCount > 0) {
+        await batch.commit();
+        DebugLogger.log("✅ Cleaned up $deleteCount pending invitations for session: $sessionId");
+      } else {
+        DebugLogger.log("ℹ️ No pending invitations found for session: $sessionId");
+      }
+      
+    } catch (e) {
+      DebugLogger.log("❌ Error cleaning up invitations for ended session: $e");
+    }
+  }
+
+
 
   static Stream<List<Map<String, dynamic>>> watchSessionNotifications(String userId) {
     return _usersCollection
@@ -1236,5 +1328,10 @@ class SessionService {
       DebugLogger.log("❌ SessionService: Error adding movies to session: $e");
       rethrow;
     }
+  }
+
+  static SessionStatus calculateSessionStatus(int participantCount, bool isGroupSession) {
+    final minParticipants = isGroupSession ? 2 : 2; // Can adjust thresholds later
+    return participantCount >= minParticipants ? SessionStatus.active : SessionStatus.created;
   }
 }

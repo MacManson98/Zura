@@ -82,9 +82,6 @@ class _MatcherScreenState extends State<MatcherScreen>
   Timer? _sessionTimer;
   bool _hasStartedSession = false;
   String? get sessionId => widget.sessionId;
-  Map<String, dynamic> _groupSessionStats = {};
-  bool _isLoadingGroupStats = false;
-  Timer? _groupStatsTimer;
   bool _useSmartOrdering = true;  // Enable/disable smart session flow
   CurrentMood? _lastSessionMood;  // Track last mood for reordering
   int _sessionSwipeCount = 0;     // Track swipes in current session
@@ -105,11 +102,6 @@ void initState() {
   _startSessionTimer();
 
   WidgetsBinding.instance.addObserver(this);
-
-  if (isInCollaborativeMode && currentSession != null) {
-    DebugLogger.log("🎯 Starting group monitoring in initState");
-    _startGroupStatsMonitoring();
-  }
 
   _checkTutorialStatus();
 }
@@ -900,10 +892,6 @@ void initState() {
           
           await _markSessionAsCompleted(movie: movie);
           
-          // Update group stats
-          if (_groupStatsTimer != null && _groupStatsTimer!.isActive) {
-            _updateGroupStats();
-          }
         } else {
           DebugLogger.log("⏳ Group like recorded, waiting for more participants");
         }
@@ -921,101 +909,6 @@ void initState() {
       // Just a regular like with no matching needed
       DebugLogger.log("✅ Like recorded in ${currentMode.name} mode");
     }
-  }
-
-  void _startGroupStatsMonitoring() {
-    if (!isInCollaborativeMode || currentSession == null) return;
-    
-    _groupStatsTimer = MatcherGroupIntegration.startGroupStatsMonitoring(
-      sessionId: currentSession!.sessionId,
-      onStatsUpdate: (stats) {
-        if (mounted) {
-          setState(() {
-            _groupSessionStats = stats;
-            _isLoadingGroupStats = false;
-          });
-        }
-      },
-      onError: () {
-        if (mounted) {
-          setState(() => _isLoadingGroupStats = false);
-        }
-      },
-    );
-  }
-
-  Future<void> _updateGroupStats() async {
-    if (!isInCollaborativeMode || currentSession == null || !mounted) return;
-    
-    setState(() => _isLoadingGroupStats = true);
-    
-    try {
-      final stats = await MatcherGroupIntegration.getGroupSessionStatus(currentSession!.sessionId);
-      if (mounted) {
-        setState(() {
-          _groupSessionStats = stats;
-          _isLoadingGroupStats = false;
-        });
-        
-        // Log stats for debugging
-        final activeCount = stats['activeParticipants'] ?? 0;
-        final totalCount = stats['totalParticipants'] ?? 0;
-        final matchCount = stats['totalMatches'] ?? 0;
-        DebugLogger.log("📊 Group stats: $activeCount/$totalCount active, $matchCount matches");
-      }
-    } catch (e) {
-      DebugLogger.log("❌ Error updating group stats: $e");
-      if (mounted) {
-        setState(() => _isLoadingGroupStats = false);
-      }
-    }
-  }
-
-  // Add this widget to show group session status
-  Widget _buildGroupSessionStatus() {
-    // ✅ FIXED: Also check if timer is active
-    if (!isInCollaborativeMode || 
-        _groupSessionStats.isEmpty || 
-        currentMode != MatchingMode.group ||
-        !_isReadyToSwipe ||
-        currentSession == null ||
-        _groupStatsTimer == null ||
-        !_groupStatsTimer!.isActive) {
-      return const SizedBox.shrink();
-    }
-    
-    return Container(
-      margin: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
-      child: _isLoadingGroupStats
-          ? Container(
-              padding: EdgeInsets.all(16.w),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  SizedBox(
-                    width: 16.w,
-                    height: 16.w,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.w,
-                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFE5A00D)),
-                    ),
-                  ),
-                  SizedBox(width: 12.w),
-                  Text(
-                    'Updating group stats...',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 14.sp,
-                    ),
-                  ),
-                ],
-              ),
-            )
-          : MatcherGroupIntegration.buildGroupStatusWidget(
-              sessionStats: _groupSessionStats,
-              onRefresh: _updateGroupStats,
-            ),
-    );
   }
 
   // 🔄 PRESERVED: Your exact _markSessionAsCompleted method
@@ -1407,7 +1300,7 @@ void initState() {
                 ),
 
                 // Group session status (only when in group collaborative mode)
-                _buildGroupSessionStatus(),
+                //_buildGroupSessionStatus(),
 
                 // Smart banner (when ready to swipe)
                 if (_isReadyToSwipe) SessionBannerWidget(
@@ -2052,22 +1945,6 @@ void initState() {
 
      UnifiedSessionManager.setActiveCollaborativeSession(session);
 
-      // ✅ FIXED: Use the same group detection logic
-      if (isGroupSession) {
-        DebugLogger.log("🎯 Starting group monitoring for collaborative session");
-        _startGroupStatsMonitoring();
-      }
-
-    // ✅ FIXED: Only start listening if user is already in session
-    // This prevents permission errors when joining a session
-    if (isAlreadyInSession) {
-      DebugLogger.log("👂 Starting session listener - user is already in session");
-      _startSessionListener(session.sessionId);
-    } else {
-      DebugLogger.log("⏳ Delaying session listener until user joins session");
-      // The listener will be started after acceptInvitation completes
-    }
-    
     DebugLogger.log("🎯 Collaborative session started successfully");
     
     // Show success message to user
@@ -2294,12 +2171,6 @@ void initState() {
     if (currentSession == null) return;
     
     try {
-      // ✅ FIXED: Stop group stats timer before ending session
-      if (_groupStatsTimer != null) {
-        _groupStatsTimer!.cancel();
-        _groupStatsTimer = null;
-        DebugLogger.log("✅ Group stats timer stopped");
-      }
       
       // ✅ FIXED: Properly save completed session to history
       final sessionId = currentSession!.sessionId;
@@ -2340,10 +2211,6 @@ void initState() {
       selectedFriend = null;
       selectedGroup.clear();
       groupLikes.clear();
-      
-      // ✅ FIXED: Clear group stats state
-      _groupSessionStats.clear();
-      _isLoadingGroupStats = false;
     });
     
     DebugLogger.log("✅ Collaborative session ended and UI reset");
@@ -2702,7 +2569,6 @@ void initState() {
   @override
   void dispose() {
     _sessionTimer?.cancel();
-    _groupStatsTimer?.cancel();
     
     MainNavigation.clearSessionCallback();
     WidgetsBinding.instance.removeObserver(this);
