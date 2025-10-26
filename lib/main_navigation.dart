@@ -391,13 +391,22 @@ class _MainNavigationState extends State<MainNavigation> {
   // ✅ RESTORED: Session handling with proper callback (based on your original code)
   Future<void> _handleSessionAccept(Map<String, dynamic> invitation) async {
     Navigator.pop(context);
-    
+
     try {
-      DebugLogger.log("📥 Accepting session invitation: ${invitation['sessionId']}");
-      
+      final inviteId = invitation['id'] as String?;
+      final sessionId = invitation['sessionId'] as String?;
+
+      if (inviteId == null || sessionId == null) {
+        throw Exception("Missing id or sessionId: id=$inviteId, sessionId=$sessionId");
+      }
+
+      DebugLogger.log("📥 Accepting session invitation: $sessionId");
+      DebugLogger.log("📨 Invitation ID: $inviteId");
+
       final session = await SessionService.acceptInvitation(
-        invitation['sessionId'],
-        widget.profile.name,
+        invitationId: inviteId,
+        sessionId: sessionId,
+        userName: widget.profile.name,
       );
       
       if (!mounted) return;

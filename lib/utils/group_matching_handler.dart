@@ -27,18 +27,24 @@ class GroupMatchingHandler {
       final sessionData = sessionDoc.data() as Map<String, dynamic>;
       final participantIds = List<String>.from(sessionData['participantIds'] ?? []);
       final activeParticipants = List<String>.from(sessionData['activeParticipants'] ?? []);
-      
+
       DebugLogger.log("👥 Total participants: ${participantIds.length}");
       DebugLogger.log("✅ Active participants: ${activeParticipants.length}");
       DebugLogger.log("🎯 Active IDs: $activeParticipants");
-      
-      // If no active participants recorded yet, consider all participants as active
-      final participantsToCheck = activeParticipants.isEmpty ? participantIds : activeParticipants;
-      
-      if (participantsToCheck.length < 2) {
-        DebugLogger.log("⚠️ Not enough active participants for group matching");
+
+      // ✅ FIX: Don't fallback to participantIds - only check users who are actually swiping
+      if (activeParticipants.isEmpty) {
+        DebugLogger.log("⚠️ No active participants yet - nobody is actively swiping");
         return false;
       }
+
+      if (activeParticipants.length < 2) {
+        DebugLogger.log("⚠️ Not enough active participants for group matching (need at least 2)");
+        return false;
+      }
+
+      // Use only the active participants for matching
+      final participantsToCheck = activeParticipants;
       
       // First, record this user's like
       await _recordUserLike(sessionId, userId, movieId);

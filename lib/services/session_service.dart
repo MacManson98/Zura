@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/session_models.dart';
@@ -11,12 +10,6 @@ class SessionService {
   static final _sessionsCollection = _firestore.collection('swipeSessions');
   static final _usersCollection = _firestore.collection('users');
 
-  // Generate a unique 6-digit session code
-  static String _generateSessionCode() {
-    final random = Random();
-    final code = random.nextInt(900000) + 100000; // 6-digit number
-    return code.toString();
-  }
 
   // In session_service.dart, add this method:
   static Stream<List<Map<String, dynamic>>> watchSessionInvites(String userId) {
@@ -39,8 +32,6 @@ class SessionService {
   }) async {
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) throw Exception("User not authenticated");
-
-    final sessionCode = inviteType == InvitationType.code ? _generateSessionCode() : null;
     
     // 🆕 FIXED: Extract mood information using correct properties
     String? moodId;
@@ -62,7 +53,6 @@ class SessionService {
       hostId: currentUser.uid,
       hostName: hostName,
       inviteType: inviteType,
-      sessionCode: sessionCode,
       // 🆕 NEW: Pass mood information to session creation
       selectedMoodId: moodId,
       selectedMoodName: moodName,
@@ -255,6 +245,10 @@ class SessionService {
         DebugLogger.log("   Group: $groupName");
       }
 
+      // ✅ FIX: Add invitation expiration (48 hours)
+      final now = DateTime.now();
+      final expiresAt = now.add(const Duration(hours: 48));
+
       // Create invitation data
       final invitationData = <String, dynamic>{
         'sessionId': sessionId,
@@ -262,7 +256,8 @@ class SessionService {
         'fromUserName': hostName,
         'toUserId': friendId,
         'toUserName': friendName,
-        'invitedAt': DateTime.now().toIso8601String(),
+        'invitedAt': now.toIso8601String(),
+        'expiresAt': expiresAt.toIso8601String(), // ✅ NEW: Expiration timestamp
         'timestamp': FieldValue.serverTimestamp(),
         'status': 'pending',
         'type': isGroupInvitation ? 'group_session' : 'friend_session', // NEW: Different types
@@ -369,36 +364,6 @@ class SessionService {
     }
   }
 
-  // Add this method to your SessionService class if it's not there:
-  static Future<SwipeSession?> joinSessionByCode(String sessionCode, String userName) async {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser == null) throw Exception("User not authenticated");
-
-    // Find session with this code
-    final querySnapshot = await _sessionsCollection
-        .where('sessionCode', isEqualTo: sessionCode)
-        .where('status', isEqualTo: SessionStatus.created.name)
-        .limit(1)
-        .get();
-
-    if (querySnapshot.docs.isEmpty) {
-      return null; // Session not found or no longer available
-    }
-
-    final sessionDoc = querySnapshot.docs.first;
-    final session = SwipeSession.fromJson(sessionDoc.data());
-
-    // Add user to session
-    final updatedSession = session.copyWith(
-      participantIds: [...session.participantIds, currentUser.uid],
-      participantNames: [...session.participantNames, userName],
-      userLikes: {...session.userLikes, currentUser.uid: []},
-      userPasses: {...session.userPasses, currentUser.uid: []},
-    );
-
-    await _sessionsCollection.doc(session.sessionId).update(updatedSession.toJson());
-    return updatedSession;
-  }
 
   // Clean up old sessions automatically
   static Future<void> cleanupOldSessions() async {
@@ -562,23 +527,24 @@ class SessionService {
         return;
       }
 
-      final cutoffDate = DateTime.now().subtract(const Duration(hours: 48));
-      
+      // ✅ FIX: Use expiresAt field to find expired invitations
+      final now = DateTime.now();
+
       final oldInvitationsSnapshot = await _usersCollection
           .doc(userId)
           .collection('pending_invitations')
-          .where('invitedAt', isLessThan: cutoffDate.toIso8601String())
+          .where('expiresAt', isLessThan: now.toIso8601String())
           .get();
-      
+
       final batch = _firestore.batch();
-      
+
       for (final doc in oldInvitationsSnapshot.docs) {
         batch.delete(doc.reference);
       }
-      
+
       if (oldInvitationsSnapshot.docs.isNotEmpty) {
         await batch.commit();
-        DebugLogger.log("✅ Cleaned up ${oldInvitationsSnapshot.docs.length} old invitations for user");
+        DebugLogger.log("✅ Cleaned up ${oldInvitationsSnapshot.docs.length} expired invitations for user");
       }
     } catch (e) {
       DebugLogger.log("❌ Error cleaning up user invitations: $e");
@@ -630,7 +596,22 @@ class SessionService {
               final onlyHostParticipating = participantIds.length <= 1;
               
               if (isFriendSession && onlyHostParticipating) {
-                // This was a 1-on-1 friend session
+                // ✅ FIX: Auto-cancel 1-on-1 friend session when declined
+                DebugLogger.log("🚫 Auto-cancelling 1-on-1 friend session: $sessionId");
+
+                try {
+                  await _sessionsCollection.doc(sessionId).update({
+                    'status': SessionStatus.cancelled.name,
+                    'cancelledAt': FieldValue.serverTimestamp(),
+                    'cancelledBy': currentUserId,
+                    'cancelReason': 'friend_declined_invitation',
+                  });
+                  DebugLogger.log("✅ Session auto-cancelled after friend declined");
+                } catch (e) {
+                  DebugLogger.log("⚠️ Could not auto-cancel session: $e");
+                }
+
+                // Also notify host about the decline
                 await _usersCollection
                     .doc(hostId)
                     .collection('notifications')
@@ -638,12 +619,11 @@ class SessionService {
                       'type': 'friend_session_declined',
                       'fromUserId': currentUserId,
                       'sessionId': sessionId,
-                      'message': 'Your friend declined the session invitation.',
-                      'action': 'cancel_session', // Tell host to cancel
+                      'message': 'Your friend declined the session invitation. Session has been cancelled.',
                       'timestamp': FieldValue.serverTimestamp(),
                     });
-                
-                DebugLogger.log("📨 Host notified: friend declined 1-on-1 session");
+
+                DebugLogger.log("📨 Host notified: friend declined 1-on-1 session (session cancelled)");
               } else {
                 // Regular decline notification
                 await _usersCollection
@@ -700,13 +680,18 @@ class SessionService {
   }
 
   // Accept friend invitation
-  static Future<SwipeSession?> acceptInvitation(String sessionId, String userName) async {
+  static Future<SwipeSession?> acceptInvitation({
+    required String invitationId,
+    required String sessionId,
+    required String userName,
+  }) async {
     try {
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser == null) throw Exception("User not authenticated");
-      
+
       final currentUserId = currentUser.uid;
       DebugLogger.log("🎯 Accepting invitation to session: $sessionId");
+      DebugLogger.log("📨 Invitation ID: $invitationId");
       DebugLogger.log("👤 User: $userName ($currentUserId)");
 
       // ✅ FIX 1: Use a transaction to prevent race conditions
@@ -776,17 +761,25 @@ class SessionService {
         }
         
         transaction.update(sessionRef, updateData);
-        
+
         DebugLogger.log("✅ Session updated successfully in transaction");
         DebugLogger.log("   New status: ${newStatus.name}");
         DebugLogger.log("   Total participants: ${newParticipantIds.length}");
-        
+
+        // ✅ FIX: Delete the invitation from pending_invitations after successful join
+        final invitationRef = _usersCollection
+            .doc(currentUserId)
+            .collection('pending_invitations')
+            .doc(invitationId);
+        transaction.delete(invitationRef);
+        DebugLogger.log("🗑️ Deleted invitation from pending_invitations: $invitationId");
+
         return currentSession.copyWith(
           status: newStatus,
           participantIds: newParticipantIds,
           participantNames: newParticipantNames,
-          startedAt: newStatus == SessionStatus.active && currentSession.status != SessionStatus.active 
-              ? DateTime.now() 
+          startedAt: newStatus == SessionStatus.active && currentSession.status != SessionStatus.active
+              ? DateTime.now()
               : currentSession.startedAt,
         );
       });
@@ -942,10 +935,38 @@ class SessionService {
         .collection('pending_invitations')
         .orderBy('invitedAt', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs.map((doc) => {
-          'id': doc.id,
-          ...doc.data(),
-        }).toList());
+        .map((snapshot) {
+          final now = DateTime.now();
+
+          // ✅ FIX: Filter out expired invitations
+          return snapshot.docs
+              .where((doc) {
+                final data = doc.data();
+                final expiresAtStr = data['expiresAt'] as String?;
+
+                // If no expiration set, keep the invitation (backward compatibility)
+                if (expiresAtStr == null) return true;
+
+                try {
+                  final expiresAt = DateTime.parse(expiresAtStr);
+                  final isExpired = now.isAfter(expiresAt);
+
+                  if (isExpired) {
+                    DebugLogger.log("⏰ Filtering out expired invitation: ${doc.id}");
+                  }
+
+                  return !isExpired; // Only keep non-expired invitations
+                } catch (e) {
+                  DebugLogger.log("⚠️ Error parsing expiration date: $e");
+                  return true; // Keep if parsing fails
+                }
+              })
+              .map((doc) => {
+                'id': doc.id,
+                ...doc.data(),
+              })
+              .toList();
+        });
   }
 
   // End session
