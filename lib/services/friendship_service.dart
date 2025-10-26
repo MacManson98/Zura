@@ -112,6 +112,7 @@ class FriendshipService {
     }
   }
 
+  // ✅ FIX BUG #10: Use transaction and reorder operations (friends first, delete last)
   static Future<void> acceptFriendRequestById({
     required String requestDocumentId,
     required String fromUserId,
@@ -120,37 +121,42 @@ class FriendshipService {
     try {
       DebugLogger.log("🤝 Starting to accept friend request with document ID: $requestDocumentId");
       DebugLogger.log("👥 From: $fromUserId -> To: $toUserId");
-      
-      final batch = _firestore.batch();
 
-      // DELETE the friend request document using the ACTUAL document ID
-      final requestRef = _firestore.collection('friend_requests').doc(requestDocumentId);
-      DebugLogger.log("🗑️ Adding delete operation for actual document: $requestDocumentId");
-      batch.delete(requestRef);
+      // ✅ FIX: Use transaction for absolute atomicity
+      await _firestore.runTransaction((transaction) async {
+        final requestRef = _firestore.collection('friend_requests').doc(requestDocumentId);
+        final fromUserRef = _firestore.collection('users').doc(fromUserId);
+        final toUserRef = _firestore.collection('users').doc(toUserId);
 
-      // Add to both users' friends arrays
-      final fromUserRef = _firestore.collection('users').doc(fromUserId);
-      DebugLogger.log("👥 Adding $toUserId to $fromUserId's friends");
-      batch.update(fromUserRef, {
-        'friendIds': FieldValue.arrayUnion([toUserId]),
+        // Verify request still exists
+        final requestDoc = await transaction.get(requestRef);
+        if (!requestDoc.exists) {
+          throw Exception('Friend request no longer exists');
+        }
+
+        // Verify request is still pending
+        final requestData = requestDoc.data()!;
+        if (requestData['status'] != 'pending') {
+          throw Exception('Friend request is no longer pending');
+        }
+
+        // ✅ FIX: Update users to be friends FIRST (before deleting request)
+        DebugLogger.log("👥 Adding $toUserId to $fromUserId's friends");
+        transaction.update(fromUserRef, {
+          'friendIds': FieldValue.arrayUnion([toUserId]),
+        });
+
+        DebugLogger.log("👥 Adding $fromUserId to $toUserId's friends");
+        transaction.update(toUserRef, {
+          'friendIds': FieldValue.arrayUnion([fromUserId]),
+        });
+
+        // ✅ FIX: Delete request LAST (after friendship established)
+        DebugLogger.log("🗑️ Deleting friend request document");
+        transaction.delete(requestRef);
       });
 
-      final toUserRef = _firestore.collection('users').doc(toUserId);
-      DebugLogger.log("👥 Adding $fromUserId to $toUserId's friends");
-      batch.update(toUserRef, {
-        'friendIds': FieldValue.arrayUnion([fromUserId]),
-      });
-
-      // Commit the batch
-      DebugLogger.log("💾 Committing batch operation...");
-      await batch.commit();
-      DebugLogger.log("✅ Batch committed successfully!");
-
-      // Verify the document was deleted
-      final deletedDoc = await requestRef.get();
-      DebugLogger.log("🔍 Verification - Document exists after delete: ${deletedDoc.exists}");
-
-      DebugLogger.log("✅ Friend request accepted. Users are now friends!");
+      DebugLogger.log("✅ Friend request accepted atomically. Users are now friends!");
     } catch (e) {
       DebugLogger.log("❌ Error accepting friend request by ID: $e");
       DebugLogger.log("❌ Document ID: $requestDocumentId");
@@ -353,6 +359,7 @@ class FriendshipService {
       return null;
     }
   }
+  // ✅ FIX BUG #9: Batch load friends instead of N+1 queries
   static Stream<List<UserProfile>> watchFriends(String userId) {
     return _firestore.collection('users').doc(userId).snapshots().asyncMap((userDoc) async {
       if (!userDoc.exists) return <UserProfile>[];
@@ -362,19 +369,30 @@ class FriendshipService {
 
       if (friendIds.isEmpty) return <UserProfile>[];
 
-      // Load all friend profiles
+      // ✅ FIX: Batch load friends (Firestore limit is 10 per whereIn query)
       final List<UserProfile> friends = [];
-      for (String friendId in friendIds) {
+
+      // Split into batches of 10 (Firestore whereIn limit)
+      for (int i = 0; i < friendIds.length; i += 10) {
+        final batch = friendIds.skip(i).take(10).toList();
+
         try {
-          final friendDoc = await _firestore.collection('users').doc(friendId).get();
-          if (friendDoc.exists) {
-            friends.add(UserProfile.fromJson(friendDoc.data()!));
+          final snapshot = await _firestore
+              .collection('users')
+              .where(FieldPath.documentId, whereIn: batch)
+              .get();
+
+          for (final doc in snapshot.docs) {
+            if (doc.exists) {
+              friends.add(UserProfile.fromJson(doc.data()));
+            }
           }
         } catch (e) {
-          DebugLogger.log("❌ Error loading friend $friendId: $e");
+          DebugLogger.log("❌ Error loading friend batch starting at index $i: $e");
         }
       }
 
+      DebugLogger.log("✅ Loaded ${friends.length} friends in ${(friendIds.length / 10).ceil()} batch(es) (was ${friendIds.length} individual queries!)");
       return friends;
     });
   }

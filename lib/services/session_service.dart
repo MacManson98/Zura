@@ -759,15 +759,18 @@ class SessionService {
           return currentSession;
         }
         
+        // ✅ FIX BUG #8: Transaction ensures these checks are atomic
+        // If session status changes between read and write, Firestore will retry the transaction
+
         // ✅ FIX 3: Validate session can accept new participants
         if (currentSession.status == SessionStatus.cancelled) {
           throw Exception("Cannot join cancelled session");
         }
-        
+
         if (currentSession.status == SessionStatus.completed) {
           throw Exception("Cannot join completed session");
         }
-        
+
         // ✅ FIX 4: Allow joining both created and active sessions for groups
         final validStatuses = [SessionStatus.created, SessionStatus.active];
         if (!validStatuses.contains(currentSession.status)) {
