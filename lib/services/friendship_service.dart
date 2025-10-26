@@ -20,31 +20,68 @@ class FriendshipService {
       DebugLogger.log("🔍 DEBUG - fromUserId parameter: $fromUserId");
       DebugLogger.log("🔍 DEBUG - Are they equal? ${currentAuthUser?.uid == fromUserId}");
       DebugLogger.log("🔍 DEBUG - Is user authenticated? ${currentAuthUser != null}");
-      
-      // Check if a friend request already exists (should be rare now)
-      final requestId = '${fromUserId}_$toUserId';
-      final existingRequest = await _firestore.collection('friend_requests').doc(requestId).get();
-      
-      if (existingRequest.exists) {
-        final status = existingRequest.data()!['status'];
-        DebugLogger.log("⚠️ Friend request already exists with status: $status");
-        
-        if (status == 'pending') {
-          throw Exception('Friend request already sent and is pending');
+
+      // ✅ FIX BUG #4: Use transaction to prevent race condition
+      await _firestore.runTransaction((transaction) async {
+        // Check both directions for existing requests
+        final requestId1 = '${fromUserId}_$toUserId';
+        final requestId2 = '${toUserId}_$fromUserId';
+
+        final request1Ref = _firestore.collection('friend_requests').doc(requestId1);
+        final request2Ref = _firestore.collection('friend_requests').doc(requestId2);
+
+        final request1 = await transaction.get(request1Ref);
+        final request2 = await transaction.get(request2Ref);
+
+        // Check if request exists in either direction
+        if (request1.exists) {
+          final status = request1.data()!['status'];
+          if (status == 'pending') {
+            throw Exception('Friend request already sent and is pending');
+          }
+          // Clean up old request
+          transaction.delete(request1Ref);
+          DebugLogger.log("🗑️ Cleaned up old friend request (direction 1)");
         }
-        // If it exists but isn't pending, delete it and create a new one
-        await _firestore.collection('friend_requests').doc(requestId).delete();
-        DebugLogger.log("🗑️ Cleaned up old friend request");
-      }
-      
-      // Create new friend request document
-      await _firestore.collection('friend_requests').doc(requestId).set({
-        'fromUserId': fromUserId,
-        'toUserId': toUserId,
-        'fromUserName': fromUserName,
-        'toUserName': toUserName,
-        'status': 'pending',
-        'sentAt': FieldValue.serverTimestamp(),
+
+        if (request2.exists) {
+          final status = request2.data()!['status'];
+          if (status == 'pending') {
+            // If there's a reverse pending request, auto-accept it (mutual interest!)
+            DebugLogger.log("🎉 Mutual friend request detected - auto-accepting!");
+
+            // Delete both potential requests
+            transaction.delete(request2Ref);
+
+            // Add as friends immediately
+            final fromUserRef = _firestore.collection('users').doc(fromUserId);
+            final toUserRef = _firestore.collection('users').doc(toUserId);
+
+            transaction.update(fromUserRef, {
+              'friendIds': FieldValue.arrayUnion([toUserId]),
+            });
+            transaction.update(toUserRef, {
+              'friendIds': FieldValue.arrayUnion([fromUserId]),
+            });
+
+            return; // Don't create new request, friendship established!
+          }
+          // Clean up old request
+          transaction.delete(request2Ref);
+          DebugLogger.log("🗑️ Cleaned up old friend request (direction 2)");
+        }
+
+        // Create new friend request document
+        transaction.set(request1Ref, {
+          'fromUserId': fromUserId,
+          'toUserId': toUserId,
+          'fromUserName': fromUserName,
+          'toUserName': toUserName,
+          'status': 'pending',
+          'sentAt': FieldValue.serverTimestamp(),
+        });
+
+        DebugLogger.log("✅ Friend request created atomically in transaction");
       });
 
       DebugLogger.log("✅ Friend request sent from $fromUserName to $toUserName");

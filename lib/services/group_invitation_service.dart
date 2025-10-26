@@ -130,7 +130,7 @@ class GroupInvitationService {
   // ACCEPT/DECLINE INVITATIONS
   // ============================================================================
 
-  /// Accept a group invitation
+  /// ✅ FIX BUG #2: Accept group invitation atomically using transaction
   Future<bool> acceptGroupInvitation(String invitationId) async {
     try {
       final invitation = await getInvitationById(invitationId);
@@ -142,20 +142,47 @@ class GroupInvitationService {
         throw Exception('Invitation is no longer pending');
       }
 
-      // Update invitation status
-      await _invitationsCollection.doc(invitationId).update({
-        'status': 'accepted',
-        'respondedAt': FieldValue.serverTimestamp(),
+      // ✅ FIX: Use transaction to ensure both operations succeed or both fail
+      await _firestore.runTransaction((transaction) async {
+        // Get references
+        final inviteRef = _invitationsCollection.doc(invitationId);
+        final groupRef = _firestore.collection('groups').doc(invitation['groupId']);
+        final userRef = _firestore.collection('users').doc(invitation['toUserId']);
+
+        // Check group still exists
+        final groupDoc = await transaction.get(groupRef);
+        if (!groupDoc.exists) {
+          throw Exception('Group no longer exists');
+        }
+
+        final groupData = groupDoc.data() as Map<String, dynamic>;
+        final currentMemberIds = List<String>.from(groupData['memberIds'] ?? []);
+
+        // Check if already a member (idempotent operation)
+        if (currentMemberIds.contains(invitation['toUserId'])) {
+          DebugLogger.log("⚠️ User already in group - marking invitation accepted anyway");
+        } else {
+          // Add user to group
+          transaction.update(groupRef, {
+            'memberIds': FieldValue.arrayUnion([invitation['toUserId']]),
+            'memberCount': FieldValue.increment(1),
+            'lastActivityDate': FieldValue.serverTimestamp(),
+          });
+        }
+
+        // Update user's profile
+        transaction.update(userRef, {
+          'groupIds': FieldValue.arrayUnion([invitation['groupId']]),
+        });
+
+        // Mark invitation as accepted
+        transaction.update(inviteRef, {
+          'status': 'accepted',
+          'respondedAt': FieldValue.serverTimestamp(),
+        });
       });
 
-      // Add user to the group
-      await _addUserToGroup(
-        invitation['groupId'],
-        invitation['toUserId'],
-        invitation['toUserName'],
-      );
-
-      DebugLogger.log("✅ Accepted group invitation: ${invitation['groupName']}");
+      DebugLogger.log("✅ Accepted group invitation atomically: ${invitation['groupName']}");
       return true;
     } catch (e) {
       DebugLogger.log("❌ Error accepting group invitation: $e");

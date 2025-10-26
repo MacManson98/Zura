@@ -233,6 +233,19 @@ class SessionService {
       final currentUserId = FirebaseAuth.instance.currentUser?.uid;
       if (currentUserId == null) throw Exception("User not authenticated");
 
+      // ✅ FIX BUG #6: Check if user already has invitation for this session (prevent duplicates)
+      final existingInvites = await _usersCollection
+          .doc(friendId)
+          .collection('pending_invitations')
+          .where('sessionId', isEqualTo: sessionId)
+          .where('status', isEqualTo: 'pending')
+          .get();
+
+      if (existingInvites.docs.isNotEmpty) {
+        DebugLogger.log("⚠️ User $friendName already has a pending invitation for this session - skipping");
+        return;
+      }
+
       // Get host information
       final hostDoc = await _usersCollection.doc(currentUserId).get();
       final hostName = hostDoc.data()?['name'] ?? 'Someone';
@@ -294,7 +307,13 @@ class SessionService {
       
       // Add invitation to friend's pending invitations
       await _usersCollection.doc(friendId).collection('pending_invitations').add(invitationData);
-      
+
+      // ✅ FIX BUG #1 & #6: Track invited users in session for efficient cleanup & duplicate prevention
+      await _sessionsCollection.doc(sessionId).update({
+        'invitedUserIds': FieldValue.arrayUnion([friendId]),
+        'lastInviteSentAt': FieldValue.serverTimestamp(),
+      });
+
       DebugLogger.log("✅ Invitation sent to $friendName");
       if (selectedMood != null) {
         DebugLogger.log("   Mood: ${selectedMood.displayName} ${selectedMood.emoji}");
@@ -486,7 +505,7 @@ class SessionService {
     }
   }
 
-  // Clean up invitations for a deleted session
+  // ✅ FIX BUG #1 & #3: Clean up invitations efficiently using tracked invited users
   static Future<void> _cleanupInvitationsForSession(String sessionId) async {
     try {
       // 🆕 ADD: Authentication guard
@@ -496,22 +515,45 @@ class SessionService {
         return;
       }
 
-      // Get all users and check their pending invitations
-      final usersSnapshot = await _usersCollection.get();
-      
-      for (final userDoc in usersSnapshot.docs) {
-        final invitationsSnapshot = await userDoc.reference
-            .collection('pending_invitations')
-            .where('sessionId', isEqualTo: sessionId)
-            .get();
-        
-        // Delete invitations for this session
-        for (final invitationDoc in invitationsSnapshot.docs) {
-          await invitationDoc.reference.delete();
+      // ✅ FIX: Get the session to find invited users (much more efficient!)
+      final sessionDoc = await _sessionsCollection.doc(sessionId).get();
+
+      if (!sessionDoc.exists) {
+        DebugLogger.log("⚠️ Session not found for cleanup: $sessionId");
+        return;
+      }
+
+      final sessionData = sessionDoc.data()!;
+      final invitedUserIds = List<String>.from(sessionData['invitedUserIds'] ?? []);
+      final participantIds = List<String>.from(sessionData['participantIds'] ?? []);
+
+      // Combine invited and participant IDs (some may have accepted already)
+      final allRelevantUserIds = {...invitedUserIds, ...participantIds};
+
+      DebugLogger.log("🧹 Cleaning up invitations for ${allRelevantUserIds.length} users (was querying ALL users!)");
+
+      // ✅ FIX: Only query the specific users who were invited (not all users!)
+      int cleanedCount = 0;
+      for (final userId in allRelevantUserIds) {
+        try {
+          final invitationsSnapshot = await _usersCollection
+              .doc(userId)
+              .collection('pending_invitations')
+              .where('sessionId', isEqualTo: sessionId)
+              .get();
+
+          // Delete invitations for this session
+          for (final invitationDoc in invitationsSnapshot.docs) {
+            await invitationDoc.reference.delete();
+            cleanedCount++;
+          }
+        } catch (e) {
+          DebugLogger.log("⚠️ Could not clean invitations for user $userId: $e");
+          // Continue with other users even if one fails
         }
       }
-      
-      DebugLogger.log("✅ Cleaned up invitations for session: $sessionId");
+
+      DebugLogger.log("✅ Cleaned up $cleanedCount invitations for session: $sessionId");
     } catch (e) {
       DebugLogger.log("❌ Error cleaning up invitations: $e");
     }
@@ -1042,39 +1084,10 @@ class SessionService {
     }
   }
 
+  // ✅ FIX BUG #3: Use the efficient cleanup method instead of limit(100)
   static Future<void> cleanupInvitationsAfterSessionEnd(String sessionId) async {
-    try {
-      DebugLogger.log("🧹 Cleaning up invitations for ended session: $sessionId");
-      
-      // Get all users who might have pending invitations for this session
-      final usersSnapshot = await _usersCollection.limit(100).get();
-      
-      final batch = _firestore.batch();
-      int deleteCount = 0;
-      
-      for (final userDoc in usersSnapshot.docs) {
-        final invitationsSnapshot = await userDoc.reference
-            .collection('pending_invitations')
-            .where('sessionId', isEqualTo: sessionId)
-            .get();
-        
-        for (final inviteDoc in invitationsSnapshot.docs) {
-          batch.delete(inviteDoc.reference);
-          deleteCount++;
-          DebugLogger.log("🗑️ Will delete invitation: ${inviteDoc.id} for user: ${userDoc.id}");
-        }
-      }
-      
-      if (deleteCount > 0) {
-        await batch.commit();
-        DebugLogger.log("✅ Cleaned up $deleteCount pending invitations for session: $sessionId");
-      } else {
-        DebugLogger.log("ℹ️ No pending invitations found for session: $sessionId");
-      }
-      
-    } catch (e) {
-      DebugLogger.log("❌ Error cleaning up invitations for ended session: $e");
-    }
+    // Delegate to the efficient cleanup function that tracks invited users
+    await _cleanupInvitationsForSession(sessionId);
   }
 
 
