@@ -549,9 +549,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildModeSelection() {
-    final hasFriends = widget.profile.friendIds.isNotEmpty;
-    final hasGroups = widget.profile.groupIds.isNotEmpty;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -574,33 +571,26 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 Icons.person,
                 const Color(0xFFE5A00D),
                 () => widget.onNavigateToSoloMatcher?.call(),
-                isUnlocked: true,
               ),
             ),
             SizedBox(width: 12.w),
             Expanded(
               child: _buildModeCard(
                 'Friend',
-                hasFriends ? 'Match together' : 'Add friends first',
+                'Match together',
                 Icons.people,
                 Colors.purple,
-                hasFriends
-                    ? () => widget.onNavigateToFriendMatcher?.call()
-                    : widget.onNavigateToFriends,
-                isUnlocked: hasFriends,
+                () => widget.onNavigateToFriendMatcher?.call(),
               ),
             ),
             SizedBox(width: 12.w),
             Expanded(
               child: _buildModeCard(
                 'Group',
-                hasGroups ? 'Party mode' : 'Create group first',
+                'Party mode',
                 Icons.groups,
                 Colors.indigo,
-                hasGroups
-                    ? () => widget.onNavigateToGroupMatcher?.call()
-                    : widget.onNavigateToFriends, // Groups tab is in friends screen
-                isUnlocked: hasGroups,
+                () => widget.onNavigateToGroupMatcher?.call(),
               ),
             ),
           ],
@@ -609,20 +599,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildModeCard(String title, String subtitle, IconData icon, Color color, VoidCallback? onTap, {bool isUnlocked = true}) {
+  Widget _buildModeCard(String title, String subtitle, IconData icon, Color color, VoidCallback? onTap) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: EdgeInsets.all(16.w),
         decoration: BoxDecoration(
-          color: isUnlocked
-              ? color.withValues(alpha: 0.2)
-              : Colors.grey.withValues(alpha: 0.1),
+          color: color.withValues(alpha: 0.2),
           borderRadius: BorderRadius.circular(16.r),
           border: Border.all(
-            color: isUnlocked
-                ? color.withValues(alpha: 0.4)
-                : Colors.grey.withValues(alpha: 0.3),
+            color: color.withValues(alpha: 0.4),
             width: 1.w,
           ),
           boxShadow: [
@@ -635,40 +621,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ),
         child: Column(
           children: [
-            Stack(
-              alignment: Alignment.center,
-              children: [
-                Icon(
-                  icon,
-                  size: 28.sp,
-                  color: isUnlocked ? color : Colors.grey,
-                ),
-                if (!isUnlocked)
-                  Positioned(
-                    right: -4.w,
-                    top: -4.h,
-                    child: Container(
-                      padding: EdgeInsets.all(3.w),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[700],
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.lock,
-                        size: 12.sp,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
+            Icon(icon, size: 28.sp, color: color),
             SizedBox(height: 8.h),
             Text(
               title,
               style: TextStyle(
                 fontSize: 14.sp,
                 fontWeight: FontWeight.bold,
-                color: isUnlocked ? Colors.white : Colors.grey,
+                color: Colors.white,
               ),
             ),
             SizedBox(height: 4.h),
@@ -676,11 +636,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               subtitle,
               style: TextStyle(
                 fontSize: 10.sp,
-                color: isUnlocked ? Colors.white70 : Colors.grey[600],
+                color: Colors.white70,
               ),
               textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),

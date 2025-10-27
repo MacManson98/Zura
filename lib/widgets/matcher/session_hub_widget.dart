@@ -324,23 +324,26 @@ class _SessionHubWidgetState extends State<SessionHubWidget> {
       if (!hasFriends) {
         return _buildEmptyHistoryState(
           mode: MatchingMode.friend,
-          title: "Add Friends to Match Together",
-          message: "Friend matching is the heart of Zura! Add friends to start discovering movies you'll both love.",
-          actionText: "Add Friends",
+          title: "You Have No Friends",
+          message: "Add friends to start matching together! Go to the Friends tab (3rd icon) to search and add friends.",
+          actionText: "Got It",
           onAction: () {
-            // Navigate to friends tab
-            Navigator.of(context).popUntil((route) => route.isFirst);
+            ThemedNotifications.showInfo(
+              context,
+              'Tap the Friends icon (3rd from left) to add friends!',
+              icon: "👥",
+            );
           },
-          icon: Icons.person_add,
+          icon: Icons.person_add_outlined,
         );
       } else {
         return _buildEmptyHistoryState(
           mode: MatchingMode.friend,
           title: "No Friend Sessions Yet",
           message: "Invite a friend to start matching! You'll swipe together and see what movies you both like.",
-          actionText: "Invite a Friend",
+          actionText: "Start Session",
           onAction: widget.onShowMoodPicker,
-          icon: Icons.send,
+          icon: Icons.play_arrow,
         );
       }
     }
@@ -400,23 +403,26 @@ class _SessionHubWidgetState extends State<SessionHubWidget> {
       if (!hasGroups) {
         return _buildEmptyHistoryState(
           mode: MatchingMode.group,
-          title: "Create a Group to Get Started",
-          message: "Group matching is perfect for movie nights with friends! Create a group and invite everyone to find the perfect film together.",
-          actionText: "Create Group",
+          title: "You Have No Groups",
+          message: "Create a group to match with multiple friends! Go to the Friends tab (3rd icon) and tap Groups to create one.",
+          actionText: "Got It",
           onAction: () {
-            // Navigate to friends tab where groups can be created
-            Navigator.of(context).popUntil((route) => route.isFirst);
+            ThemedNotifications.showInfo(
+              context,
+              'Tap Friends icon, then tap Groups tab to create a group!',
+              icon: "👥",
+            );
           },
-          icon: Icons.group_add,
+          icon: Icons.group_add_outlined,
         );
       } else {
         return _buildEmptyHistoryState(
           mode: MatchingMode.group,
           title: "No Group Sessions Yet",
           message: "Select a group and start swiping together! Everyone's votes count toward finding the perfect match.",
-          actionText: "Start Group Session",
+          actionText: "Start Session",
           onAction: widget.onShowMoodPicker,
-          icon: Icons.groups,
+          icon: Icons.play_arrow,
         );
       }
     }
