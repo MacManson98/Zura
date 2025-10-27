@@ -1675,6 +1675,43 @@ void initState() {
         case 'sessionPassedMovieIds':
           sessionPassedMovieIds = Set<String>.from(value);
           break;
+        // ✅ FIX: Add missing collaborative session state variables
+        case 'isWaitingForFriend':
+          isWaitingForFriend = value;
+          break;
+        case 'isInCollaborativeMode':
+          isInCollaborativeMode = value;
+          break;
+        case 'currentMode':
+          currentMode = value;
+          break;
+        case 'currentSession':
+          currentSession = value;
+          break;
+        case 'isLoadingSession':
+          _isLoadingSession = value;
+          break;
+        case 'currentSessionMovieIds':
+          currentSessionMovieIds.clear();
+          if (value != null) {
+            currentSessionMovieIds.addAll(Set<String>.from(value));
+          }
+          break;
+        case 'selectedFriend':
+          selectedFriend = value;
+          break;
+        case 'selectedGroup':
+          selectedGroup = List<UserProfile>.from(value ?? []);
+          break;
+        case 'groupLikes':
+          groupLikes.clear();
+          if (value != null) {
+            final Map<String, dynamic> groupLikesMap = value;
+            groupLikesMap.forEach((key, val) {
+              groupLikes[key] = Set<String>.from(val);
+            });
+          }
+          break;
         // Add other cases as needed
       }
     });

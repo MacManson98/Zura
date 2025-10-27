@@ -281,9 +281,15 @@ class _SessionHubWidgetState extends State<SessionHubWidget> {
     final soloSessions = _allDisplaySessions
         .where((s) => s.type == SessionType.solo)
         .toList();
-    
+
     if (soloSessions.isEmpty) {
-      return _buildEmptyHistoryState();
+      return _buildEmptyHistoryState(
+        mode: MatchingMode.solo,
+        title: "Start Your Solo Journey",
+        message: "Swipe through movies to discover what you love. Your preferences help us recommend better matches!",
+        actionText: "Start Swiping",
+        onAction: widget.onStartPopularMovies,
+      );
     }
 
     final groupedSessions = _groupSessionsByTime(soloSessions);
@@ -304,15 +310,39 @@ class _SessionHubWidgetState extends State<SessionHubWidget> {
 
   Widget _buildFriendHistory() {
     final friendSessions = _allDisplaySessions
-        .where((s) => 
+        .where((s) =>
           s.type == SessionType.friend && // ✅ FIX: Explicit friend type check
           s.participantNames.length == 2 &&
           (s.groupName == null || s.groupName!.isEmpty) // ✅ FIX: No group name
         )
         .toList();
-    
+
     if (friendSessions.isEmpty) {
-      return _buildEmptyHistoryState();
+      // Check if user has friends
+      final hasFriends = widget.friendIds.isNotEmpty;
+
+      if (!hasFriends) {
+        return _buildEmptyHistoryState(
+          mode: MatchingMode.friend,
+          title: "Add Friends to Match Together",
+          message: "Friend matching is the heart of Zura! Add friends to start discovering movies you'll both love.",
+          actionText: "Add Friends",
+          onAction: () {
+            // Navigate to friends tab
+            Navigator.of(context).popUntil((route) => route.isFirst);
+          },
+          icon: Icons.person_add,
+        );
+      } else {
+        return _buildEmptyHistoryState(
+          mode: MatchingMode.friend,
+          title: "No Friend Sessions Yet",
+          message: "Invite a friend to start matching! You'll swipe together and see what movies you both like.",
+          actionText: "Invite a Friend",
+          onAction: widget.onShowMoodPicker,
+          icon: Icons.send,
+        );
+      }
     }
 
     final sessionsByFriend = <String, List<CompletedSession>>{};
@@ -337,24 +367,24 @@ class _SessionHubWidgetState extends State<SessionHubWidget> {
   Widget _buildGroupHistory() {
     // ✅ FIXED: Strict group session detection
     final groupSessions = _allDisplaySessions
-        .where((s) => 
+        .where((s) =>
           // Must be explicitly marked as group type OR have group indicators
           s.type == SessionType.group ||
           (s.groupName != null && s.groupName!.isNotEmpty) ||
           s.participantNames.length > 2
         )
         .toList();
-    
+
     // ✅ ENHANCED: Debug logging
     DebugLogger.log("🔍 Group History Filter Debug:");
     DebugLogger.log("   Total sessions: ${_allDisplaySessions.length}");
     DebugLogger.log("   Found group sessions: ${groupSessions.length}");
-    
+
     for (final session in _allDisplaySessions) {
       final isGroup = session.type == SessionType.group ||
                     (session.groupName != null && session.groupName!.isNotEmpty) ||
                     session.participantNames.length > 2;
-      
+
       DebugLogger.log("   Session: ${session.id}");
       DebugLogger.log("     Type: ${session.type}");
       DebugLogger.log("     Participants: ${session.participantNames.length} (${session.participantNames})");
@@ -362,9 +392,33 @@ class _SessionHubWidgetState extends State<SessionHubWidget> {
       DebugLogger.log("     Matches: ${session.matchedMovieIds.length}"); // ✅ FIX: Log matches
       DebugLogger.log("     Is Group: $isGroup");
     }
-    
+
     if (groupSessions.isEmpty) {
-      return _buildEmptyHistoryState();
+      // Check if user has groups
+      final hasGroups = widget.currentUser.groupIds.isNotEmpty;
+
+      if (!hasGroups) {
+        return _buildEmptyHistoryState(
+          mode: MatchingMode.group,
+          title: "Create a Group to Get Started",
+          message: "Group matching is perfect for movie nights with friends! Create a group and invite everyone to find the perfect film together.",
+          actionText: "Create Group",
+          onAction: () {
+            // Navigate to friends tab where groups can be created
+            Navigator.of(context).popUntil((route) => route.isFirst);
+          },
+          icon: Icons.group_add,
+        );
+      } else {
+        return _buildEmptyHistoryState(
+          mode: MatchingMode.group,
+          title: "No Group Sessions Yet",
+          message: "Select a group and start swiping together! Everyone's votes count toward finding the perfect match.",
+          actionText: "Start Group Session",
+          onAction: widget.onShowMoodPicker,
+          icon: Icons.groups,
+        );
+      }
     }
 
     final sessionsByGroup = <String, List<CompletedSession>>{};
@@ -1297,45 +1351,137 @@ class _SessionHubWidgetState extends State<SessionHubWidget> {
     }
   }
 
-  Widget _buildEmptyHistoryState() {
+  Widget _buildEmptyHistoryState({
+    required MatchingMode mode,
+    required String title,
+    required String message,
+    String? actionText,
+    VoidCallback? onAction,
+    IconData? icon,
+  }) {
     return Container(
       width: double.infinity,
-      // Add minimum height to ensure proper centering
       constraints: BoxConstraints(
         minHeight: MediaQuery.of(context).size.height * 0.4,
       ),
-      padding: EdgeInsets.all(24.w),
+      padding: EdgeInsets.all(32.w),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center, // ✅ ADD THIS
-        crossAxisAlignment: CrossAxisAlignment.center, // ✅ ADD THIS
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Icon(
-            Icons.history,
-            size: 48.sp,
-            color: Colors.white30,
+          // Icon
+          Container(
+            width: 80.w,
+            height: 80.w,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  _getModeColor(mode).withValues(alpha: 0.3),
+                  _getModeColor(mode).withValues(alpha: 0.1),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              icon ?? _getModeIcon(mode),
+              size: 40.sp,
+              color: _getModeColor(mode),
+            ),
           ),
-          SizedBox(height: 16.h),
+
+          SizedBox(height: 24.h),
+
+          // Title
           Text(
-            "No ${widget.currentMode.name} sessions yet",
+            title,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 20.sp,
+              fontWeight: FontWeight.bold,
+            ),
+            textAlign: TextAlign.center,
+          ),
+
+          SizedBox(height: 12.h),
+
+          // Message
+          Text(
+            message,
             style: TextStyle(
               color: Colors.white70,
-              fontSize: 16.sp,
-              fontWeight: FontWeight.w600,
-            ),
-            textAlign: TextAlign.center, // ✅ ADD THIS
-          ),
-          SizedBox(height: 8.h),
-          Text(
-            "Start your first session to see it here",
-            style: TextStyle(
-              color: Colors.white54,
               fontSize: 14.sp,
+              height: 1.5,
             ),
-            textAlign: TextAlign.center, // ✅ ADD THIS
+            textAlign: TextAlign.center,
           ),
+
+          // Action button
+          if (actionText != null && onAction != null) ...[
+            SizedBox(height: 24.h),
+            GestureDetector(
+              onTap: onAction,
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 32.w, vertical: 14.h),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [_getModeColor(mode), _getModeColor(mode).withValues(alpha: 0.7)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(12.r),
+                  boxShadow: [
+                    BoxShadow(
+                      color: _getModeColor(mode).withValues(alpha: 0.4),
+                      blurRadius: 8.r,
+                      offset: Offset(0, 4.h),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(icon ?? _getModeIcon(mode), color: Colors.white, size: 18.sp),
+                    SizedBox(width: 8.w),
+                    Text(
+                      actionText,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16.sp,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
+  }
+
+  Color _getModeColor(MatchingMode mode) {
+    switch (mode) {
+      case MatchingMode.solo:
+        return const Color(0xFFE5A00D);
+      case MatchingMode.friend:
+        return Colors.purple;
+      case MatchingMode.group:
+        return Colors.indigo;
+    }
+  }
+
+  IconData _getModeIcon(MatchingMode mode) {
+    switch (mode) {
+      case MatchingMode.solo:
+        return Icons.person;
+      case MatchingMode.friend:
+        return Icons.people;
+      case MatchingMode.group:
+        return Icons.groups;
+    }
   }
 
   Widget _buildLoadingState() {

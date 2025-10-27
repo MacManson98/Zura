@@ -39,6 +39,13 @@ class UnifiedSessionManager {
   
   /// Get the current active collaborative session
   static SwipeSession? get activeCollaborativeSession => _activeCollaborativeSession;
+
+  // ✅ FIX BUG #22: Clear all session state (call on logout)
+  static void clearAllSessions() {
+    _activeCollaborativeSession = null;
+    SessionManager.clearAll();
+    DebugLogger.log("🧹 All session state cleared (logout/reset)");
+  }
   
   /// Get any active session formatted for display (both solo and collaborative)
   /// Get any active session formatted for display (both solo and collaborative)

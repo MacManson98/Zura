@@ -81,6 +81,9 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
         notificationsEnabled: _notificationsEnabled,
       );
 
+      // ✅ FIX BUG #7: Track invitation success and show accurate messages
+      bool invitationsSentSuccessfully = true;
+
       // ✅ STEP 2: Send actual invitations to selected friends
       if (_selectedFriends.isNotEmpty) {
         try {
@@ -92,37 +95,41 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
             creator: widget.currentUser,
             invitees: _selectedFriends.toList(),
           );
-          
+
           DebugLogger.log("✅ Sent ${_selectedFriends.length} group invitations");
         } catch (inviteError) {
+          invitationsSentSuccessfully = false;
           DebugLogger.log("⚠️ Error sending invitations: $inviteError");
           // Don't fail the entire group creation if invitations fail
           if (mounted) {
             ThemedNotifications.showError(
-              context, 
+              context,
               'Group created but some invitations failed to send'
             );
           }
         }
       }
 
-      if (mounted) {
+      // ✅ FIX: Show success message only if invitations actually sent (or no invitations needed)
+      if (mounted && invitationsSentSuccessfully) {
         final inviteCount = _selectedFriends.length;
         if (inviteCount > 0) {
           ThemedNotifications.showSuccess(
-            context, 
+            context,
             'Group "${group.name}" created! Sent $inviteCount invitation${inviteCount != 1 ? 's' : ''}.',
             icon: "🎉"
           );
         } else {
           ThemedNotifications.showSuccess(
-            context, 
+            context,
             'Group "${group.name}" created!',
             icon: "🎉"
           );
         }
-        
-        // Navigate back to friends screen
+      }
+
+      // Navigate back regardless of invitation success (group was created)
+      if (mounted) {
         Navigator.pop(context, true); // Return true to indicate success
       }
     } catch (e) {

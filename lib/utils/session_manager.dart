@@ -99,4 +99,10 @@ class SessionManager {
     if (_currentSession == null) return null;
     return DateTime.now().difference(_currentSession!.startTime);
   }
+
+  // ✅ FIX BUG #11: Clear all session state (call on logout to prevent data leak)
+  static void clearAll() {
+    _currentSession = null;
+    _lastActivity = null;
+  }
 }
