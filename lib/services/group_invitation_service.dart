@@ -269,55 +269,9 @@ class GroupInvitationService {
   // HELPER METHODS
   // ============================================================================
 
-  /// Add user to an existing group after accepting invitation
-  Future<void> _addUserToGroup(String groupId, String userId, String userName) async {
-    try {
-      final groupDoc = await _firestore.collection('groups').doc(groupId).get();
-      
-      if (!groupDoc.exists) {
-        throw Exception('Group not found');
-      }
-
-      final groupData = groupDoc.data() as Map<String, dynamic>;
-      final currentMemberIds = List<String>.from(groupData['memberIds'] ?? []);
-      
-      // Check if user is already a member
-      if (currentMemberIds.contains(userId)) {
-        DebugLogger.log("⚠️ User $userName is already a member of group $groupId");
-        return;
-      }
-
-      // Add user to group's member list
-      await _firestore.collection('groups').doc(groupId).update({
-        'memberIds': FieldValue.arrayUnion([userId]),
-        'memberCount': FieldValue.increment(1),
-        'lastActivityDate': FieldValue.serverTimestamp(),
-      });
-
-      // Add group to user's profile (you'll need to implement this based on your user system)
-      await _addGroupToUserProfile(userId, groupId);
-
-      DebugLogger.log("✅ Added user $userName to group $groupId");
-    } catch (e) {
-      DebugLogger.log("❌ Error adding user to group: $e");
-      throw Exception('Failed to add user to group: $e');
-    }
-  }
-
-  /// Add group to user's profile
-  Future<void> _addGroupToUserProfile(String userId, String groupId) async {
-    try {
-      // Update user document to include this group
-      await _firestore.collection('users').doc(userId).update({
-        'groupIds': FieldValue.arrayUnion([groupId]),
-      });
-
-      DebugLogger.log("✅ Added group $groupId to user $userId profile");
-    } catch (e) {
-      DebugLogger.log("❌ Error updating user profile: $e");
-      // Don't throw here - user might not have a profile document yet
-    }
-  }
+  // NOTE: _addUserToGroup and _addGroupToUserProfile methods were removed.
+  // We now use atomic transactions in acceptGroupInvitation (Bug #2 fix)
+  // to ensure data consistency when adding users to groups.
 
   // ============================================================================
   // STATISTICS
