@@ -340,10 +340,10 @@ class _SessionHubWidgetState extends State<SessionHubWidget> {
         return _buildEmptyHistoryState(
           mode: MatchingMode.friend,
           title: "No Friend Sessions Yet",
-          message: "Invite a friend to start matching! You'll swipe together and see what movies you both like.",
-          actionText: "Start Session",
-          onAction: widget.onShowMoodPicker,
-          icon: Icons.play_arrow,
+          message: "To start matching with a friend:\n\n1. Tap \"Invite Friend\" button above\n2. Select a friend\n3. Choose your mood\n4. Wait for them to accept\n5. Start swiping together!",
+          actionText: null,
+          onAction: null,
+          icon: Icons.swap_horiz,
         );
       }
     }
@@ -419,10 +419,10 @@ class _SessionHubWidgetState extends State<SessionHubWidget> {
         return _buildEmptyHistoryState(
           mode: MatchingMode.group,
           title: "No Group Sessions Yet",
-          message: "Select a group and start swiping together! Everyone's votes count toward finding the perfect match.",
-          actionText: "Start Session",
-          onAction: widget.onShowMoodPicker,
-          icon: Icons.play_arrow,
+          message: "To start matching with a group:\n\n1. Tap \"Select Group\" button above\n2. Choose which group\n3. Pick your mood\n4. Wait for at least 1 person to join\n5. Start swiping! (Others can join anytime)",
+          actionText: null,
+          onAction: null,
+          icon: Icons.groups,
         );
       }
     }
