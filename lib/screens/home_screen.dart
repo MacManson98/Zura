@@ -131,6 +131,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       _buildQuickStats(),
                       SizedBox(height: 24.h),
 
+                      // New User Welcome Banner
+                      if (widget.friendIds.isEmpty) ...[
+                        _buildWelcomeBanner(),
+                        SizedBox(height: 24.h),
+                      ],
+
                       // Mode Selection
                       _buildModeSelection(),
                       SizedBox(height: 24.h),
@@ -307,6 +313,126 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
+  Widget _buildWelcomeBanner() {
+    return Container(
+      padding: EdgeInsets.all(20.w),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.purple.withValues(alpha: 0.3),
+            const Color(0xFFE5A00D).withValues(alpha: 0.2),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16.r),
+        border: Border.all(
+          color: Colors.purple.withValues(alpha: 0.4),
+          width: 1.w,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.purple.withValues(alpha: 0.2),
+            blurRadius: 12.r,
+            offset: Offset(0, 4.h),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: EdgeInsets.all(12.w),
+                decoration: BoxDecoration(
+                  color: Colors.purple.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(12.r),
+                ),
+                child: Icon(
+                  Icons.celebration,
+                  color: Colors.white,
+                  size: 24.sp,
+                ),
+              ),
+              SizedBox(width: 16.w),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Welcome to Zura!',
+                      style: TextStyle(
+                        fontSize: 20.sp,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    SizedBox(height: 4.h),
+                    Text(
+                      'Unlock collaborative matching',
+                      style: TextStyle(
+                        fontSize: 14.sp,
+                        color: Colors.white.withValues(alpha: 0.8),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 16.h),
+          Text(
+            'The magic happens when you watch together! Add your first friend to start discovering movies you\'ll both love.',
+            style: TextStyle(
+              fontSize: 14.sp,
+              color: Colors.white.withValues(alpha: 0.9),
+              height: 1.4,
+            ),
+          ),
+          SizedBox(height: 16.h),
+          GestureDetector(
+            onTap: widget.onNavigateToFriends,
+            child: Container(
+              width: double.infinity,
+              padding: EdgeInsets.symmetric(vertical: 14.h),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Colors.purple, Colors.deepPurple],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(12.r),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.purple.withValues(alpha: 0.4),
+                    blurRadius: 8.r,
+                    offset: Offset(0, 2.h),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.person_add, color: Colors.white, size: 20.sp),
+                  SizedBox(width: 8.w),
+                  Text(
+                    'Add Your First Friend',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16.sp,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildQuickStats() {
     return Container(
       padding: EdgeInsets.all(20.w),
@@ -423,6 +549,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildModeSelection() {
+    final hasFriends = widget.friendIds.isNotEmpty;
+    final hasGroups = widget.profile.groupIds.isNotEmpty;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -445,26 +574,33 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 Icons.person,
                 const Color(0xFFE5A00D),
                 () => widget.onNavigateToSoloMatcher?.call(),
+                isUnlocked: true,
               ),
             ),
             SizedBox(width: 12.w),
             Expanded(
               child: _buildModeCard(
                 'Friend',
-                'Match together',
+                hasFriends ? 'Match together' : 'Add friends first',
                 Icons.people,
                 Colors.purple,
-                () => widget.onNavigateToFriendMatcher?.call(),
+                hasFriends
+                    ? () => widget.onNavigateToFriendMatcher?.call()
+                    : widget.onNavigateToFriends,
+                isUnlocked: hasFriends,
               ),
             ),
             SizedBox(width: 12.w),
             Expanded(
               child: _buildModeCard(
                 'Group',
-                'Party mode',
+                hasGroups ? 'Party mode' : 'Create group first',
                 Icons.groups,
                 Colors.indigo,
-                () => widget.onNavigateToGroupMatcher?.call(),
+                hasGroups
+                    ? () => widget.onNavigateToGroupMatcher?.call()
+                    : widget.onNavigateToFriends, // Groups tab is in friends screen
+                isUnlocked: hasGroups,
               ),
             ),
           ],
@@ -473,16 +609,20 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildModeCard(String title, String subtitle, IconData icon, Color color, VoidCallback? onTap) {
+  Widget _buildModeCard(String title, String subtitle, IconData icon, Color color, VoidCallback? onTap, {bool isUnlocked = true}) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: EdgeInsets.all(16.w),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.2),
+          color: isUnlocked
+              ? color.withValues(alpha: 0.2)
+              : Colors.grey.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(16.r),
           border: Border.all(
-            color: color.withValues(alpha: 0.4),
+            color: isUnlocked
+                ? color.withValues(alpha: 0.4)
+                : Colors.grey.withValues(alpha: 0.3),
             width: 1.w,
           ),
           boxShadow: [
@@ -495,14 +635,40 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ),
         child: Column(
           children: [
-            Icon(icon, size: 28.sp, color: color),
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                Icon(
+                  icon,
+                  size: 28.sp,
+                  color: isUnlocked ? color : Colors.grey,
+                ),
+                if (!isUnlocked)
+                  Positioned(
+                    right: -4.w,
+                    top: -4.h,
+                    child: Container(
+                      padding: EdgeInsets.all(3.w),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[700],
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.lock,
+                        size: 12.sp,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
             SizedBox(height: 8.h),
             Text(
               title,
               style: TextStyle(
                 fontSize: 14.sp,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: isUnlocked ? Colors.white : Colors.grey,
               ),
             ),
             SizedBox(height: 4.h),
@@ -510,9 +676,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               subtitle,
               style: TextStyle(
                 fontSize: 10.sp,
-                color: Colors.white70,
+                color: isUnlocked ? Colors.white70 : Colors.grey[600],
               ),
               textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
