@@ -132,7 +132,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       SizedBox(height: 24.h),
 
                       // New User Welcome Banner
-                      if (widget.friendIds.isEmpty) ...[
+                      if (widget.profile.friendIds.isEmpty) ...[
                         _buildWelcomeBanner(),
                         SizedBox(height: 24.h),
                       ],
@@ -549,7 +549,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildModeSelection() {
-    final hasFriends = widget.friendIds.isNotEmpty;
+    final hasFriends = widget.profile.friendIds.isNotEmpty;
     final hasGroups = widget.profile.groupIds.isNotEmpty;
 
     return Column(
