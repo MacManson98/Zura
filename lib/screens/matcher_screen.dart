@@ -1947,33 +1947,35 @@ void initState() {
     DebugLogger.log("   Is host: ${session.hostId == widget.currentUser.uid}");
     DebugLogger.log("   Invite Type: ${session.inviteType}");
     DebugLogger.log("   Group Name: ${session.groupName}");
-    
+
     // ✅ FIXED: Properly determine if this is a group session
-    final isGroupSession = session.inviteType == InvitationType.group || 
+    final isGroupSession = session.inviteType == InvitationType.group ||
                           session.groupName != null ||
                           session.participantNames.length > 2;
-    
+
     DebugLogger.log("🔍 Group Detection Debug:");
     DebugLogger.log("   session.inviteType: ${session.inviteType}");
     DebugLogger.log("   session.groupName: ${session.groupName}");
     DebugLogger.log("   session.participantNames.length: ${session.participantNames.length}");
     DebugLogger.log("   isGroupSession result: $isGroupSession");
-    
+
     DebugLogger.log("🎯 Detected session type: ${isGroupSession ? 'GROUP' : 'FRIEND'}");
-    
+
     // ✅ NEW: Check if current user is already in the session
     final currentUserId = widget.currentUser.uid;
     final isAlreadyInSession = session.participantIds.contains(currentUserId);
-    
+    final isHost = session.hostId == widget.currentUser.uid;
+
     DebugLogger.log("👤 User already in session: $isAlreadyInSession");
-    
+    DebugLogger.log("👑 User is host: $isHost");
+
     setState(() {
       currentSession = session;
       isWaitingForFriend = session.status == SessionStatus.created;
       isInCollaborativeMode = true;
       // ✅ FIXED: Use proper group detection instead of just participant count
       currentMode = isGroupSession ? MatchingMode.group : MatchingMode.friend;
-      
+
       // Reset session state
       _isReadyToSwipe = false;
       selectedMoods.clear();
@@ -1983,11 +1985,19 @@ void initState() {
      UnifiedSessionManager.setActiveCollaborativeSession(session);
 
     DebugLogger.log("🎯 Collaborative session started successfully");
-    
+
+    // ✅ CRITICAL FIX: Host must start listening immediately after creating session
+    // This ensures host knows when friend accepts and session becomes active
+    if (isHost) {
+      DebugLogger.log("👑 HOST: Starting session listener to detect when friend joins");
+      // Start listener immediately for host (no delay needed)
+      _startSessionListener(session.sessionId);
+    }
+
     // Show success message to user
     ThemedNotifications.showSuccess(
-      context, 
-      session.hostId == widget.currentUser.uid 
+      context,
+      session.hostId == widget.currentUser.uid
           ? 'Session created! Waiting for friends...'
           : 'Successfully joined ${session.hostName}\'s session!',
       icon: "🎬"
